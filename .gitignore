@@ -15,12 +15,16 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# ── Secrets — never commit any .env file ──────────────────────────────────────
+# ── Secrets — never commit files with real credentials ────────────────────────
 .env
-.env.*
-# Allow example/template files (no real secrets in these)
+.env.local
+.env.*.local
+# Allow example/template files and committed environment defaults (no secrets)
 !.env.example
 !.env.*.example
+!.env.development
+!.env.production
+!.env.uat
 
 # ── Uploaded user files ───────────────────────────────────────────────────────
 backend/uploads/
