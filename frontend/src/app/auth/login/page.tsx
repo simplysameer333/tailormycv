@@ -16,7 +16,6 @@ function LoginContent() {
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (DEV) router.replace("/profile");
@@ -39,8 +38,7 @@ function LoginContent() {
   }
 
   async function handleGoogle() {
-    setGoogleLoading(true);
-    await signIn("google", { callbackUrl });
+    toast("Google sign-in coming soon. Please use email and password for now.", { icon: "ℹ️" });
   }
 
   return (
@@ -53,11 +51,10 @@ function LoginContent() {
 
         <button
           onClick={handleGoogle}
-          disabled={googleLoading}
           className="btn-secondary w-full justify-center gap-2"
         >
           <GoogleIcon />
-          {googleLoading ? "Redirecting…" : "Continue with Google"}
+          Continue with Google
         </button>
 
         <div className="flex items-center gap-3">

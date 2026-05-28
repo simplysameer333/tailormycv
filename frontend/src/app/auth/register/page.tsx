@@ -13,7 +13,6 @@ export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
     if (DEV) router.replace("/profile");
@@ -53,8 +52,7 @@ export default function RegisterPage() {
   }
 
   async function handleGoogle() {
-    setGoogleLoading(true);
-    await signIn("google", { callbackUrl: "/profile" });
+    toast("Google sign-in coming soon. Please use email and password for now.", { icon: "ℹ️" });
   }
 
   return (
@@ -67,11 +65,10 @@ export default function RegisterPage() {
 
         <button
           onClick={handleGoogle}
-          disabled={googleLoading}
           className="btn-secondary w-full justify-center gap-2"
         >
           <GoogleIcon />
-          {googleLoading ? "Redirecting…" : "Continue with Google"}
+          Continue with Google
         </button>
 
         <div className="flex items-center gap-3">
