@@ -8,7 +8,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Logo />
         </div>
       </nav>
-      <main className="flex-1 flex items-center justify-center px-4 py-12">
+      <main className="flex-1 flex items-start justify-center px-4 pt-8 pb-12">
         {children}
       </main>
     </div>

@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { FiUser, FiMail, FiLock, FiCheck } from "react-icons/fi";
+import { FiUser, FiMail, FiLock, FiCheck, FiEye, FiEyeOff } from "react-icons/fi";
 import api from "@/lib/api";
 import { signIn } from "next-auth/react";
 
@@ -67,6 +67,8 @@ export default function RegisterPage() {
   const [tier, setTier] = useState<Tier>("free");
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (DEV) router.replace("/profile");
@@ -210,14 +212,22 @@ export default function RegisterPage() {
                 <div className="relative">
                   <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     minLength={8}
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="input pl-9"
+                    className="input pl-9 pr-10"
                     placeholder="Min. 8 characters"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
               <div>
@@ -225,13 +235,21 @@ export default function RegisterPage() {
                 <div className="relative">
                   <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
-                    type="password"
+                    type={showConfirm ? "text" : "password"}
                     required
                     value={form.confirm}
                     onChange={(e) => setForm({ ...form, confirm: e.target.value })}
-                    className="input pl-9"
+                    className="input pl-9 pr-10"
                     placeholder="••••••••"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    tabIndex={-1}
+                  >
+                    {showConfirm ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
             </div>
