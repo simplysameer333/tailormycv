@@ -17,127 +17,62 @@ import { setSessionId } from "@/lib/session";
 import { useAuth } from "@/lib/useAuth";
 import ResumePickerModal from "@/components/ResumePickerModal";
 
-// ── Mock data — shown before first search ─────────────────────────────────────
+const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
+
+// ── Mock data — shown on localhost before first search ────────────────────────
 const MOCK_JOBS: Job[] = [
   {
-    job_id: "mock-1",
-    job_title: "Senior Frontend Engineer",
-    employer_name: "Stripe",
-    employer_logo: "https://logo.clearbit.com/stripe.com",
-    job_employment_type: "FULLTIME",
-    job_is_remote: true,
-    job_city: "San Francisco",
-    job_state: "CA",
-    job_country: "US",
-    job_min_salary: 160000,
-    job_max_salary: 210000,
-    job_salary_currency: "$",
-    job_salary_period: "YEAR",
-    job_posted_at_datetime_utc: new Date(Date.now() - 2 * 86400000).toISOString(),
-    job_apply_link: "#",
-    job_publisher: "LinkedIn",
-    job_required_skills: ["React", "TypeScript", "Next.js", "CSS"],
-    job_description: "We're looking for a Senior Frontend Engineer to join Stripe's product team. You'll build the interfaces that millions of businesses use to manage their payments. Strong React and TypeScript skills required.",
-    job_highlights: {
-      Qualifications: ["5+ years of frontend experience", "React, TypeScript", "Strong design sensibility"],
-      Responsibilities: ["Build and maintain core product UI", "Collaborate with design and product", "Mentor junior engineers"],
-    },
+    job_id: "mock-1", job_title: "Senior Frontend Engineer", employer_name: "Stripe",
+    employer_logo: "https://logo.clearbit.com/stripe.com", job_employment_type: "FULLTIME",
+    job_is_remote: true, job_city: "San Francisco", job_state: "CA", job_country: "US",
+    job_min_salary: 160000, job_max_salary: 210000, job_salary_currency: "$", job_salary_period: "YEAR",
+    job_posted_at_datetime_utc: new Date(Date.now() - 2 * 86400000).toISOString(), job_apply_link: "#",
+    job_publisher: "LinkedIn", job_required_skills: ["React", "TypeScript", "Next.js", "CSS"],
+    job_description: "We're looking for a Senior Frontend Engineer to join the product team. Strong React and TypeScript skills required.",
   },
   {
-    job_id: "mock-2",
-    job_title: "Product Manager — Growth",
-    employer_name: "Notion",
-    employer_logo: "https://logo.clearbit.com/notion.so",
-    job_employment_type: "FULLTIME",
-    job_is_remote: false,
-    job_city: "New York",
-    job_state: "NY",
-    job_country: "US",
-    job_min_salary: 140000,
-    job_max_salary: 175000,
-    job_salary_currency: "$",
-    job_salary_period: "YEAR",
-    job_posted_at_datetime_utc: new Date(Date.now() - 1 * 86400000).toISOString(),
-    job_apply_link: "#",
-    job_publisher: "Indeed",
-    job_required_skills: ["Product Strategy", "A/B Testing", "SQL", "Growth"],
-    job_description: "Notion is hiring a Growth PM to own the self-serve acquisition and activation funnel. You'll work cross-functionally with engineering, design, and data to drive sustainable growth.",
+    job_id: "mock-2", job_title: "Product Manager — Growth", employer_name: "Notion",
+    employer_logo: "https://logo.clearbit.com/notion.so", job_employment_type: "FULLTIME",
+    job_is_remote: false, job_city: "New York", job_state: "NY", job_country: "US",
+    job_min_salary: 140000, job_max_salary: 175000, job_salary_currency: "$", job_salary_period: "YEAR",
+    job_posted_at_datetime_utc: new Date(Date.now() - 1 * 86400000).toISOString(), job_apply_link: "#",
+    job_publisher: "Indeed", job_required_skills: ["Product Strategy", "A/B Testing", "SQL"],
+    job_description: "Own the self-serve acquisition and activation funnel working cross-functionally with engineering, design, and data.",
   },
   {
-    job_id: "mock-3",
-    job_title: "Executive Chef",
-    employer_name: "The Ritz-Carlton",
-    employer_logo: "https://logo.clearbit.com/ritzcarlton.com",
-    job_employment_type: "FULLTIME",
-    job_is_remote: false,
-    job_city: "London",
-    job_state: "",
-    job_country: "UK",
-    job_min_salary: 70000,
-    job_max_salary: 90000,
-    job_salary_currency: "£",
-    job_salary_period: "YEAR",
-    job_posted_at_datetime_utc: new Date(Date.now() - 4 * 86400000).toISOString(),
-    job_apply_link: "#",
-    job_publisher: "Hospitality Jobs",
-    job_required_skills: ["Menu Development", "Kitchen Management", "HACCP", "Team Leadership"],
-    job_description: "Lead culinary operations at one of London's most prestigious hotels. Oversee a team of 40 kitchen staff, manage menu development, and maintain Michelin-star quality standards.",
+    job_id: "mock-3", job_title: "Executive Chef", employer_name: "The Ritz-Carlton",
+    employer_logo: "https://logo.clearbit.com/ritzcarlton.com", job_employment_type: "FULLTIME",
+    job_is_remote: false, job_city: "London", job_state: "", job_country: "UK",
+    job_min_salary: 70000, job_max_salary: 90000, job_salary_currency: "£", job_salary_period: "YEAR",
+    job_posted_at_datetime_utc: new Date(Date.now() - 4 * 86400000).toISOString(), job_apply_link: "#",
+    job_publisher: "Hospitality Jobs", job_required_skills: ["Menu Development", "Kitchen Management", "HACCP"],
+    job_description: "Lead culinary operations at one of London's most prestigious hotels. Oversee a team of 40 kitchen staff.",
   },
   {
-    job_id: "mock-4",
-    job_title: "3D Character Animator",
-    employer_name: "Framestore",
-    employer_logo: "https://logo.clearbit.com/framestore.com",
-    job_employment_type: "FULLTIME",
-    job_is_remote: false,
-    job_city: "London",
-    job_state: "",
-    job_country: "UK",
-    job_min_salary: 45000,
-    job_max_salary: 65000,
-    job_salary_currency: "£",
-    job_salary_period: "YEAR",
-    job_posted_at_datetime_utc: new Date(Date.now() - 6 * 86400000).toISOString(),
-    job_apply_link: "#",
-    job_publisher: "LinkedIn",
-    job_required_skills: ["Maya", "Character Animation", "Rigging", "Compositing"],
-    job_description: "Join Framestore's award-winning animation team on major film and TV productions. Proficiency in Maya required. Experience with creature animation is a big plus.",
+    job_id: "mock-4", job_title: "3D Character Animator", employer_name: "Framestore",
+    employer_logo: "https://logo.clearbit.com/framestore.com", job_employment_type: "FULLTIME",
+    job_is_remote: false, job_city: "London", job_state: "", job_country: "UK",
+    job_min_salary: 45000, job_max_salary: 65000, job_salary_currency: "£", job_salary_period: "YEAR",
+    job_posted_at_datetime_utc: new Date(Date.now() - 6 * 86400000).toISOString(), job_apply_link: "#",
+    job_publisher: "LinkedIn", job_required_skills: ["Maya", "Character Animation", "Rigging"],
+    job_description: "Join the award-winning animation team on major film and TV productions.",
   },
   {
-    job_id: "mock-5",
-    job_title: "HR Business Partner",
-    employer_name: "Shopify",
-    employer_logo: "https://logo.clearbit.com/shopify.com",
-    job_employment_type: "FULLTIME",
-    job_is_remote: true,
-    job_city: "Ottawa",
-    job_state: "ON",
-    job_country: "Canada",
-    job_min_salary: 95000,
-    job_max_salary: 120000,
-    job_salary_currency: "$",
-    job_salary_period: "YEAR",
-    job_posted_at_datetime_utc: new Date(Date.now() - 3 * 86400000).toISOString(),
-    job_apply_link: "#",
-    job_publisher: "Indeed",
-    job_required_skills: ["HRBP", "Performance Management", "Talent Development"],
-    job_description: "Partner with Shopify's engineering and product leadership to deliver people programs that scale. You'll drive performance cycles, compensation planning, and talent development.",
+    job_id: "mock-5", job_title: "HR Business Partner", employer_name: "Shopify",
+    employer_logo: "https://logo.clearbit.com/shopify.com", job_employment_type: "FULLTIME",
+    job_is_remote: true, job_city: "Ottawa", job_state: "ON", job_country: "Canada",
+    job_min_salary: 95000, job_max_salary: 120000, job_salary_currency: "$", job_salary_period: "YEAR",
+    job_posted_at_datetime_utc: new Date(Date.now() - 3 * 86400000).toISOString(), job_apply_link: "#",
+    job_publisher: "Indeed", job_required_skills: ["HRBP", "Performance Management", "Talent Development"],
+    job_description: "Partner with engineering and product leadership to deliver people programs that scale.",
   },
   {
-    job_id: "mock-6",
-    job_title: "Secondary Maths Teacher",
-    employer_name: "Ark Schools",
-    employer_logo: "",
-    job_employment_type: "FULLTIME",
-    job_is_remote: false,
-    job_city: "Birmingham",
-    job_state: "",
-    job_country: "UK",
-    job_posted_at_datetime_utc: new Date(Date.now() - 8 * 86400000).toISOString(),
-    job_apply_link: "#",
-    job_publisher: "TES",
-    job_required_skills: ["Mathematics", "Curriculum Design", "QTS", "Classroom Management"],
-    job_description: "Teach Key Stage 3–5 Mathematics at a high-performing academy in Birmingham. QTS required. NQTs welcome to apply — full mentoring programme provided.",
+    job_id: "mock-6", job_title: "Secondary Maths Teacher", employer_name: "Ark Schools",
+    employer_logo: "", job_employment_type: "FULLTIME",
+    job_is_remote: false, job_city: "Birmingham", job_state: "", job_country: "UK",
+    job_posted_at_datetime_utc: new Date(Date.now() - 8 * 86400000).toISOString(), job_apply_link: "#",
+    job_publisher: "TES", job_required_skills: ["Mathematics", "Curriculum Design", "QTS"],
+    job_description: "Teach Key Stage 3–5 Mathematics at a high-performing academy. NQTs welcome.",
   },
 ];
 
@@ -354,21 +289,22 @@ export default function JobsPage() {
   const [quotaWarningDismissed, setQuotaWarningDismissed] = useState<string | null>(null);
   const [pickerJob, setPickerJob] = useState<Job | null>(null);
 
-  // Pre-fill search from profile + fetch quota
+  // Pre-fill search from profile, auto-search if role is available
   useEffect(() => {
     if (!canSearch) return;
     getAccountProfile()
       .then((profile) => {
-        if (profile) {
-          if (profile.target_roles?.[0]) setQuery(profile.target_roles[0]);
-          if (profile.location) setLocation(profile.location);
-          setHasProfileResume(!!profile.resume_text);
-        }
+        const role = profile?.target_roles?.[0] ?? "";
+        const loc  = profile?.location ?? "";
+        if (role) setQuery(role);
+        if (loc)  setLocation(loc);
+        setHasProfileResume(!!profile?.resume_text);
         setProfileLoaded(true);
+        if (role) runSearch(role, loc, 1);
       })
       .catch(() => setProfileLoaded(true));
     getJobsQuota().then(setQuota).catch(() => {});
-  }, [canSearch]);
+  }, [canSearch, runSearch]);
 
   const runSearch = useCallback(async (q: string, loc: string, p: number) => {
     if (!q.trim()) return;
@@ -540,25 +476,27 @@ export default function JobsPage() {
           )}
 
           {!loading && !searched && (
-            <>
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <span className="flex-1 border-t border-slate-200" />
-                Sample listings — search above for live results
-                <span className="flex-1 border-t border-slate-200" />
+            DEV ? (
+              <>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span className="flex-1 border-t border-slate-200" />
+                  Sample listings (dev mode) — search above for live results
+                  <span className="flex-1 border-t border-slate-200" />
+                </div>
+                <div className="flex flex-col gap-3">
+                  {MOCK_JOBS.map((job) => (
+                    <JobCard key={job.job_id} job={job} saved={savedIds.has(job.job_id)}
+                      onSave={handleSave} onTailor={handleTailor} onUseSaved={(j) => setPickerJob(j)} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="card text-center py-14 flex flex-col items-center gap-3 text-slate-400">
+                <FiSearch className="w-8 h-8 text-slate-300" />
+                <p className="text-sm font-medium text-slate-500">Enter a job title above to search live listings</p>
+                <p className="text-xs">Results are pulled in real time from major job boards</p>
               </div>
-              <div className="flex flex-col gap-3">
-                {MOCK_JOBS.map((job) => (
-                  <JobCard
-                    key={job.job_id}
-                    job={job}
-                    saved={savedIds.has(job.job_id)}
-                    onSave={handleSave}
-                    onTailor={handleTailor}
-                    onUseSaved={(j) => setPickerJob(j)}
-                  />
-                ))}
-              </div>
-            </>
+            )
           )}
 
           {!loading && jobs.length > 0 && (

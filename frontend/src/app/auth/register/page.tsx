@@ -26,7 +26,7 @@ const TIERS: {
       "6-step AI resume builder",
       "DOCX + PDF export",
       "3 templates (Clean / Modern / Executive)",
-      "1 AI evaluator (Claude)",
+      "1 AI quality evaluator",
       "3 key skills extracted from JD",
     ],
   },
@@ -37,7 +37,7 @@ const TIERS: {
     highlight: true,
     features: [
       "Everything in Free",
-      "2 AI evaluators (Claude + Gemini)",
+      "2 AI quality evaluators",
       "5 key skills extracted",
       "Job search (Indeed / LinkedIn / Glassdoor)",
       "Save up to 25 jobs",
@@ -51,7 +51,7 @@ const TIERS: {
     price: "$19 / mo",
     features: [
       "Everything in Plus",
-      "All 3 AI evaluators (+ GPT-4o)",
+      "3 AI quality evaluators",
       "10 key skills extracted",
       "Section-level regeneration",
       "Locked Facts panel",
