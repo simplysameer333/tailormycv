@@ -10,6 +10,7 @@ interface TagInputProps {
   placeholder?: string;
   /** When true, only one tag is allowed at a time */
   single?: boolean;
+  className?: string;
 }
 
 export default function TagInput({
@@ -18,6 +19,7 @@ export default function TagInput({
   fetchSuggestions,
   placeholder = "Type to search…",
   single = false,
+  className = "",
 }: TagInputProps) {
   const [input, setInput] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -105,10 +107,10 @@ export default function TagInput({
   const showInput = !single || value.length === 0;
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={`relative ${className}`}>
       {/* Tag area */}
       <div
-        className="flex flex-wrap gap-1.5 min-h-[42px] w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 transition cursor-text focus-within:border-brand-600 focus-within:ring-2 focus-within:ring-brand-100"
+        className="flex flex-wrap gap-1.5 min-h-[42px] h-full w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 transition cursor-text focus-within:border-brand-600 focus-within:ring-2 focus-within:ring-brand-100"
         onClick={() => showInput && inputRef.current?.focus()}
       >
         {value.map((tag) => (

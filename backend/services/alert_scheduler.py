@@ -17,7 +17,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import settings
 from database import get_db
-from services.email_service import send_job_alert_email
+from services.email_service import send_job_alert_email, send_no_results_email
 
 logger = logging.getLogger("tailormycv")
 
@@ -67,6 +67,11 @@ async def _process_alert(db, alert: dict) -> None:
     location = " OR ".join(alert.get("location_tags", []))
     jobs = await _search_jobs(query, location)
     if not jobs:
+        await send_no_results_email(
+            user_email=user["email"],
+            user_name=user.get("name", "there"),
+            alert_name=alert["name"],
+        )
         return
 
     seen_ids: set[str] = set(alert.get("seen_job_ids", []))

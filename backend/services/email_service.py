@@ -51,6 +51,79 @@ async def send_quality_alert(session_id: str, aggregated: dict, resume_json: dic
     )
 
 
+async def send_no_results_email(
+    user_email: str,
+    user_name: str,
+    alert_name: str,
+) -> bool:
+    """Notify the user that today's search returned no matching jobs."""
+    from config import settings
+
+    if not settings.brevo_api_key:
+        raise RuntimeError("BREVO_API_KEY is not set — add it to .env and Railway")
+
+    frontend_url = settings.frontend_url
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:#f8fafc;margin:0;padding:0;">
+  <div style="max-width:600px;margin:32px auto;padding:0 16px;">
+    <div style="background:#2B579A;border-radius:16px 16px 0 0;padding:28px 32px;">
+      <div style="font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.3px;">TailorMyCv</div>
+      <div style="font-size:13px;color:#bfdbfe;margin-top:4px;">Your daily job alert</div>
+    </div>
+    <div style="background:#f8fafc;padding:28px 32px 24px;">
+      <p style="font-size:16px;color:#1e293b;margin:0 0 8px;">Hi {user_name},</p>
+      <p style="font-size:14px;color:#475569;margin:0 0 20px;">
+        We searched for jobs matching your alert <strong>&ldquo;{alert_name}&rdquo;</strong>
+        but didn&rsquo;t find any results today.
+        We&rsquo;ll keep checking and email you as soon as matching jobs appear.
+      </p>
+      <p style="font-size:13px;color:#64748b;margin:0 0 24px;">
+        You can also search manually or update your alert tags to broaden the results.
+      </p>
+      <div style="text-align:center;">
+        <a href="{frontend_url}/jobs"
+           style="display:inline-block;background:#2B579A;color:#fff;font-size:14px;
+                  font-weight:600;padding:12px 28px;border-radius:10px;text-decoration:none;">
+          Search Jobs &rarr;
+        </a>
+      </div>
+    </div>
+    <div style="background:#f1f5f9;border-radius:0 0 16px 16px;padding:16px 32px;text-align:center;">
+      <p style="font-size:11px;color:#94a3b8;margin:0;">
+        You&rsquo;re receiving this because you set up a job alert on TailorMyCv.<br>
+        <a href="{frontend_url}/jobs" style="color:#64748b;">Manage your alerts</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    payload = {
+        "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
+        "to": [{"email": user_email, "name": user_name}],
+        "subject": f"Your job alert: {alert_name} — No matching jobs today",
+        "htmlContent": html,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                json=payload,
+                headers={"api-key": settings.brevo_api_key, "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+        logger.info("[job-alert] Sent no-results notification to %s", user_email)
+        return True
+    except httpx.HTTPStatusError as exc:
+        logger.error("[job-alert] Brevo error (no-results) %s: %s", exc.response.status_code, exc.response.text)
+        raise RuntimeError(f"Brevo {exc.response.status_code}: {exc.response.text}") from exc
+    except Exception as exc:
+        logger.error("[job-alert] Brevo error (no-results) to %s: %s", user_email, exc)
+        raise RuntimeError(str(exc)) from exc
+
+
 async def send_job_alert_email(
     user_email: str,
     user_name: str,

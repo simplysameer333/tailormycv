@@ -162,7 +162,7 @@ async def send_test_alert_email(body: SendTestEmailBody):
     Requires the user to have at least one active alert. No mock data.
     Returns 404 if no user/alert found, 400 if JSearch returns no results.
     """
-    from services.email_service import send_job_alert_email
+    from services.email_service import send_job_alert_email, send_no_results_email
     from services.alert_scheduler import _search_jobs
 
     db = get_db()
@@ -188,11 +188,22 @@ async def send_test_alert_email(body: SendTestEmailBody):
 
     jobs = await _search_jobs(query, location)
     if not jobs:
-        raise HTTPException(
-            400,
-            f"JSearch returned no results for query {jsearch_query!r}. "
-            "Try broadening your alert tags.",
-        )
+        try:
+            await send_no_results_email(
+                user_email=body.email,
+                user_name=target_user.get("name", "there"),
+                alert_name=alert_doc["name"],
+            )
+        except RuntimeError as exc:
+            raise HTTPException(502, f"Brevo send failed: {exc}")
+        return {
+            "sent": True,
+            "to": body.email,
+            "alert": alert_doc["name"],
+            "jobs": 0,
+            "jsearch_query": jsearch_query,
+            "note": "No matching jobs found — user notified by email.",
+        }
 
     jobs = jobs[:10]
 
