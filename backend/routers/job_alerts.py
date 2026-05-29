@@ -151,150 +151,68 @@ async def delete_alert(alert_id: str, user: dict = Depends(require_tier("plus"))
         raise HTTPException(404, "Alert not found.")
 
 
-_MOCK_JOBS = [
-    {
-        "job_title": "Senior Python Engineer",
-        "employer_name": "Stripe",
-        "employer_logo": "",
-        "job_city": "London", "job_state": "", "job_country": "UK",
-        "job_employment_type": "FULLTIME",
-        "job_is_remote": True,
-        "job_publisher": "LinkedIn",
-        "job_min_salary": 90000, "job_max_salary": 120000,
-        "job_salary_currency": "£", "job_salary_period": "YEAR",
-        "job_posted_at_datetime_utc": "2026-05-27T09:00:00Z",
-        "job_required_skills": ["Python", "FastAPI", "AWS", "PostgreSQL"],
-        "job_apply_link": "https://stripe.com/jobs",
-    },
-    {
-        "job_title": "Backend Engineer — Python / FastAPI",
-        "employer_name": "Monzo",
-        "employer_logo": "https://logo.clearbit.com/monzo.com",
-        "job_city": "London", "job_state": "", "job_country": "UK",
-        "job_employment_type": "FULLTIME",
-        "job_is_remote": False,
-        "job_publisher": "Indeed",
-        "job_min_salary": 75000, "job_max_salary": 100000,
-        "job_salary_currency": "£", "job_salary_period": "YEAR",
-        "job_posted_at_datetime_utc": "2026-05-28T11:00:00Z",
-        "job_required_skills": ["Python", "Go", "Kubernetes", "gRPC"],
-        "job_apply_link": "https://monzo.com/careers",
-    },
-    {
-        "job_title": "Staff Software Engineer (Python)",
-        "employer_name": "DeepMind",
-        "employer_logo": "https://logo.clearbit.com/deepmind.com",
-        "job_city": "London", "job_state": "", "job_country": "UK",
-        "job_employment_type": "FULLTIME",
-        "job_is_remote": False,
-        "job_publisher": "LinkedIn",
-        "job_min_salary": 110000, "job_max_salary": 150000,
-        "job_salary_currency": "£", "job_salary_period": "YEAR",
-        "job_posted_at_datetime_utc": "2026-05-26T08:00:00Z",
-        "job_required_skills": ["Python", "ML", "TensorFlow", "Distributed Systems"],
-        "job_apply_link": "https://deepmind.com/careers",
-    },
-    {
-        "job_title": "Python Developer — Data Platform",
-        "employer_name": "Revolut",
-        "employer_logo": "https://logo.clearbit.com/revolut.com",
-        "job_city": "London", "job_state": "", "job_country": "UK",
-        "job_employment_type": "FULLTIME",
-        "job_is_remote": True,
-        "job_publisher": "Glassdoor",
-        "job_min_salary": 80000, "job_max_salary": 110000,
-        "job_salary_currency": "£", "job_salary_period": "YEAR",
-        "job_posted_at_datetime_utc": "2026-05-29T07:00:00Z",
-        "job_required_skills": ["Python", "Spark", "Airflow", "dbt"],
-        "job_apply_link": "https://www.revolut.com/careers",
-    },
-    {
-        "job_title": "Software Engineer II (Python)",
-        "employer_name": "Wise",
-        "employer_logo": "https://logo.clearbit.com/wise.com",
-        "job_city": "London", "job_state": "", "job_country": "UK",
-        "job_employment_type": "FULLTIME",
-        "job_is_remote": False,
-        "job_publisher": "Indeed",
-        "job_min_salary": 70000, "job_max_salary": 95000,
-        "job_salary_currency": "£", "job_salary_period": "YEAR",
-        "job_posted_at_datetime_utc": "2026-05-28T14:00:00Z",
-        "job_required_skills": ["Python", "Django", "REST APIs", "MySQL"],
-        "job_apply_link": "https://www.wise.jobs/",
-    },
-]
-
-
 class SendTestEmailBody(BaseModel):
     email: str
 
 
 @router.post("/jobs/alerts/send-test")
 async def send_test_alert_email(body: SendTestEmailBody):
-    """On-demand alert email for testing — no auth required.
+    """On-demand alert email — triggers a real JSearch + Brevo send.
 
-    Looks up the target email in MongoDB:
-    - User found with alerts → runs a live JSearch for their first active alert,
-      sends real results (falls back to mock if JSearch returns nothing).
-    - User not found or no alerts → sends mock email so the format can be reviewed.
+    Requires the user to have at least one active alert. No mock data.
+    Returns 404 if no user/alert found, 400 if JSearch returns no results.
     """
     from services.email_service import send_job_alert_email
     from services.alert_scheduler import _search_jobs
 
     db = get_db()
 
-    # ── Resolve user + their alerts ───────────────────────────────────────────
+    # ── Resolve user + their first active alert ───────────────────────────────
     target_user = await db.users.find_one({"email": body.email})
-    alert_doc = None
-    if target_user:
-        alert_doc = await db.job_alerts.find_one(
-            {"user_id": target_user["_id"], "is_active": True},
-            sort=[("created_at", 1)],
+    if not target_user:
+        raise HTTPException(404, f"No user found with email {body.email!r}.")
+
+    alert_doc = await db.job_alerts.find_one(
+        {"user_id": target_user["_id"], "is_active": True},
+        sort=[("created_at", 1)],
+    )
+    if not alert_doc:
+        raise HTTPException(404, "User has no active job alerts. Create one on the Jobs page first.")
+
+    # ── Run live JSearch ──────────────────────────────────────────────────────
+    query = " ".join(alert_doc.get("query_tags", []))
+    if alert_doc.get("company"):
+        query = f"{query} {alert_doc['company']}".strip()
+    location = " OR ".join(alert_doc.get("location_tags", []))
+    jsearch_query = f"{query} {location}".strip()
+
+    jobs = await _search_jobs(query, location)
+    if not jobs:
+        raise HTTPException(
+            400,
+            f"JSearch returned no results for query {jsearch_query!r}. "
+            "Try broadening your alert tags.",
         )
 
-    # ── Build email payload ───────────────────────────────────────────────────
-    jsearch_query = None
-    jsearch_count = 0
-    if alert_doc:
-        # Real alert found — run live search
-        query = " ".join(alert_doc.get("query_tags", []))
-        if alert_doc.get("company"):
-            query = f"{query} {alert_doc['company']}".strip()
-        location = " OR ".join(alert_doc.get("location_tags", []))
-        jsearch_query = f"{query} {location}".strip()
-
-        jobs = await _search_jobs(query, location)
-        jsearch_count = len(jobs)
-        jobs = jobs[:10] or _MOCK_JOBS   # fall back to mock if JSearch empty
-
-        alert_name = alert_doc["name"]
-        user_name = target_user.get("name", "there")
-        source = "real" if jsearch_count else "mock_fallback"
-    else:
-        # No user / no alerts — use mock data
-        jobs = _MOCK_JOBS
-        alert_name = "Python jobs in London"
-        user_name = body.email.split("@")[0]
-        source = "mock"
+    jobs = jobs[:10]
 
     # ── Send ──────────────────────────────────────────────────────────────────
     try:
         await send_job_alert_email(
             user_email=body.email,
-            user_name=user_name,
-            alert_name=alert_name,
+            user_name=target_user.get("name", "there"),
+            alert_name=alert_doc["name"],
             jobs=jobs,
         )
     except RuntimeError as exc:
         raise HTTPException(502, f"Brevo send failed: {exc}")
+
     return {
         "sent": True,
         "to": body.email,
-        "alert": alert_name,
+        "alert": alert_doc["name"],
         "jobs": len(jobs),
-        "source": source,           # "real" | "mock_fallback" | "mock"
         "jsearch_query": jsearch_query,
-        "jsearch_count": jsearch_count,
     }
 
 
