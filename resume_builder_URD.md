@@ -1,7 +1,7 @@
 # User Requirements Document
 ## TailorMyCv — AI-Powered Resume Builder
 
-**Version:** 1.5
+**Version:** 1.6
 **Date:** May 2026
 **App Name:** TailorMyCv
 **Support Email:** samorsameer@gmail.com
@@ -42,6 +42,8 @@ Users authenticate with email/password or Google OAuth. A persistent **Account P
 | Storage | Pluggable: `LocalStorageBackend` (dev) or `S3StorageBackend` (prod) via `get_storage()` factory |
 | Token Efficiency | `toon-format==0.9.0b1` — 40–45% token reduction on structured inputs |
 | Observability | LangSmith tracing (optional; auto-detected from env vars) |
+| Email | Brevo HTTP API — job alert digest emails + no-results notifications |
+| Job Alert Scheduler | APScheduler (in-process) — daily cron at `ALERT_SEND_HOUR` UTC |
 | Deployment | Railway.com — two services: `tailormycv-frontend` (Next.js) + `tailormycv-backend` (FastAPI) |
 
 ---
@@ -61,6 +63,9 @@ NextAuth Google provider → `signIn` callback → `POST /api/auth/sync` → bac
 
 **Dev bypass:**
 `NEXT_PUBLIC_DEV_BYPASS_AUTH=true` (frontend) + `DEV_BYPASS_AUTH=true` (backend) skips all auth. `DevProvider` replaces `SessionProvider`; plan switcher appears in Navbar dropdown for tier testing.
+
+**Google OAuth production flag:**
+`NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` (frontend only) controls whether the Google sign-in button is visible. Set `false` (or omit) on localhost — button is hidden. Set `true` on production together with `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
 ### 3.2 Backend Auth Files
 
@@ -184,6 +189,34 @@ Example: profile has `target_roles: ["Vice President"]` and `primary_skill: "Jav
 - Skeleton cards shown during API call — matching job card structure (logo placeholder + title/subtitle/button bars)
 - Prevents empty page during slow RapidAPI responses
 
+### 6.6 Job Alerts (Plus+ only)
+
+Users save named search queries as alerts and receive daily email digests.
+
+**Alert model:**
+- `name` — user-chosen label
+- `query_tags` — array of role/keyword tags (same as search bar)
+- `location_tags` — array of location strings
+- Enabled/disabled toggle per alert
+- `seen_job_ids[]` — deduplication list, capped at 1000; prevents re-sending same listings (scheduler only; send-test ignores)
+
+**Limits:** Plus = max 5 alerts; Pro = unlimited; Free = blocked.
+
+**Duplicate detection:** tags normalised (sorted lowercase) on save; 409 returned if duplicate detected.
+
+**Email digest (Brevo HTTP API):**
+- Sent daily at `ALERT_SEND_HOUR` UTC by APScheduler cron
+- Content: employer logo (JSearch CDN; initials avatar fallback), job title, employer "via publisher", Apply button, salary, posted date, location, remote badge, skill chips
+- Subject: `Your job alert: {name} — Top N jobs`
+- No-results notification sent when JSearch returns empty for an active alert
+
+**send-test endpoint** (`POST /api/jobs/alerts/send-test`):
+- Finds the user's first active alert; calls JSearch with real query
+- Sends digest email if results found; sends no-results email if empty
+- No mock data; returns `jsearch_query`, job count, or `note` field
+
+**Known limitation:** `job_apply_link` for company-hosted jobs (e.g. Monzo, DeepMind) points to the general careers page — this is a JSearch data limitation. Jobs sourced from LinkedIn/Indeed/Glassdoor have specific listing URLs.
+
 ---
 
 ## 7. Functional Requirements
@@ -243,6 +276,7 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 | Saved jobs | ❌ | Up to 25 | Unlimited |
 | One-click Tailor | ❌ | ✅ | ✅ |
 | Resume Library | ❌ | Up to 5 | Unlimited |
+| Job Alerts (daily digest) | ❌ | Up to 5 alerts | Unlimited |
 | Section-level regeneration | ❌ | ❌ | ✅ |
 | Locked Facts panel | ❌ | ❌ | ✅ |
 | Sample CV formatting reference | ❌ | ❌ | ✅ |
@@ -336,6 +370,21 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 }
 ```
 
+### `job_alerts` collection
+```json
+{
+  "_id": "ObjectId",
+  "user_id": "ObjectId (ref users)",
+  "name": "string",
+  "query_tags": ["string"],
+  "location_tags": ["string"],
+  "enabled": true,
+  "seen_job_ids": ["string"],
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
 ### `saved_resumes` collection
 ```json
 {
@@ -389,6 +438,16 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 | GET | `/api/jobs/saved` | List saved jobs |
 | DELETE | `/api/jobs/saved/{job_id}` | Unsave |
 
+### Job Alerts (Plus+)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/jobs/alerts` | List all alerts for current user |
+| POST | `/api/jobs/alerts` | Create alert |
+| PATCH | `/api/jobs/alerts/{id}` | Update alert (name, tags, location) |
+| DELETE | `/api/jobs/alerts/{id}` | Delete alert |
+| PATCH | `/api/jobs/alerts/{id}/toggle` | Enable / disable alert |
+| POST | `/api/jobs/alerts/send-test` | Trigger test email with real JSearch data |
+
 ### Builder
 | Method | Endpoint | Description |
 |---|---|---|
@@ -423,7 +482,7 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 | `/auth/login` | Sign in — credentials + Google OAuth |
 | `/auth/register` | Email/password registration |
 | `/profile` | Account profile — resume upload (AI prefill), personal info, career fields (target roles, primary skill, key skills), Resume Library |
-| `/jobs` | Job search — TagInput query bar (pre-filled from profile roles + primary skill), JSearch results, save/tailor/apply actions |
+| `/jobs` | Job search — TagInput query bar (pre-filled from profile), JSearch results, save/tailor/apply actions, My Alerts tab (Plus+) |
 | `/builder/upload` | Step 1 — drag-and-drop resume upload |
 | `/builder/profile` | Step 2 — AI pre-filled profile confirmation |
 | `/builder/job` | Step 3 — paste job description |
@@ -491,11 +550,11 @@ MONGODB_URI=
 ALLOWED_ORIGINS=https://your-frontend.railway.app
 SUPPORT_EMAIL=samorsameer@gmail.com
 
-# SMTP (disabled until configured)
-SMTP_HOST=
-SMTP_PORT=587
-SMTP_USER=
-SMTP_PASSWORD=
+# Email — Brevo HTTP API (job alert digests)
+BREVO_API_KEY=                       # xkeysib-... from Brevo dashboard
+BREVO_SENDER_EMAIL=                  # Verified sender address in Brevo
+ALERT_SEND_HOUR=8                    # UTC hour for daily digest (0–23)
+ALERT_MAX_JOBS_PER_EMAIL=10          # Max job cards per email
 
 # Observability
 LANGSMITH_TRACING=true
@@ -511,6 +570,7 @@ NEXTAUTH_URL=https://your-frontend.railway.app
 NEXTAUTH_SECRET=                     # Random string; generate: openssl rand -base64 32
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
+NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true # false (or omit) on localhost — hides Google button
 NEXT_PUBLIC_DEV_BYPASS_AUTH=false    # true on localhost only
 ```
 
@@ -525,7 +585,6 @@ NEXT_PUBLIC_DEV_BYPASS_AUTH=false    # true on localhost only
 - Mobile app
 - Team / multi-user accounts
 - Role-based access control for `/settings/professions`
-- Email quality alerts (log-only until SMTP is configured)
 
 ---
 

@@ -2,7 +2,7 @@
 
 AI-powered resume builder that tailors your resume to any job description using a multi-agent pipeline. A Job Analyzer extracts the skills that matter most for the role, a Generator writes the resume, and one or more Evaluator agents score it using profession-specific criteria — the generator refines until quality thresholds are met.
 
-**Stack:** Next.js 14 · FastAPI · MongoDB Atlas · LangGraph 1.2.1 · Anthropic Claude · OpenAI · Google Gemini
+**Stack:** Next.js 14 · FastAPI · MongoDB Atlas · LangGraph 1.2.1 · Anthropic Claude · OpenAI · Google Gemini · Brevo (email)
 
 ---
 
@@ -12,7 +12,7 @@ AI-powered resume builder that tailors your resume to any job description using 
 tailormycv/
 │
 ├── backend/
-│   ├── main.py                      FastAPI app entry point; mounts all routers under /api
+│   ├── main.py                      FastAPI app entry point; mounts all routers; APScheduler lifespan
 │   ├── config.py                    Pydantic-settings; all tunable config from .env
 │   ├── database.py                  Motor async MongoDB client; TTL indexes on sessions (24h) and GridFS files
 │   ├── seed_templates.py            One-time script — upserts 3 prebuilt DOCX templates into MongoDB
@@ -20,10 +20,10 @@ tailormycv/
 │   │
 │   ├── routers/
 │   │   ├── auth.py                  POST /api/auth/register, /login, /sync (Google OAuth), /me
-│   │   ├── account.py               GET/PUT /api/account/profile — persistent profile (separate from sessions)
+│   │   ├── account.py               GET/PUT /api/account/profile — persistent profile
 │   │   │                            POST /api/account/profile/resume — upload + AI prefill
-│   │   │                            POST /api/sessions/from-profile — one-click tailor (profile → session)
-│   │   ├── resume_library.py        CRUD /api/account/resumes — save/rename/delete/download resumes (Plus+)
+│   │   │                            POST /api/sessions/from-profile — one-click tailor
+│   │   ├── resume_library.py        CRUD /api/account/resumes — save/rename/delete/download (Plus+)
 │   │   ├── resume.py                POST /api/resume/upload — parse PDF/DOCX, create session
 │   │   │                            POST /api/resume/sample-format — upload formatting reference CV
 │   │   ├── profile.py               POST /api/profile — save session user profile
@@ -32,6 +32,9 @@ tailormycv/
 │   │   ├── jobs.py                  GET /api/jobs/search — JSearch (RapidAPI), cached, Plus+ only
 │   │   │                            POST/GET/DELETE /api/jobs/save|saved — save/list/unsave jobs
 │   │   │                            GET /api/jobs/quota — monthly usage stats
+│   │   ├── job_alerts.py            CRUD /api/jobs/alerts — job alert management (Plus+)
+│   │   │                            PATCH /api/jobs/alerts/{id}/toggle — enable/disable alert
+│   │   │                            POST /api/jobs/alerts/send-test — trigger test email
 │   │   ├── templates.py             GET /api/templates · POST /api/templates/upload
 │   │   ├── generate.py              POST /api/generate — full pipeline
 │   │   │                            PUT /api/sessions/{id}/resume — sync client resume to session
@@ -43,6 +46,7 @@ tailormycv/
 │   │
 │   ├── models/
 │   │   ├── user.py                  User, UserPublic; tier: free | plus | pro
+│   │   ├── job_alert.py             JobAlert model
 │   │   ├── session.py               GeneratedResume, UserProfile, EvaluatorResult, EvalCycle, OutputFiles
 │   │   └── template.py              Template document model
 │   │
@@ -53,9 +57,11 @@ tailormycv/
 │       ├── auth_service.py          JWT (python-jose), bcrypt hashing, user CRUD; 24h token expiry
 │       ├── resume_parser.py         Extracts text from PDF/DOCX via pdfplumber / python-docx
 │       ├── template_service.py      Loads DOCX templates, substitutes {{PLACEHOLDER}} tags
-│       ├── file_generator.py        generate_docx (python-docx) + generate_pdf (reportlab — no LibreOffice)
+│       ├── file_generator.py        generate_docx (python-docx) + generate_pdf (reportlab)
 │       ├── quota_service.py         Monthly JSearch call counter; warning thresholds
 │       ├── profession_service.py    MongoDB CRUD + resolve_profession_for_role()
+│       ├── alert_scheduler.py       APScheduler daily cron at ALERT_SEND_HOUR UTC
+│       ├── email_service.py         Brevo HTTP API — job digest + no-results notification emails
 │       ├── storage/                 get_storage() factory → LocalStorageBackend | S3StorageBackend
 │       │
 │       └── pipeline/               LangGraph evaluator-optimizer pipeline
@@ -74,12 +80,12 @@ tailormycv/
     ├── app/
     │   ├── page.tsx                 Landing — hero, how-it-works, CTA
     │   ├── auth/
-    │   │   ├── login/page.tsx       Sign in — credentials + Google OAuth
-    │   │   └── register/page.tsx    Email/password registration
+    │   │   ├── login/page.tsx       Sign in — credentials + Google OAuth (production only)
+    │   │   └── register/page.tsx    Registration — email/password + Google OAuth (production only)
     │   ├── profile/page.tsx         Account profile — resume upload (AI prefill), career form,
     │   │                            primary skill, Resume Library (Plus+)
     │   ├── jobs/page.tsx            Job search — TagInput query, location, JSearch results,
-    │   │                            save/unsave, Tailor Resume, Apply with Saved (Plus+)
+    │   │                            save/unsave, Tailor Resume, Apply with Saved, My Alerts tab (Plus+)
     │   ├── builder/
     │   │   ├── layout.tsx           Builder shell — StepProgress bar + SessionGuard
     │   │   ├── upload/page.tsx      Step 1 — drag-and-drop; one-click tailor banner
@@ -91,13 +97,15 @@ tailormycv/
     │   └── settings/
     │       └── professions/page.tsx Profession CRUD admin
     ├── components/
-    │   ├── Navbar.tsx               Shared nav — avatar dropdown, tier badge, sign in/out
-    │   ├── TagInput.tsx             Async-autocomplete tag/bubble input (used on profile + jobs pages)
-    │   ├── ResumePickerModal.tsx    "Apply with Saved" modal — shows resume library or tailor-new option
-    │   ├── AuthGuard.tsx            Redirects unauthenticated users
+    │   ├── Navbar.tsx               Shared nav — avatar dropdown, tier badge, sign in/out;
+    │   │                            Builder + Jobs + My Alerts links shown for authenticated users only
+    │   ├── TagInput.tsx             Async-autocomplete tag/bubble input (profile + jobs pages)
+    │   ├── ResumePickerModal.tsx    "Apply with Saved" modal — resume library or tailor-new option
+    │   ├── CreateAlertModal.tsx     Create/edit job alert modal
+    │   ├── AuthGuard.tsx            Redirects unauthenticated users to /auth/login
     │   └── StepProgress.tsx        Six-step indicator with completion checkmarks
     ├── lib/
-    │   ├── api.ts                   Typed API client; axios interceptor for session-expiry
+    │   ├── api.ts                   Typed API client; axios interceptor for session-expiry; JobAlert interface
     │   ├── useAuth.ts               useAuth() hook — wraps useSession; works in real + dev mode
     │   ├── nextauth.ts              NextAuth config (Credentials + Google providers)
     │   ├── stepGuard.ts             useStepGuard() — prevents skipping builder steps
@@ -147,17 +155,17 @@ npm install
 npm run dev
 ```
 
-Minimum `frontend/.env.local` for local development (no auth required):
+Minimum `frontend/.env.local` for local development (dev bypass — no auth required):
 ```
 NEXT_PUBLIC_API_URL=http://localhost:9000
 NEXT_PUBLIC_DEV_BYPASS_AUTH=true
-NEXTAUTH_URL=http://localhost:4000
-NEXTAUTH_SECRET=any-random-string
 ```
 
 App: http://localhost:4000
 
 > **Dev auth bypass** — `NEXT_PUBLIC_DEV_BYPASS_AUTH=true` (frontend) + `DEV_BYPASS_AUTH=true` (backend) skips all authentication. A plan switcher appears in the Navbar dropdown to toggle Free / Plus / Pro for testing tier-gated features. Remove both flags before deploying.
+
+> **Google OAuth** — only active on production when `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true` (frontend) and `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are set. The Google button is hidden on localhost.
 
 ---
 
@@ -193,7 +201,17 @@ Each step is guarded by `useStepGuard` — navigating to a later step without co
 - **Tailor Resume** → stores job description + context to localStorage → redirects to `/builder/upload`
 - **Apply with Saved** → `ResumePickerModal` — pick from Resume Library or tailor a new one
 - Save/unsave jobs; monthly quota banner with warning thresholds
-- **Result caching** — same query+location+page is cached in MongoDB for `JSEARCH_CACHE_TTL_S` seconds (default 2 hours) to conserve quota
+- **Result caching** — same query+location+page is cached in MongoDB for `JSEARCH_CACHE_TTL_S` seconds (default 2 hours)
+
+### Job Alerts (`/jobs` → My Alerts tab) — Plus+ only
+- Save search queries as named alerts; receive daily email digests when new matching jobs appear
+- Plus: up to 5 alerts; Pro: unlimited
+- Emails sent via **Brevo HTTP API** at `ALERT_SEND_HOUR` UTC (default 08:00)
+- Email includes: employer logo, job title, salary, posted time, skill chips, Apply button
+- **No-results notification** sent when JSearch returns empty for an active alert
+- `send-test` endpoint available for manual trigger — sends real jobs or no-results email (no mock data)
+- Duplicate prevention: alert tags normalised and checked on save
+- Seen-job deduplication: `seen_job_ids[]` per alert (capped at 1000) prevents re-sending the same listings
 
 ---
 
@@ -261,6 +279,7 @@ All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.
 | Saved jobs | ❌ | Up to 25 | Unlimited |
 | One-click Tailor | ❌ | ✅ | ✅ |
 | Resume Library | ❌ | Up to 5 | Unlimited |
+| Job Alerts (daily digest) | ❌ | Up to 5 alerts | Unlimited |
 | Section-level regeneration | ❌ | ❌ | ✅ |
 | Locked Facts panel | ❌ | ❌ | ✅ |
 | Sample CV formatting reference | ❌ | ❌ | ✅ |
@@ -273,11 +292,18 @@ All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | — | **Required.** Claude API key |
 | `MONGODB_URI` | — | **Required.** URL-encode special chars in password |
-| `JWT_SECRET` | `change-me` | Secret for signing JWTs; generate with `secrets.token_hex(32)` |
+| `JWT_SECRET` | — | **Required in prod.** Generate: `openssl rand -base64 32` |
 | `DEV_BYPASS_AUTH` | `false` | Skip all auth on localhost |
+| `GOOGLE_CLIENT_ID` | — | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret |
 | `RAPIDAPI_KEY` | — | RapidAPI key for JSearch (job search) |
 | `JSEARCH_CACHE_TTL_S` | `7200` | Seconds to cache job search results (2 hours default) |
 | `JSEARCH_MONTHLY_LIMIT` | `500` | Monthly JSearch call budget |
+| `BREVO_API_KEY` | — | Brevo HTTP API key for job alert emails |
+| `BREVO_SENDER_EMAIL` | — | Verified sender address in Brevo |
+| `ALERT_SEND_HOUR` | `8` | UTC hour to run daily alert digest (0–23) |
+| `ALERT_MAX_JOBS_PER_EMAIL` | `10` | Max job cards per alert email |
+| `FRONTEND_URL` | — | Used in email footer links |
 | `GENERATOR_MODEL` | `claude-sonnet-4-20250514` | Model for generator + job analyzer |
 | `ANTHROPIC_EVALUATOR_MODEL` | `claude-sonnet-4-20250514` | Claude evaluator model |
 | `OPENAI_EVALUATOR_MODEL` | `gpt-4o-mini` | OpenAI evaluator model |
@@ -291,8 +317,18 @@ All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.
 | `SKILL_EXTRACTION_COUNT` | `3` | Top-N skills extracted from job description |
 | `STORAGE_BACKEND` | `local` | `local` or `s3` |
 | `ALLOWED_ORIGINS` | `http://localhost:4000` | CORS origins (comma-separated) |
+
+**Frontend env vars:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_API_URL` | — | Backend URL |
+| `NEXTAUTH_URL` | — | Frontend canonical URL (required in prod) |
+| `NEXTAUTH_SECRET` | — | NextAuth signing secret; `openssl rand -base64 32` |
 | `GOOGLE_CLIENT_ID` | — | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret |
+| `NEXT_PUBLIC_GOOGLE_AUTH_ENABLED` | `false` | Show Google sign-in button (production only) |
+| `NEXT_PUBLIC_DEV_BYPASS_AUTH` | `false` | Skip auth on localhost |
 
 ---
 
@@ -325,6 +361,12 @@ All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.
 | POST | `/api/jobs/save` | Save a job |
 | GET | `/api/jobs/saved` | List saved jobs |
 | DELETE | `/api/jobs/saved/{job_id}` | Unsave a job |
+| GET | `/api/jobs/alerts` | List job alerts (Plus+) |
+| POST | `/api/jobs/alerts` | Create job alert |
+| PATCH | `/api/jobs/alerts/{id}` | Update job alert |
+| DELETE | `/api/jobs/alerts/{id}` | Delete job alert |
+| PATCH | `/api/jobs/alerts/{id}/toggle` | Enable / disable alert |
+| POST | `/api/jobs/alerts/send-test` | Send test alert email |
 | GET | `/api/catalog/roles?q=` | Role autocomplete |
 | GET | `/api/catalog/skills?q=` | Skills autocomplete |
 | GET | `/api/templates` | List templates |
@@ -342,7 +384,7 @@ All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.
 ## Deployment (Railway)
 
 1. Create two Railway services: `tailormycv-backend` (root: `/backend`) and `tailormycv-frontend` (root: `/frontend`)
-2. Set environment variables per service (see `.env.example`)
+2. Set environment variables per service (see tables above)
 3. Run seed scripts once after first deploy:
    ```
    python seed_templates.py
@@ -353,13 +395,34 @@ Minimum backend env vars for launch:
 ```
 ANTHROPIC_API_KEY=sk-ant-...
 MONGODB_URI=mongodb+srv://...
-JWT_SECRET=<random 32-byte hex>
+JWT_SECRET=<openssl rand -base64 32>
 ALLOWED_ORIGINS=https://your-frontend.up.railway.app
+FRONTEND_URL=https://your-frontend.up.railway.app
 ```
 
 Minimum frontend env vars:
 ```
 NEXT_PUBLIC_API_URL=https://your-backend.up.railway.app
 NEXTAUTH_URL=https://your-frontend.up.railway.app
-NEXTAUTH_SECRET=<random string>
+NEXTAUTH_SECRET=<openssl rand -base64 32>
+```
+
+To enable Google OAuth on production (add to both services):
+```
+# Frontend
+GOOGLE_CLIENT_ID=<from Google Cloud Console>
+GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
+NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
+
+# Backend
+GOOGLE_CLIENT_ID=<same>
+GOOGLE_CLIENT_SECRET=<same>
+```
+
+To enable job alert emails:
+```
+BREVO_API_KEY=xkeysib-...
+BREVO_SENDER_EMAIL=your-verified-sender@gmail.com
+ALERT_SEND_HOUR=8
+ALERT_MAX_JOBS_PER_EMAIL=10
 ```
