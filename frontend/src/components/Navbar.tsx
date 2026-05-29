@@ -97,30 +97,32 @@ export default function Navbar() {
           )}
 
           {/* ── Builder ── */}
-          <>
-            {/* Mobile: icon only */}
-            <Link
-              href="/builder/upload"
-              title="Builder"
-              className={`sm:hidden p-2 rounded-lg transition ${
-                onBuilder ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <FiEdit2 className="w-5 h-5" />
-            </Link>
-            {/* Desktop: icon + label */}
-            <Link
-              href="/builder/upload"
-              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                onBuilder
-                  ? "border-brand-400 bg-brand-50 text-brand-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-              }`}
-            >
-              <FiEdit2 className="w-4 h-4" />
-              Builder
-            </Link>
-          </>
+          {status === "authenticated" && (
+            <>
+              {/* Mobile: icon only */}
+              <Link
+                href="/builder/upload"
+                title="Builder"
+                className={`sm:hidden p-2 rounded-lg transition ${
+                  onBuilder ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <FiEdit2 className="w-5 h-5" />
+              </Link>
+              {/* Desktop: icon + label */}
+              <Link
+                href="/builder/upload"
+                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                  onBuilder
+                    ? "border-brand-400 bg-brand-50 text-brand-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+                }`}
+              >
+                <FiEdit2 className="w-4 h-4" />
+                Builder
+              </Link>
+            </>
+          )}
 
           {status === "loading" && (
             <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />
