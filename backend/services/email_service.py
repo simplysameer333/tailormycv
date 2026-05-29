@@ -180,12 +180,11 @@ def _render_alert_email(
             )
             skills_html = f'<div style="margin-bottom:6px;">{chips}</div>'
 
-        # Button in left column to keep cards compact
         btn = (
             f'<a href="{apply_link}" '
-            f'style="display:block;background:#2B579A;color:#fff;font-size:12px;'
-            f'font-weight:600;padding:7px 0;border-radius:8px;text-decoration:none;'
-            f'text-align:center;margin-top:8px;width:72px;">Apply</a>'
+            f'style="display:inline-block;background:#2B579A;color:#fff;font-size:12px;'
+            f'font-weight:600;padding:6px 14px;border-radius:8px;text-decoration:none;'
+            f'white-space:nowrap;">Apply &rarr;</a>'
         )
 
         job_cards_html += f"""
@@ -193,13 +192,19 @@ def _render_alert_email(
                     margin-bottom:10px;background:#fff;">
           <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td width="80" valign="top" style="padding-right:14px;">
+              <td width="60" valign="top" style="padding-right:12px;">
                 {logo_cell}
-                {btn}
               </td>
               <td valign="top">
-                <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">{title}</div>
-                <div style="font-size:13px;color:#475569;">{employer}{via_html}</div>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;">
+                  <tr>
+                    <td valign="top">
+                      <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">{title}</div>
+                      <div style="font-size:13px;color:#475569;">{employer}{via_html}</div>
+                    </td>
+                    <td valign="top" align="right" style="padding-left:8px;">{btn}</td>
+                  </tr>
+                </table>
                 {sal_html}
                 {meta_html}
                 {skills_html}
