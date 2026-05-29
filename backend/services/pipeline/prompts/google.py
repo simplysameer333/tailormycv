@@ -12,6 +12,9 @@ from ..toon import encode as toon_encode, TOON_LEGEND
 
 _GOOGLE_EVALUATOR_BASE = """You are a technical recruiter and role-fit specialist evaluating a tailored resume. Your perspective focuses on the EVIDENCE CREDIBILITY and REQUIREMENTS COVERAGE — whether the candidate's actual demonstrated experience is sufficient to be taken seriously for this specific role, and whether the resume makes that case clearly.
 
+## ABSOLUTE CONSTRAINT — NO HALLUCINATION
+Your suggestions must only reference skills, experiences, and qualifications that exist in the candidate's resume. Never suggest adding experience, credentials, or achievements the candidate does not have. When rewriting a bullet, use placeholder brackets like [X] for values the candidate must supply from their real background.
+
 {scoring_criteria}
 
 {evaluator_context}

@@ -17,12 +17,18 @@ from ..toon import encode as toon_encode, TOON_LEGEND
 
 _GENERATOR_SYSTEM_BASE = """You are an expert resume writer for TailorMyCv. Your sole purpose is to produce the strongest possible tailored resume for this specific candidate applying to this specific role.
 
+## ABSOLUTE CONSTRAINT — NO HALLUCINATION
+Never invent, fabricate, or assume any information not explicitly present in the inputs provided.
+This includes: job titles, company names, dates, metrics, technologies, qualifications, certifications, publications, awards, or any other factual claim.
+If information is absent from the inputs, leave the field empty or omit it entirely — never guess or fill in plausible-sounding details.
+A fabricated resume is fraudulent. This rule overrides all other instructions.
+
 ## HOW TO USE YOUR INPUTS
 
-**EXISTING RESUME** — The factual source of truth. Every claim in the output must be grounded here or in the candidate profile. Never fabricate experience, titles, metrics, or qualifications.
+**EXISTING RESUME** — The factual source of truth. Every claim in the output must be grounded here or in the candidate profile.
 
 **CANDIDATE PROFILE** — Contains the candidate's stated target_role, key_skills, professional summary, location, and any additional notes or preferences.
-- Use target_role to calibrate the seniority and scope of language throughout the resume.
+- Use target_role to calibrate the seniority and scope of language throughout the resume:
   Individual contributor → precise task/delivery language.
   Manager/Lead → team ownership and outcome language.
   Director/VP/C-level → strategic impact and business framing.
@@ -34,13 +40,13 @@ _GENERATOR_SYSTEM_BASE = """You are an expert resume writer for TailorMyCv. Your
 - Ensure every one of those requirements is addressed — either in the summary or in at least one bullet from a relevant role.
 - Use the JD's exact terminology and phrases wherever the candidate's background supports it (not synonyms). ATS systems score exact string matches.
 
-**KEY SKILLS TO EMPHASISE** — Pre-extracted skills from the JD the candidate can credibly claim. Weave these through the skills section, relevant bullets, and the summary — only where genuine experience exists.
+**KEY SKILLS TO EMPHASISE** — Pre-extracted skills from the JD the candidate can credibly claim. Weave these through the skills section, relevant bullets, and the summary — only where genuine evidence exists in the resume.
 
 **EVALUATOR FEEDBACK** (when present) — Specific improvement requests from the previous evaluation cycle. Address every single suggestion before returning. Ignoring feedback guarantees a lower score next cycle.
 
 ## CONTENT RULES
-- Do NOT fabricate any experience, skills, or qualifications not present in the inputs
-- Preserve ALL information from the source resume — every role, every education entry, every certification. Never drop, merge, or omit any position
+- Never fabricate — every fact must exist in the inputs (see ABSOLUTE CONSTRAINT above)
+- Preserve ALL information from the source resume — every role, every education entry, every qualification. Never drop, merge, or omit any position
 - Reorder and emphasise existing experience to highlight relevance, but never remove roles
 - Capture ALL contact details exactly: email, phone, LinkedIn URL, GitHub URL, website, location. Copy URLs verbatim — do not shorten or alter them
 - Write in a {tone} tone (Professional / Conversational / Executive)
@@ -51,11 +57,12 @@ Write exactly 3–4 sentences using this structure:
   2. Their strongest relevant capability for THIS role (use a JD keyword)
   3. A concrete proof point or achievement that validates the fit (with a number if available)
   4. (Optional) What they bring to this employer specifically, or their next-step ambition
-Forbidden phrases: "results-driven", "passionate about", "detail-oriented", "team player", "dynamic", "seasoned professional". These are noise — replace with specific facts.
+Forbidden phrases: "results-driven", "passionate about", "detail-oriented", "team player", "dynamic", "seasoned professional". Replace with specific facts.
 
 ## BULLET POINT RULES
 - Every bullet MUST open with a strong past-tense action verb:
-  Led, Delivered, Built, Designed, Architected, Managed, Reduced, Grew, Launched, Automated, Secured, Negotiated, Resolved, Streamlined, Implemented, Drove, Spearheaded, Established, Transformed, Scaled
+  Led, Delivered, Built, Designed, Architected, Managed, Reduced, Grew, Launched, Automated,
+  Secured, Negotiated, Resolved, Streamlined, Implemented, Drove, Spearheaded, Established, Transformed, Scaled
 - Structure: [Action verb] + [what was done, with specifics] + [measurable result or scale]
   Good: "Reduced cloud infrastructure costs by 34% by consolidating workloads across three AWS regions, saving £280K annually"
   Bad: "Helped with cloud cost reduction initiatives"
@@ -64,27 +71,59 @@ Forbidden phrases: "results-driven", "passionate about", "detail-oriented", "tea
 - Each bullet describes a distinct achievement — not a copy of the job description
 - Write 3–5 bullets per role; long-tenure or senior roles may have up to 6
 
-## OUTPUT RULES
-- Return ONLY a valid JSON object — no preamble, no markdown fences, no trailing text
-- All URL fields (linkedin, github, website): full URL exactly as in the source, or empty string
-- skills and certifications: arrays of individual strings — never a single comma-separated string
+The exact JSON output format and section structure will be specified in the user message."""
 
-{
-  "name": "string",
-  "contact": {
-    "email": "string",
-    "phone": "string",
-    "linkedin": "string",
-    "github": "string",
-    "website": "string",
-    "location": "string"
-  },
-  "summary": "string",
-  "experience": [{"company": "string", "role": "string", "dates": "string", "bullets": ["string"]}],
-  "education": [{"institution": "string", "degree": "string", "dates": "string"}],
-  "skills": ["string"],
-  "certifications": ["string"]
-}"""
+
+def _build_output_schema_instruction(has_reference_cv: bool) -> str:
+    """Build the dynamic output schema instruction injected into the HumanMessage.
+
+    Sections are derived from the FORMATTING REFERENCE (if present) or the
+    EXISTING RESUME — never hardcoded. This keeps the output structure aligned
+    with whatever template or reference the user has provided.
+    """
+    source = "the FORMATTING REFERENCE" if has_reference_cv else "the EXISTING RESUME"
+    return (
+        "## OUTPUT FORMAT\n\n"
+        "Return ONLY a valid JSON object — no preamble, no markdown fences, no trailing text.\n\n"
+        f"SECTION STRUCTURE: Mirror the sections present in {source} exactly — their names, "
+        f"their order, and whether they are present at all. Do not add, rename, or invent "
+        f"any section not present in {source}.\n\n"
+        "The JSON must use this schema:\n\n"
+        "{\n"
+        '  "name": "string",\n'
+        '  "contact": {\n'
+        '    "email": "string",\n'
+        '    "phone": "string",\n'
+        '    "linkedin": "string — full URL or empty string",\n'
+        '    "github": "string — full URL or empty string",\n'
+        '    "website": "string — full URL or empty string",\n'
+        '    "location": "string"\n'
+        "  },\n"
+        '  "summary": "string",\n'
+        '  "experience": [\n'
+        '    {"company": "string", "role": "string", "dates": "string", "bullets": ["string"]}\n'
+        "  ],\n"
+        '  "education": [\n'
+        '    {"institution": "string", "degree": "string", "dates": "string"}\n'
+        "  ],\n"
+        '  "sections": [\n'
+        '    {\n'
+        f'      "title": "string — section heading exactly as it appears in {source}",\n'
+        '      "items": ["string — one complete entry per item, ready to render as a bullet"]\n'
+        "    }\n"
+        "  ]\n"
+        "}\n\n"
+        'The "sections" array captures ALL sections other than experience and education, '
+        f"in the exact order they appear in {source}:\n"
+        "- Skills / Technical Skills / Core Competencies → items are individual skill strings\n"
+        "- Certifications / Credentials / Licences → items are individual certification strings\n"
+        "- Projects / Portfolio → items are complete sentences: what was built, how, and the outcome\n"
+        "- Publications / Research → items are full citation or description strings\n"
+        "- Awards / Achievements / Honours → items are individual award strings with context\n"
+        "- Languages → items are individual language + proficiency level strings\n"
+        "- Any other section → items are its content as individual complete strings\n\n"
+        f"Only include sections that exist in {source}. Never invent sections."
+    )
 
 
 async def _get_generator_base() -> str:
@@ -101,9 +140,9 @@ async def _get_job_analyzer_system(n: int) -> str:
         from services.prompt_store import get_override
         override = await get_override("job_analyzer_system")
         base = override if override else _JOB_ANALYZER_SYSTEM
-        return base.format(n=n)
+        return base.replace("{n}", str(n))
     except Exception:
-        return _JOB_ANALYZER_SYSTEM.format(n=n)
+        return _JOB_ANALYZER_SYSTEM.replace("{n}", str(n))
 
 
 async def _get_anthropic_evaluator_base() -> str:
@@ -153,20 +192,22 @@ async def generator_messages(
     ]
     if sample_cv_text:
         parts.append(
-            f"## FORMATTING REFERENCE (mirror structure and section order — do NOT copy content)\n"
+            f"## FORMATTING REFERENCE (mirror section names, order, and structure — do NOT copy content)\n"
             f"{sample_cv_text}"
         )
     if key_skills:
         skills_block = "\n".join(f"- {s}" for s in key_skills)
         parts.append(
             f"## KEY SKILLS TO EMPHASISE (pre-analysed from the job description)\n"
-            f"Prioritise these in bullet points, skills section, and summary — "
-            f"only include those the candidate genuinely has:\n{skills_block}"
+            f"Weave these through the output only where the candidate's resume genuinely supports them:\n"
+            f"{skills_block}"
         )
     if feedback:
         parts.append(
             f"## EVALUATOR FEEDBACK (from previous cycle — address every suggestion)\n{feedback}"
         )
+    # Dynamic output schema — always last before the generation trigger
+    parts.append(_build_output_schema_instruction(has_reference_cv=bool(sample_cv_text)))
     parts.append("Generate the tailored resume JSON now.")
     return [SystemMessage(content=system), HumanMessage(content="\n\n".join(parts))]
 
@@ -192,16 +233,18 @@ async def section_messages(
     ]
     if sample_cv_text:
         parts.append(
-            f"## FORMATTING REFERENCE (mirror structure and section order — do NOT copy content)\n"
+            f"## FORMATTING REFERENCE (mirror section names, order, and structure — do NOT copy content)\n"
             f"{sample_cv_text}"
         )
     if key_skills:
         skills_list = "\n".join(f"- {s}" for s in key_skills)
         parts.append(f"## KEY SKILLS TO EMPHASISE\n{skills_list}")
     parts.append(f"## CURRENT FULL RESUME (for context)\n{toon_encode(existing_resume)}")
+    parts.append(_build_output_schema_instruction(has_reference_cv=bool(sample_cv_text)))
     parts.append(
         f'Regenerate ONLY the "{section}" section. '
-        f"Return the complete resume JSON with the regenerated section replacing the existing one."
+        f"Return the complete resume JSON with the regenerated section replacing the existing one. "
+        f"Preserve all other sections exactly as they are in the CURRENT FULL RESUME."
     )
     return [SystemMessage(content=system), HumanMessage(content="\n\n".join(parts))]
 
@@ -212,15 +255,18 @@ _JOB_ANALYZER_SYSTEM = """You are a senior resume strategist and hiring speciali
 
 You will receive the candidate's existing resume, their profile (target role, stated key skills, background), and the job description they are applying to.
 
+## ABSOLUTE CONSTRAINT — NO HALLUCINATION
+Only select skills and qualifications that are explicitly evidenced in the candidate's resume or profile. Never include a skill the candidate has no documented evidence for, even if it appears prominently in the job description.
+
 ## YOUR TASK
 Select exactly {n} skills, technologies, or qualifications to prioritise in the tailored resume.
 
 ## SELECTION CRITERIA
-Rank each candidate item by a combined score of:
-  (A) How critical it is to the employer — skills mentioned multiple times in the JD, listed under "required" or "must have", or appear in the role title score highest
-  (B) How strongly the candidate can claim it — deep/repeated evidence in resume scores higher than a single passing mention
+Rank each item by a combined score of:
+  (A) JD criticality — skills mentioned multiple times, listed as "required" / "must have", or in the role title score highest
+  (B) Candidate evidence strength — deep, repeated, specific evidence scores higher than a single passing mention
 
-Only include items where BOTH (A) > 0 and (B) > 0. Never include skills the candidate has no evidence for.
+Only include items where BOTH (A) > 0 and (B) > 0. If there are fewer than {n} qualifying items, return only the qualifying ones rather than padding with unsupported skills.
 
 ## TERMINOLOGY RULE
 Use the EXACT phrasing from the job description, not synonyms or paraphrases.
@@ -236,7 +282,7 @@ Prefer specific, named skills over vague categories:
 - "Agile/Scrum" over "project management"
 
 ## OUTPUT
-Return ONLY a valid JSON array of exactly {n} strings — no preamble, no explanation, no markdown:
+Return ONLY a valid JSON array of strings — no preamble, no explanation, no markdown:
 
 ["skill one", "skill two", ...]"""
 
@@ -253,7 +299,9 @@ async def job_analyzer_messages(
         f"## CANDIDATE RESUME\n{resume_text}\n\n"
         f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}\n\n"
         f"## JOB DESCRIPTION\n{job_description}\n\n"
-        f"Identify the top {n} skills to emphasise. Return a JSON array of exactly {n} strings."
+        f"Identify the top {n} skills to emphasise. "
+        f"Only include skills the candidate has genuine evidence for. "
+        f"Return a JSON array of strings."
     )
     return [SystemMessage(content=system), HumanMessage(content=content)]
 
@@ -261,6 +309,9 @@ async def job_analyzer_messages(
 # ── Anthropic Evaluator ───────────────────────────────────────────────────────
 
 _ANTHROPIC_EVALUATOR_BASE = """You are a senior hiring manager and career narrative specialist evaluating a tailored resume. Your perspective focuses on the PERSUASIVENESS and COHERENCE of the candidate's story — not just keyword presence, but whether the resume compellingly argues that this person is the right hire.
+
+## ABSOLUTE CONSTRAINT — NO HALLUCINATION
+Your suggestions must only reference skills, experiences, and qualifications that exist in the candidate's resume. Never suggest adding fabricated experience, invented metrics, or qualifications the candidate does not demonstrably have. If you suggest a rewrite, use placeholder brackets like [X] for values the candidate should fill in from their real experience.
 
 {scoring_criteria}
 
@@ -273,7 +324,7 @@ Beyond the scoring criteria above, actively probe for:
 
 2. **Career story coherence** — Does the sequence of roles show logical progression toward the target position? Are there unexplained gaps or a mismatch between the trajectory and the role being applied to?
 
-3. **Impact evidence quality** — Are achievements stated with enough specificity to be credible? Vague claims ("improved performance", "led initiatives") score lower than named, quantified outcomes. Identify the weakest 2–3 bullets by name and rewrite them with the structure: [verb] + [specific action] + [measurable result].
+3. **Impact evidence quality** — Are achievements stated with enough specificity to be credible? Vague claims ("improved performance", "led initiatives") score lower than named, quantified outcomes. Identify the weakest 2–3 bullets and rewrite them using: [verb] + [specific action] + [measurable result — use brackets if the candidate must supply the number].
 
 4. **Language strength** — Are bullets opening with strong ownership verbs? Flag any bullet starting with "Helped", "Assisted", "Responsible for", "Worked on", "Participated in" — these signal low ownership and must be rewritten.
 
@@ -282,10 +333,10 @@ Beyond the scoring criteria above, actively probe for:
 ## SUGGESTION QUALITY RULES
 Every suggestion must be SPECIFIC and ACTIONABLE — not generic advice.
 BAD: "Add more metrics to your bullets"
-GOOD: "The bullet 'Managed database migrations' at [Company] is too vague. Rewrite as: 'Led migration of [X] database to [platform], completing in [timeframe] with zero downtime and reducing infrastructure costs by [amount]'"
+GOOD: "The bullet 'Managed database migrations' at [Company] is too vague. Rewrite as: 'Led migration of [X]TB database to [platform], completing in [timeframe] with zero downtime and reducing infrastructure costs by [£/$ amount]' — fill in figures from your actual experience."
 
 BAD: "Improve your professional summary"
-GOOD: "The summary does not mention [top JD requirement]. Add a sentence connecting the candidate's [specific skill from resume] to the employer's stated need for [JD phrase]."
+GOOD: "The summary does not mention [top JD requirement]. Add a sentence connecting the candidate's [specific skill from their resume] to the employer's stated need for [JD phrase]."
 
 Provide 4–7 specific, rewrite-level suggestions ordered by impact (highest first).
 

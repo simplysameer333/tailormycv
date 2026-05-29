@@ -149,7 +149,22 @@ def _build_replacements(r: dict) -> dict:
     for ed in r.get("education", []):
         edu_lines.append(f"{ed['degree']} — {ed['institution']} ({ed['dates']})")
 
-    return {
+    # Build per-section replacements from dynamic sections[] (new format)
+    # and also expose a combined {{SECTIONS}} block for templates that use it.
+    section_lines = []
+    section_map: dict[str, str] = {}
+    for sec in r.get("sections", []):
+        title = sec.get("title", "")
+        items = sec.get("items", [])
+        if not title or not items:
+            continue
+        block = "\n".join(f"  •  {item}" for item in items)
+        section_lines.append(f"{title.upper()}\n{block}")
+        # Allow templates to use {{SKILLS}}, {{CERTIFICATIONS}} etc. by section title
+        token = "{{" + title.upper().replace(" ", "_") + "}}"
+        section_map[token] = "\n".join(items)
+
+    replacements = {
         "{{NAME}}": r.get("name", ""),
         "{{EMAIL}}": contact.get("email", ""),
         "{{PHONE}}": contact.get("phone", ""),
@@ -160,9 +175,13 @@ def _build_replacements(r: dict) -> dict:
         "{{SUMMARY}}": r.get("summary", ""),
         "{{EXPERIENCE}}": "\n".join(exp_lines),
         "{{EDUCATION}}": "\n".join(edu_lines),
+        "{{SECTIONS}}": "\n\n".join(section_lines),
+        # Backward compat with old-format sessions
         "{{SKILLS}}": ", ".join(r.get("skills", [])),
         "{{CERTIFICATIONS}}": ", ".join(r.get("certifications", [])),
     }
+    replacements.update(section_map)
+    return replacements
 
 
 def _generate_clean_docx(r: dict) -> bytes:
@@ -258,17 +277,26 @@ def _generate_clean_docx(r: dict) -> bytes:
                 run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
                 run.italic = True
 
-    # ── Skills ─────────────────────────────────────────────────────────────────
-    if r.get("skills"):
-        _docx_section_heading(doc, "Skills")
-        for skill in r["skills"]:
-            _docx_bullet(doc, skill)
-
-    # ── Certifications ─────────────────────────────────────────────────────────
-    if r.get("certifications"):
-        _docx_section_heading(doc, "Certifications")
-        for cert in r["certifications"]:
-            _docx_bullet(doc, cert)
+    # ── Additional sections — dynamic (new format) or legacy fallback ──────────
+    if r.get("sections"):
+        for sec in r["sections"]:
+            title = sec.get("title", "")
+            items = sec.get("items", [])
+            if not title or not items:
+                continue
+            _docx_section_heading(doc, title)
+            for item in items:
+                _docx_bullet(doc, item)
+    else:
+        # Backward compat: old-format resumes stored before dynamic sections
+        if r.get("skills"):
+            _docx_section_heading(doc, "Skills")
+            for skill in r["skills"]:
+                _docx_bullet(doc, skill)
+        if r.get("certifications"):
+            _docx_section_heading(doc, "Certifications")
+            for cert in r["certifications"]:
+                _docx_bullet(doc, cert)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -408,17 +436,26 @@ def generate_pdf(resume_data: dict) -> bytes:
             ))
             story.append(Paragraph(_e(ed.get("dates", "")), job_meta_style))
 
-    # ── Skills — bullet list ───────────────────────────────────────────────────
-    if r.get("skills"):
-        story += section_heading("Skills")
-        for skill in r["skills"]:
-            story.append(Paragraph(f"•  {_e(skill)}", bullet_style))
-
-    # ── Certifications ─────────────────────────────────────────────────────────
-    if r.get("certifications"):
-        story += section_heading("Certifications")
-        for cert in r["certifications"]:
-            story.append(Paragraph(f"•  {_e(cert)}", bullet_style))
+    # ── Additional sections — dynamic (new format) or legacy fallback ──────────
+    if r.get("sections"):
+        for sec in r["sections"]:
+            title = sec.get("title", "")
+            items = sec.get("items", [])
+            if not title or not items:
+                continue
+            story += section_heading(title)
+            for item in items:
+                story.append(Paragraph(f"•  {_e(item)}", bullet_style))
+    else:
+        # Backward compat: old-format resumes stored before dynamic sections
+        if r.get("skills"):
+            story += section_heading("Skills")
+            for skill in r["skills"]:
+                story.append(Paragraph(f"•  {_e(skill)}", bullet_style))
+        if r.get("certifications"):
+            story += section_heading("Certifications")
+            for cert in r["certifications"]:
+                story.append(Paragraph(f"•  {_e(cert)}", bullet_style))
 
     doc.build(story)
     return buf.getvalue()

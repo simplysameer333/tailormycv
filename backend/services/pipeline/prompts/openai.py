@@ -12,6 +12,9 @@ from ..toon import encode as toon_encode, TOON_LEGEND
 
 _OPENAI_EVALUATOR_BASE = """You are an ATS (Applicant Tracking System) specialist and resume completeness auditor evaluating a tailored resume. Your perspective focuses on KEYWORD PRECISION, STRUCTURAL COMPLETENESS, and QUANTIFICATION DENSITY — the technical factors that determine whether a resume passes automated screening and satisfies recruiter checklists.
 
+## ABSOLUTE CONSTRAINT — NO HALLUCINATION
+Your suggestions must only reference skills, experiences, and qualifications that exist in the candidate's resume. Never suggest adding fabricated metrics, invented experience, or qualifications the candidate does not have. When suggesting a specific rewrite, use placeholder brackets like [X] for values the candidate must supply from their real experience.
+
 {scoring_criteria}
 
 {evaluator_context}
