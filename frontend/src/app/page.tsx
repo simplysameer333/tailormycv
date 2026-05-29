@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { FiUpload, FiZap, FiDownload } from "react-icons/fi";
 import Navbar from "@/components/Navbar";
+import PricingTiers from "@/components/PricingTiers";
 
 const steps = [
   {
@@ -68,6 +69,19 @@ export default function LandingPage() {
               <p className="text-slate-500 text-sm">{desc}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* ── Pricing ── */}
+      <section className="py-14 sm:py-20 px-4 sm:px-6 bg-slate-50 border-t border-slate-100">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Simple, transparent pricing</h2>
+            <p className="mt-3 text-slate-500 text-sm sm:text-base max-w-xl mx-auto">
+              Start for free — no credit card required. Upgrade any time to unlock job search, resume library, and advanced AI features.
+            </p>
+          </div>
+          <PricingTiers />
         </div>
       </section>
 

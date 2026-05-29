@@ -3,64 +3,12 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { FiUser, FiMail, FiLock, FiCheck, FiEye, FiEyeOff } from "react-icons/fi";
+import { FiUser, FiMail, FiLock, FiEye, FiEyeOff } from "react-icons/fi";
 import api from "@/lib/api";
 import { signIn } from "next-auth/react";
+import PricingTiers, { type Tier } from "@/components/PricingTiers";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
-
-type Tier = "free" | "plus" | "pro";
-
-const TIERS: {
-  id: Tier;
-  name: string;
-  price: string;
-  highlight?: boolean;
-  features: string[];
-}[] = [
-  {
-    id: "free",
-    name: "Free",
-    price: "$0 / mo",
-    features: [
-      "6-step AI resume builder",
-      "DOCX + PDF export",
-      "3 templates (Clean / Modern / Executive)",
-      "1 AI quality evaluator",
-      "3 key skills extracted from JD",
-    ],
-  },
-  {
-    id: "plus",
-    name: "Plus",
-    price: "$9 / mo",
-    highlight: true,
-    features: [
-      "Everything in Free",
-      "2 AI quality evaluators",
-      "5 key skills extracted",
-      "Job search (Indeed / LinkedIn / Glassdoor)",
-      "Save up to 25 jobs",
-      "Resume Library (5 resumes)",
-      "One-click Tailor from job listings",
-    ],
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "$19 / mo",
-    features: [
-      "Everything in Plus",
-      "3 AI quality evaluators",
-      "10 key skills extracted",
-      "Section-level regeneration",
-      "Locked Facts panel",
-      "Sample CV formatting reference",
-      "Unlimited Resume Library",
-      "Unlimited saved jobs",
-    ],
-  },
-];
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -122,43 +70,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Tier cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {TIERS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTier(t.id)}
-              className={`relative text-left rounded-2xl border-2 p-4 transition-all ${
-                tier === t.id
-                  ? "border-brand-500 bg-brand-50 shadow-sm"
-                  : "border-slate-200 bg-white hover:border-brand-300"
-              }`}
-            >
-              {t.highlight && (
-                <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-xs font-semibold bg-brand-600 text-white px-2.5 py-0.5 rounded-full">
-                  Most popular
-                </span>
-              )}
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-slate-900">{t.name}</span>
-                <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                  tier === t.id ? "border-brand-500 bg-brand-500" : "border-slate-300"
-                }`}>
-                  {tier === t.id && <FiCheck className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                </span>
-              </div>
-              <p className="text-sm font-bold text-brand-600 mb-3">{t.price}</p>
-              <ul className="flex flex-col gap-1.5">
-                {t.features.map((f) => (
-                  <li key={f} className="flex items-start gap-1.5 text-xs text-slate-600">
-                    <FiCheck className="w-3 h-3 text-teal-500 mt-0.5 shrink-0" />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-            </button>
-          ))}
-        </div>
+        <PricingTiers selectedTier={tier} onSelect={setTier} />
 
         {/* Registration form */}
         <div className="card flex flex-col gap-5">
