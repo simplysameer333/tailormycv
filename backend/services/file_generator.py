@@ -149,20 +149,33 @@ def _build_replacements(r: dict) -> dict:
     for ed in r.get("education", []):
         edu_lines.append(f"{ed['degree']} — {ed['institution']} ({ed['dates']})")
 
-    # Build per-section replacements from dynamic sections[] (new format)
-    # and also expose a combined {{SECTIONS}} block for templates that use it.
+    # Build {{SECTIONS}} replacement — works for both new (sections[]) and old
+    # (skills[], certifications[]) resume formats so all templates use one token.
     section_lines = []
+    if r.get("sections"):
+        for sec in r["sections"]:
+            title = sec.get("title", "")
+            items = sec.get("items", [])
+            if not title or not items:
+                continue
+            block = "\n".join(f"  •  {item}" for item in items)
+            section_lines.append(f"{title.upper()}\n{block}")
+    else:
+        # Backward compat: old-format resumes with flat skills/certifications arrays
+        if r.get("skills"):
+            block = "\n".join(f"  •  {s}" for s in r["skills"])
+            section_lines.append(f"SKILLS\n{block}")
+        if r.get("certifications"):
+            block = "\n".join(f"  •  {c}" for c in r["certifications"])
+            section_lines.append(f"CERTIFICATIONS\n{block}")
+
     section_map: dict[str, str] = {}
     for sec in r.get("sections", []):
         title = sec.get("title", "")
         items = sec.get("items", [])
-        if not title or not items:
-            continue
-        block = "\n".join(f"  •  {item}" for item in items)
-        section_lines.append(f"{title.upper()}\n{block}")
-        # Allow templates to use {{SKILLS}}, {{CERTIFICATIONS}} etc. by section title
-        token = "{{" + title.upper().replace(" ", "_") + "}}"
-        section_map[token] = "\n".join(items)
+        if title and items:
+            token = "{{" + title.upper().replace(" ", "_") + "}}"
+            section_map[token] = "\n".join(items)
 
     replacements = {
         "{{NAME}}": r.get("name", ""),
