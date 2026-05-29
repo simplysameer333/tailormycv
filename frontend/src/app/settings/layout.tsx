@@ -15,7 +15,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       <AuthGuard />
       {/* Nav — same max-w-4xl container as all other pages */}
       <header className="w-full bg-white border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-4 sm:gap-6">
+        <div className="max-w-4xl mx-auto px-5 sm:px-6 py-3 sm:py-4 flex items-center gap-4 sm:gap-6">
           <Link href="/" className="text-xl font-bold text-brand-600 shrink-0">
             TailorMyCv
           </Link>
@@ -40,7 +40,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           </nav>
         </div>
       </header>
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">{children}</main>
+      <main className="max-w-4xl mx-auto px-5 sm:px-6 py-6 sm:py-10">{children}</main>
     </div>
   );
 }

@@ -18,7 +18,7 @@ const TIER_COLORS: Record<Tier, string> = {
 };
 
 function DevTierSwitcher() {
-  const { tier, setTier } = useDevContext(); // only rendered when DEV=true, so context always present
+  const { tier, setTier } = useDevContext();
   return (
     <div className="px-3 py-2 border-t border-slate-100">
       <p className="text-xs text-slate-400 mb-1.5">Dev — switch plan</p>
@@ -45,6 +45,7 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const onBuilder = pathname.startsWith("/builder");
+  const onJobs = pathname.startsWith("/jobs");
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -62,36 +63,70 @@ export default function Navbar() {
 
   return (
     <nav className="w-full bg-white border-b border-slate-200">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div className="max-w-4xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
         <Logo />
 
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex items-center gap-1 sm:gap-3">
+
+          {/* ── Find Jobs ── */}
           {status === "authenticated" && (
-            <Link
-              href="/jobs"
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-            >
-              <FiBriefcase className="w-4 h-4" />
-              Find Jobs
-            </Link>
+            <>
+              {/* Mobile: icon only */}
+              <Link
+                href="/jobs"
+                title="Find Jobs"
+                className={`sm:hidden p-2 rounded-lg transition ${
+                  onJobs ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <FiBriefcase className="w-5 h-5" />
+              </Link>
+              {/* Desktop: icon + label */}
+              <Link
+                href="/jobs"
+                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                  onJobs
+                    ? "border-brand-400 bg-brand-50 text-brand-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+                }`}
+              >
+                <FiBriefcase className="w-4 h-4" />
+                Find Jobs
+              </Link>
+            </>
           )}
 
-          <Link
-            href="/builder/upload"
-            className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-              onBuilder
-                ? "border-brand-400 bg-brand-50 text-brand-700"
-                : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-            }`}
-          >
-            <FiEdit2 className="w-4 h-4" />
-            Builder
-          </Link>
+          {/* ── Builder ── */}
+          <>
+            {/* Mobile: icon only */}
+            <Link
+              href="/builder/upload"
+              title="Builder"
+              className={`sm:hidden p-2 rounded-lg transition ${
+                onBuilder ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <FiEdit2 className="w-5 h-5" />
+            </Link>
+            {/* Desktop: icon + label */}
+            <Link
+              href="/builder/upload"
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                onBuilder
+                  ? "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+              }`}
+            >
+              <FiEdit2 className="w-4 h-4" />
+              Builder
+            </Link>
+          </>
 
           {status === "loading" && (
             <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />
           )}
 
+          {/* ── User dropdown ── */}
           {status === "authenticated" && (
             <div className="relative" ref={menuRef}>
               <button
@@ -122,24 +157,16 @@ export default function Navbar() {
                   <Link
                     href="/profile"
                     onClick={() => setOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+                    className="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition"
                   >
                     <FiUser className="w-4 h-4" />
                     My Profile
-                  </Link>
-                  <Link
-                    href="/jobs"
-                    onClick={() => setOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition sm:hidden"
-                  >
-                    <FiBriefcase className="w-4 h-4" />
-                    Find Jobs
                   </Link>
 
                   {!DEV && (
                     <button
                       onClick={() => { setOpen(false); signOut({ callbackUrl: "/" }); }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition"
                     >
                       <FiLogOut className="w-4 h-4" />
                       Sign out

@@ -35,7 +35,7 @@ export default function LandingPage() {
       <Navbar />
 
       {/* ── Hero ── */}
-      <section className="flex flex-1 flex-col items-center justify-center text-center px-4 sm:px-6 py-16 sm:py-24 bg-gradient-to-b from-brand-50 via-white to-teal-50">
+      <section className="flex flex-1 flex-col items-center justify-center text-center px-5 sm:px-8 py-16 sm:py-24 bg-gradient-to-b from-brand-50 via-white to-teal-50">
         <div className="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1.5 rounded-full border border-teal-200 mb-6">
           <FiZap className="w-3.5 h-3.5" /> Multi-Agent AI · Built for Job Seekers
         </div>
@@ -55,7 +55,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── How it works ── */}
-      <section className="py-14 sm:py-20 px-4 sm:px-6 bg-white">
+      <section className="py-14 sm:py-20 px-5 sm:px-8 bg-white">
         <h2 className="text-2xl sm:text-3xl font-bold text-center text-slate-900 mb-10 sm:mb-12">
           How It Works
         </h2>
@@ -73,7 +73,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ── */}
-      <section className="py-14 sm:py-20 px-4 sm:px-6 bg-slate-50 border-t border-slate-100">
+      <section className="py-14 sm:py-20 px-5 sm:px-8 bg-slate-50 border-t border-slate-100">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Simple, transparent pricing</h2>
