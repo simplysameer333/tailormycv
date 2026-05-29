@@ -289,23 +289,6 @@ export default function JobsPage() {
   const [quotaWarningDismissed, setQuotaWarningDismissed] = useState<string | null>(null);
   const [pickerJob, setPickerJob] = useState<Job | null>(null);
 
-  // Pre-fill search from profile, auto-search if role is available
-  useEffect(() => {
-    if (!canSearch) return;
-    getAccountProfile()
-      .then((profile) => {
-        const role = profile?.target_roles?.[0] ?? "";
-        const loc  = profile?.location ?? "";
-        if (role) setQuery(role);
-        if (loc)  setLocation(loc);
-        setHasProfileResume(!!profile?.resume_text);
-        setProfileLoaded(true);
-        if (role) runSearch(role, loc, 1);
-      })
-      .catch(() => setProfileLoaded(true));
-    getJobsQuota().then(setQuota).catch(() => {});
-  }, [canSearch, runSearch]);
-
   const runSearch = useCallback(async (q: string, loc: string, p: number) => {
     if (!q.trim()) return;
     setLoading(true);
@@ -339,6 +322,23 @@ export default function JobsPage() {
       setLoading(false);
     }
   }, []);
+
+  // Pre-fill search from profile, auto-search if role is available
+  useEffect(() => {
+    if (!canSearch) return;
+    getAccountProfile()
+      .then((profile) => {
+        const role = profile?.target_roles?.[0] ?? "";
+        const loc  = profile?.location ?? "";
+        if (role) setQuery(role);
+        if (loc)  setLocation(loc);
+        setHasProfileResume(!!profile?.resume_text);
+        setProfileLoaded(true);
+        if (role) runSearch(role, loc, 1);
+      })
+      .catch(() => setProfileLoaded(true));
+    getJobsQuota().then(setQuota).catch(() => {});
+  }, [canSearch, runSearch]);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
