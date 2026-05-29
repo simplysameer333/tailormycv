@@ -155,7 +155,7 @@ _MOCK_JOBS = [
     {
         "job_title": "Senior Python Engineer",
         "employer_name": "Stripe",
-        "employer_logo": "https://logo.clearbit.com/stripe.com",
+        "employer_logo": "",
         "job_city": "London", "job_state": "", "job_country": "UK",
         "job_employment_type": "FULLTIME",
         "job_is_remote": True,
@@ -253,19 +253,23 @@ async def send_test_alert_email(body: SendTestEmailBody):
         )
 
     # ── Build email payload ───────────────────────────────────────────────────
+    jsearch_query = None
+    jsearch_count = 0
     if alert_doc:
         # Real alert found — run live search
         query = " ".join(alert_doc.get("query_tags", []))
         if alert_doc.get("company"):
             query = f"{query} {alert_doc['company']}".strip()
         location = " OR ".join(alert_doc.get("location_tags", []))
+        jsearch_query = f"{query} {location}".strip()
 
         jobs = await _search_jobs(query, location)
+        jsearch_count = len(jobs)
         jobs = jobs[:10] or _MOCK_JOBS   # fall back to mock if JSearch empty
 
         alert_name = alert_doc["name"]
         user_name = target_user.get("name", "there")
-        source = "real"
+        source = "real" if jsearch_count else "mock_fallback"
     else:
         # No user / no alerts — use mock data
         jobs = _MOCK_JOBS
@@ -288,7 +292,9 @@ async def send_test_alert_email(body: SendTestEmailBody):
         "to": body.email,
         "alert": alert_name,
         "jobs": len(jobs),
-        "source": source,   # "real" | "mock"
+        "source": source,           # "real" | "mock_fallback" | "mock"
+        "jsearch_query": jsearch_query,
+        "jsearch_count": jsearch_count,
     }
 
 

@@ -127,15 +127,22 @@ def _render_alert_email(
         posted = _time_ago(job.get("job_posted_at_datetime_utc"))
         skills = (job.get("job_required_skills") or [])[:4]
 
-        # Initials avatar — no external images (email clients block them)
+        # Logo: use employer_logo from JSearch when available, else coloured initials
         initials = (employer[:2] if employer else "?").upper()
-        _colours = ["#2B579A","#0f766e","#6d28d9","#b45309","#be185d","#065f46","#1d4ed8"]
-        bg = _colours[sum(ord(c) for c in employer) % len(_colours)]
-        logo_html = (
-            f'<div style="width:44px;height:44px;border-radius:10px;'
-            f'background:{bg};text-align:center;line-height:44px;'
-            f'font-size:15px;font-weight:700;color:#fff;">{initials}</div>'
-        )
+        logo_url = job.get("employer_logo", "")
+        if logo_url:
+            logo_cell = (
+                f'<img src="{logo_url}" width="48" height="48" alt="{initials}" '
+                f'style="border-radius:10px;border:1px solid #f1f5f9;display:block;background:#fff;" />'
+            )
+        else:
+            _colours = ["#2B579A","#0f766e","#6d28d9","#b45309","#be185d","#065f46","#1d4ed8"]
+            bg = _colours[sum(ord(c) for c in employer) % len(_colours)]
+            logo_cell = (
+                f'<div style="width:48px;height:48px;border-radius:10px;'
+                f'background:{bg};text-align:center;line-height:48px;'
+                f'font-size:15px;font-weight:700;color:#fff;">{initials}</div>'
+            )
 
         via_html = (
             f' <span style="color:#94a3b8;font-size:11px;">via {publisher}</span>'
@@ -149,7 +156,7 @@ def _render_alert_email(
         if posted:
             sal_parts.append(f'<span style="color:#94a3b8;">{posted}</span>')
         sal_html = (
-            f'<div style="font-size:12px;margin:8px 0 6px;">'
+            f'<div style="font-size:12px;margin:6px 0 4px;">'
             f'{"&nbsp;&middot;&nbsp;".join(sal_parts)}</div>'
             if sal_parts else ""
         )
@@ -157,7 +164,7 @@ def _render_alert_email(
         # Location · type · remote
         meta_parts = list(filter(None, [location, emp_type, "Remote" if is_remote else ""]))
         meta_html = (
-            f'<div style="font-size:12px;color:#94a3b8;margin-bottom:10px;">'
+            f'<div style="font-size:12px;color:#94a3b8;margin-bottom:8px;">'
             f'{"&nbsp;&middot;&nbsp;".join(meta_parts)}</div>'
             if meta_parts else ""
         )
@@ -171,28 +178,34 @@ def _render_alert_email(
                 f'margin:0 4px 4px 0;">{s}</span>'
                 for s in skills
             )
-            skills_html = f'<div style="margin-bottom:12px;">{chips}</div>'
+            skills_html = f'<div style="margin-bottom:6px;">{chips}</div>'
+
+        # Button in left column to keep cards compact
+        btn = (
+            f'<a href="{apply_link}" '
+            f'style="display:block;background:#2B579A;color:#fff;font-size:12px;'
+            f'font-weight:600;padding:7px 0;border-radius:8px;text-decoration:none;'
+            f'text-align:center;margin-top:8px;width:72px;">Apply</a>'
+        )
 
         job_cards_html += f"""
-        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:16px 20px;
-                    margin-bottom:12px;background:#fff;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:4px;">
+        <div style="border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;
+                    margin-bottom:10px;background:#fff;">
+          <table width="100%" cellpadding="0" cellspacing="0">
             <tr>
-              <td width="56" valign="top">{logo_html}</td>
-              <td valign="top" style="padding-left:12px;">
+              <td width="80" valign="top" style="padding-right:14px;">
+                {logo_cell}
+                {btn}
+              </td>
+              <td valign="top">
                 <div style="font-size:15px;font-weight:600;color:#0f172a;margin-bottom:2px;">{title}</div>
                 <div style="font-size:13px;color:#475569;">{employer}{via_html}</div>
+                {sal_html}
+                {meta_html}
+                {skills_html}
               </td>
             </tr>
           </table>
-          {sal_html}
-          {meta_html}
-          {skills_html}
-          <a href="{apply_link}"
-             style="display:inline-block;background:#2B579A;color:#fff;font-size:13px;
-                    font-weight:600;padding:8px 18px;border-radius:8px;text-decoration:none;">
-            View &amp; Apply
-          </a>
         </div>"""
 
     count = len(jobs)
