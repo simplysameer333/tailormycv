@@ -625,7 +625,7 @@ export default function JobsPage() {
                 className="h-full"
               />
             </div>
-            <div className="flex gap-2 shrink-0 self-center">
+            <div className="flex gap-2 shrink-0 self-end">
               <button type="submit" disabled={loading || !queryTags.length} className="btn-primary">
                 {loading ? "Searching…" : "Search"}
               </button>
