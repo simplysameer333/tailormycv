@@ -606,13 +606,14 @@ export default function JobsPage() {
           )}
 
           {/* Search bar */}
-          <form onSubmit={handleSearch} className="card flex flex-col sm:flex-row sm:items-center gap-3 !p-3">
+          <form onSubmit={handleSearch} className="card flex flex-col sm:flex-row sm:items-stretch gap-3 !p-3">
             <div className="flex-1 min-w-0">
               <TagInput
                 value={queryTags}
                 onChange={setQueryTags}
                 fetchSuggestions={searchCatalogRoles}
                 placeholder="Job title, keywords, or company…"
+                className="h-full"
               />
             </div>
             <div className="flex-1 min-w-0">
@@ -621,9 +622,10 @@ export default function JobsPage() {
                 onChange={setLocationTags}
                 fetchSuggestions={async () => []}
                 placeholder="City, country, or Remote…"
+                className="h-full"
               />
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex gap-2 shrink-0 self-center">
               <button type="submit" disabled={loading || !queryTags.length} className="btn-primary">
                 {loading ? "Searching…" : "Search"}
               </button>

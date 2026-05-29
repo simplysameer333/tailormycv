@@ -110,7 +110,7 @@ export default function TagInput({
     <div ref={containerRef} className={`relative ${className}`}>
       {/* Tag area */}
       <div
-        className="flex flex-wrap gap-1.5 min-h-[42px] max-h-[80px] overflow-y-auto w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 transition cursor-text focus-within:border-brand-600 focus-within:ring-2 focus-within:ring-brand-100"
+        className="flex flex-wrap gap-1.5 min-h-[42px] h-full overflow-y-auto w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 transition cursor-text focus-within:border-brand-600 focus-within:ring-2 focus-within:ring-brand-100"
         onClick={() => showInput && inputRef.current?.focus()}
       >
         {value.map((tag) => (
