@@ -86,8 +86,14 @@ class Settings(BaseSettings):
     mongodb_uri: str
     allowed_origins: str = "http://localhost:4000"
 
-    # ── Alerts ────────────────────────────────────────────────────────────────
+    # ── Email (Gmail SMTP for job alert digests) ──────────────────────────────
     support_email: str = "samorsameer@gmail.com"
+    smtp_host: str = ""
+    smtp_port: str = "587"
+    smtp_user: str = ""
+    smtp_password: str = ""
+
+    # ── Alerts ────────────────────────────────────────────────────────────────
     # UTC hour (0–23) at which the daily alert job runs
     alert_send_hour: int = 8
     # Max jobs included per alert digest email
