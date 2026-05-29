@@ -97,7 +97,7 @@ export default function PricingTiers({ selectedTier, onSelect }: PricingTiersPro
         const isSelected = selectedTier === t.id;
         const price = PRICES[currency][t.id];
 
-        const cardClass = `relative flex flex-col rounded-2xl border-2 p-5 transition-all ${
+        const cardClass = `relative flex flex-col rounded-2xl border-2 p-5 transition-all text-left ${
           selectable
             ? isSelected
               ? "border-brand-500 bg-brand-50 shadow-sm"
