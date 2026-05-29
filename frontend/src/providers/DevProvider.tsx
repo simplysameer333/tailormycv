@@ -6,7 +6,7 @@ export type Tier = "free" | "plus" | "pro";
 
 interface DevSession {
   data: {
-    user: { id: string; name: string; email: string; tier: Tier };
+    user: { id: string; name: string; email: string; tier: Tier; is_superadmin: boolean };
     accessToken: string;
     expires: string;
   };
@@ -14,9 +14,9 @@ interface DevSession {
 }
 
 const DEV_USERS: Record<Tier, DevSession["data"]["user"]> = {
-  free: { id: "dev-free", name: "Dev User (Free)", email: "dev-free@tailormycv.dev", tier: "free" },
-  plus: { id: "dev-plus", name: "Dev User (Plus)", email: "dev-plus@tailormycv.dev", tier: "plus" },
-  pro:  { id: "dev-pro",  name: "Dev User (Pro)",  email: "dev-pro@tailormycv.dev",  tier: "pro"  },
+  free: { id: "dev-free", name: "Dev User (Free)", email: "dev-free@tailormycv.dev", tier: "free", is_superadmin: true },
+  plus: { id: "dev-plus", name: "Dev User (Plus)", email: "dev-plus@tailormycv.dev", tier: "plus", is_superadmin: true },
+  pro:  { id: "dev-pro",  name: "Dev User (Pro)",  email: "dev-pro@tailormycv.dev",  tier: "pro",  is_superadmin: true },
 };
 
 const STORAGE_KEY = "tailormycv_dev_tier";

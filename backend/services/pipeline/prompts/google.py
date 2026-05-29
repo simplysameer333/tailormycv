@@ -19,7 +19,7 @@ Return ONLY a valid JSON object — no preamble, no markdown:
 {{"score": 0, "suggestions": ["string"]}}"""
 
 
-def google_evaluator_messages(
+async def google_evaluator_messages(
     resume_json: dict,
     job_description: str,
     profession_config: dict,
@@ -28,7 +28,13 @@ def google_evaluator_messages(
     scoring = profession_config.get("scoring_criteria") or GENERIC_CONFIG["scoring_criteria"]
     eval_ctx = profession_config.get("evaluator_context", "")
     eval_ctx_block = f"{eval_ctx}\n\n" if eval_ctx else ""
-    system = (TOON_LEGEND + "\n\n" + _GOOGLE_EVALUATOR_BASE).format(
+    try:
+        from services.prompt_store import get_override
+        override = await get_override("google_evaluator_base")
+        base = override if override else _GOOGLE_EVALUATOR_BASE
+    except Exception:
+        base = _GOOGLE_EVALUATOR_BASE
+    system = (TOON_LEGEND + "\n\n" + base).format(
         scoring_criteria=scoring,
         evaluator_context=eval_ctx_block,
     )

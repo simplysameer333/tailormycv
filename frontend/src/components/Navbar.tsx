@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
-import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell } from "react-icons/fi";
+import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield } from "react-icons/fi";
 import Logo from "./Logo";
 import { useAuth } from "@/lib/useAuth";
 import { useDevContext, type Tier } from "@/providers/DevProvider";
@@ -173,6 +173,17 @@ export default function Navbar() {
                     >
                       <FiBell className="w-4 h-4" />
                       My Alerts
+                    </Link>
+                  )}
+
+                  {user?.is_superadmin && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2.5 text-sm text-brand-700 hover:bg-brand-50 transition border-t border-slate-100"
+                    >
+                      <FiShield className="w-4 h-4" />
+                      Admin
                     </Link>
                   )}
 

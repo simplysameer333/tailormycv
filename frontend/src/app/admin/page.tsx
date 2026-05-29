@@ -1,0 +1,860 @@
+"use client";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/useAuth";
+import {
+  adminListUsers, adminGetUserStats, adminListAudit, adminListPrompts,
+  adminUpdatePrompt, adminResetPrompt,
+  adminListProfessions, adminCreateProfession, adminUpdateProfession, adminDeleteProfession,
+  AdminUser, UserStats, AuditPage, PromptOverride, AdminProfession,
+} from "@/lib/api";
+import {
+  FiUsers, FiActivity, FiCpu, FiRefreshCw, FiSave, FiRotateCcw,
+  FiChevronLeft, FiChevronRight, FiBriefcase, FiPlus, FiTrash2,
+  FiChevronDown, FiChevronUp, FiToggleLeft, FiToggleRight, FiClock,
+} from "react-icons/fi";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
+
+type Tab = "users" | "audit" | "prompts" | "professions";
+
+interface CacheEntry<T> {
+  data: T;
+  fetchedAt: Date;
+}
+
+interface PageCache {
+  users?: CacheEntry<AdminUser[]>;
+  audit?: CacheEntry<AuditPage>;
+  prompts?: CacheEntry<PromptOverride[]>;
+  professions?: CacheEntry<AdminProfession[]>;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+const TIER_COLORS: Record<string, string> = {
+  free: "bg-slate-100 text-slate-600",
+  plus: "bg-teal-100 text-teal-700",
+  pro:  "bg-brand-100 text-brand-700",
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  "job_alert.create":       "Created alert",
+  "job_alert.delete":       "Deleted alert",
+  "profile.save":           "Saved profile",
+  "resume_library.upload":  "Uploaded resume",
+  "resume.upload":          "Uploaded resume",
+  "resume.generate":        "Generated resume",
+};
+
+function formatDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatDateTime(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function timeAgo(date: Date | null): string {
+  if (!date) return "";
+  const s = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
+}
+
+// ── Tab header bar (shared) ────────────────────────────────────────────────────
+
+function TabHeader({
+  count, label, fetchedAt, loading, onRefresh,
+}: {
+  count?: number | string;
+  label: string;
+  fetchedAt: Date | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <p className="text-sm text-slate-500">
+        {count !== undefined ? `${count} ${label}` : label}
+      </p>
+      <div className="flex items-center gap-3">
+        {fetchedAt && !loading && (
+          <span className="flex items-center gap-1 text-xs text-slate-400">
+            <FiClock className="w-3 h-3" /> {timeAgo(fetchedAt)}
+          </span>
+        )}
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 disabled:opacity-40"
+        >
+          <FiRefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Spinner({ text }: { text: string }) {
+  return <div className="py-16 text-center text-slate-400">{text}</div>;
+}
+
+// ── Users tab ──────────────────────────────────────────────────────────────────
+
+function UserRow({
+  user,
+  statsCache,
+  fetchStats,
+}: {
+  user: AdminUser;
+  statsCache: Map<string, UserStats>;
+  fetchStats: (id: string) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const stats = statsCache.get(user.id);
+
+  async function handleExpand() {
+    const next = !open;
+    setOpen(next);
+    if (next && !stats) {
+      setLoadingStats(true);
+      await fetchStats(user.id);
+      setLoadingStats(false);
+    }
+  }
+
+  return (
+    <>
+      <tr
+        className="hover:bg-slate-50 transition cursor-pointer"
+        onClick={handleExpand}
+      >
+        <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
+          <span className="flex items-center gap-1.5">
+            {open ? <FiChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <FiChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+            {user.name}
+            {user.is_superadmin && (
+              <span className="ml-1 text-xs bg-brand-100 text-brand-700 rounded px-1.5 py-0.5 font-semibold">Admin</span>
+            )}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{user.email}</td>
+        <td className="px-4 py-3">
+          <span className={`text-xs font-semibold rounded px-2 py-0.5 capitalize ${TIER_COLORS[user.tier] ?? "bg-slate-100 text-slate-600"}`}>
+            {user.tier}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatDate(user.created_at)}</td>
+        <td className="px-4 py-3">
+          <span className={`text-xs font-semibold rounded px-2 py-0.5 ${user.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+            {user.is_active ? "Active" : "Disabled"}
+          </span>
+        </td>
+      </tr>
+
+      {open && (
+        <tr className="bg-slate-50 border-b border-slate-100">
+          <td colSpan={5} className="px-6 py-3">
+            {loadingStats ? (
+              <span className="text-xs text-slate-400">Loading activity…</span>
+            ) : stats ? (
+              <div className="flex gap-6 text-sm">
+                {[
+                  ["Sessions",   stats.session_count],
+                  ["Resumes",    stats.resume_count],
+                  ["Alerts",     stats.alert_count],
+                  ["Saved Jobs", stats.saved_job_count],
+                ].map(([label, val]) => (
+                  <div key={String(label)}>
+                    <span className="text-slate-500 text-xs">{label}</span>
+                    <p className="font-semibold text-slate-800">{val}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400">No stats available.</span>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+function UsersTab({
+  users, loading, fetchedAt, onRefresh, statsCache, fetchStats,
+}: {
+  users: AdminUser[];
+  loading: boolean;
+  fetchedAt: Date | null;
+  onRefresh: () => void;
+  statsCache: Map<string, UserStats>;
+  fetchStats: (id: string) => Promise<void>;
+}) {
+  return (
+    <div>
+      <TabHeader count={users.length} label="total users" fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
+      {loading && !users.length ? <Spinner text="Loading users…" /> : (
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="min-w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                {["Name", "Email", "Tier", "Joined", "Status"].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {users.map(u => (
+                <UserRow key={u.id} user={u} statsCache={statsCache} fetchStats={fetchStats} />
+              ))}
+              {!users.length && (
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">No users found.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-xs text-slate-400 mt-2">Click a row to expand activity counts.</p>
+    </div>
+  );
+}
+
+// ── Audit tab ──────────────────────────────────────────────────────────────────
+
+function AuditTab({
+  initialData, loading, fetchedAt, onRefresh,
+}: {
+  initialData: AuditPage | null;
+  loading: boolean;
+  fetchedAt: Date | null;
+  onRefresh: () => void;
+}) {
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(1);
+  const [pageData, setPageData] = useState<AuditPage | null>(initialData);
+  const [pageLoading, setPageLoading] = useState(false);
+
+  // Sync when parent refreshes page 1
+  useEffect(() => {
+    setPage(1);
+    setPageData(initialData);
+  }, [initialData]);
+
+  async function goToPage(p: number) {
+    setPageLoading(true);
+    try {
+      setPageData(await adminListAudit(p, PAGE_SIZE));
+      setPage(p);
+    } finally {
+      setPageLoading(false);
+    }
+  }
+
+  const data = pageData;
+  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const busy = loading || pageLoading;
+
+  return (
+    <div>
+      <TabHeader
+        count={data?.total}
+        label="total entries"
+        fetchedAt={fetchedAt}
+        loading={loading}
+        onRefresh={onRefresh}
+      />
+
+      {busy && !data ? <Spinner text="Loading audit log…" /> : (
+        <>
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  {["Time", "User", "Action", "Details"].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className={`divide-y divide-slate-100 ${busy ? "opacity-50" : ""}`}>
+                {(data?.items ?? []).map(e => (
+                  <tr key={e.id} className="hover:bg-slate-50 transition">
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{formatDateTime(e.created_at)}</td>
+                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{e.user_email}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="text-xs font-medium bg-slate-100 text-slate-700 rounded px-2 py-0.5">
+                        {ACTION_LABELS[e.action] ?? e.action}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">
+                      {Object.entries(e.metadata).map(([k, v]) => `${k}: ${v}`).join(" · ") || "—"}
+                    </td>
+                  </tr>
+                ))}
+                {!(data?.items?.length) && (
+                  <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">No audit entries yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4">
+              <button
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 1 || busy}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              >
+                <FiChevronLeft className="w-4 h-4" /> Prev
+              </button>
+              <span className="text-sm text-slate-500">Page {page} of {totalPages}</span>
+              <button
+                onClick={() => goToPage(page + 1)}
+                disabled={page >= totalPages || busy}
+                className="flex items-center gap-1 px-3 py-1.5 text-sm border rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              >
+                Next <FiChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Prompts tab ────────────────────────────────────────────────────────────────
+
+function PromptCard({ prompt, onSaved }: { prompt: PromptOverride; onSaved: () => void }) {
+  const [body, setBody] = useState(prompt.body);
+  const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  // Sync body when parent refreshes
+  useEffect(() => { setBody(prompt.body); }, [prompt.body]);
+
+  const isDirty = body !== prompt.body;
+  function flash(t: string) { setMsg(t); setTimeout(() => setMsg(""), 3000); }
+
+  async function handleSave() {
+    setSaving(true);
+    try { await adminUpdatePrompt(prompt.key, body); flash("Saved"); onSaved(); }
+    catch { flash("Save failed"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleReset() {
+    setResetting(true);
+    try {
+      const res = await adminResetPrompt(prompt.key);
+      setBody(res.default_body);
+      flash("Reset to default");
+      onSaved();
+    } catch { flash("Reset failed"); }
+    finally { setResetting(false); }
+  }
+
+  return (
+    <div className="card mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="font-semibold text-slate-800">{prompt.label}</h3>
+          <p className="text-xs text-slate-400 font-mono mt-0.5">{prompt.key}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {prompt.is_override && <span className="text-xs bg-amber-100 text-amber-700 rounded px-2 py-0.5 font-semibold">Override active</span>}
+          {msg && <span className={`text-xs font-medium ${msg.includes("fail") ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
+        </div>
+      </div>
+      <textarea
+        value={body}
+        onChange={e => setBody(e.target.value)}
+        rows={12}
+        className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-y"
+      />
+      <div className="flex gap-2 mt-3">
+        <button
+          onClick={handleSave}
+          disabled={saving || !isDirty}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition"
+        >
+          <FiSave className="w-3.5 h-3.5" />
+          {saving ? "Saving…" : "Save override"}
+        </button>
+        {prompt.is_override && (
+          <button
+            onClick={handleReset}
+            disabled={resetting}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 text-slate-700 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 transition"
+          >
+            <FiRotateCcw className="w-3.5 h-3.5" />
+            {resetting ? "Resetting…" : "Reset to default"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PromptsTab({
+  prompts, loading, fetchedAt, onRefresh,
+}: {
+  prompts: PromptOverride[];
+  loading: boolean;
+  fetchedAt: Date | null;
+  onRefresh: () => void;
+}) {
+  return (
+    <div>
+      <TabHeader label="Edit prompts below" fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
+      {loading && !prompts.length ? <Spinner text="Loading prompts…" /> : (
+        <>
+          <p className="text-sm text-slate-500 mb-5">
+            Save an override to replace the hardcoded default. The pipeline uses it immediately. Reset reverts to the original.
+          </p>
+          {prompts.map(p => <PromptCard key={p.key} prompt={p} onSaved={onRefresh} />)}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Professions tab ────────────────────────────────────────────────────────────
+
+const PROMPT_FIELDS: { key: keyof AdminProfession; label: string; rows: number }[] = [
+  { key: "generator_context",  label: "Generator context (appended to generator system prompt)", rows: 6 },
+  { key: "evaluator_context",  label: "Evaluator context (appended to all evaluator prompts)", rows: 5 },
+  { key: "scoring_criteria",   label: "Scoring criteria (replaces default evaluator scoring guide)", rows: 7 },
+  { key: "aggregator_context", label: "Aggregator context (shapes feedback aggregation)", rows: 4 },
+];
+
+const EMPTY_PROFESSION: Omit<AdminProfession, "is_active" | "created_at" | "updated_at"> = {
+  slug: "", display_name: "", keywords: [],
+  generator_context: "", evaluator_context: "",
+  scoring_criteria: "", aggregator_context: "", evaluator_names: [],
+};
+
+function ProfessionCard({
+  profession, onSaved, onDeleted,
+}: {
+  profession: AdminProfession;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<AdminProfession>({ ...profession });
+  const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => { setDraft({ ...profession }); }, [profession]);
+
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(profession);
+  function flash(t: string) { setMsg(t); setTimeout(() => setMsg(""), 3000); }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await adminUpdateProfession(profession.slug, {
+        display_name: draft.display_name, keywords: draft.keywords,
+        generator_context: draft.generator_context, evaluator_context: draft.evaluator_context,
+        scoring_criteria: draft.scoring_criteria, aggregator_context: draft.aggregator_context,
+        evaluator_names: draft.evaluator_names,
+      });
+      flash("Saved");
+      onSaved();
+    } catch { flash("Save failed"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleToggle() {
+    setToggling(true);
+    try {
+      await adminUpdateProfession(profession.slug, { is_active: !profession.is_active });
+      flash(profession.is_active ? "Deactivated" : "Activated");
+      onSaved();
+    } catch { flash("Failed"); }
+    finally { setToggling(false); }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Delete "${profession.display_name}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try { await adminDeleteProfession(profession.slug); onDeleted(); }
+    catch { flash("Delete failed"); }
+    finally { setDeleting(false); }
+  }
+
+  return (
+    <div className={`card mb-3 ${!profession.is_active ? "opacity-60" : ""}`}>
+      <div className="flex items-center justify-between">
+        <button onClick={() => setOpen(o => !o)} className="flex items-center gap-2 flex-1 text-left">
+          {open ? <FiChevronUp className="w-4 h-4 text-slate-400 flex-shrink-0" /> : <FiChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />}
+          <div>
+            <span className="font-semibold text-slate-800">{profession.display_name}</span>
+            <span className="ml-2 text-xs font-mono text-slate-400">{profession.slug}</span>
+            {!profession.is_active && <span className="ml-2 text-xs bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">Inactive</span>}
+          </div>
+        </button>
+        <div className="flex items-center gap-2 ml-3">
+          {msg && <span className={`text-xs font-medium ${msg.includes("fail") || msg.includes("Failed") ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
+          <button onClick={handleToggle} disabled={toggling} title={profession.is_active ? "Deactivate" : "Activate"} className="text-slate-400 hover:text-slate-600 disabled:opacity-50">
+            {profession.is_active ? <FiToggleRight className="w-5 h-5 text-teal-600" /> : <FiToggleLeft className="w-5 h-5" />}
+          </button>
+          {profession.slug !== "generic" && (
+            <button onClick={handleDelete} disabled={deleting} title="Delete" className="text-slate-400 hover:text-red-500 disabled:opacity-50">
+              <FiTrash2 className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {open && (
+        <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Display name</label>
+            <input value={draft.display_name} onChange={e => setDraft(d => ({ ...d, display_name: e.target.value }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Keywords (comma-separated — matched against target role)</label>
+            <input
+              value={draft.keywords.join(", ")}
+              onChange={e => setDraft(d => ({ ...d, keywords: e.target.value.split(",").map(k => k.trim()).filter(Boolean) }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+            />
+          </div>
+          {PROMPT_FIELDS.map(f => (
+            <div key={f.key}>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">{f.label}</label>
+              <textarea rows={f.rows} value={String(draft[f.key] ?? "")}
+                onChange={e => setDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-y" />
+            </div>
+          ))}
+          <button onClick={handleSave} disabled={saving || !isDirty}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition">
+            <FiSave className="w-3.5 h-3.5" />
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewProfessionForm({ onCreated }: { onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState({ ...EMPTY_PROFESSION });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleCreate() {
+    if (!draft.slug.trim() || !draft.display_name.trim()) { setErr("Slug and display name are required."); return; }
+    setSaving(true); setErr("");
+    try {
+      await adminCreateProfession({ ...draft, slug: draft.slug.trim().toLowerCase().replace(/\s+/g, "_") });
+      setDraft({ ...EMPTY_PROFESSION }); setOpen(false); onCreated();
+    } catch { setErr("Create failed — slug may already exist."); }
+    finally { setSaving(false); }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-dashed border-slate-300 text-slate-500 text-sm hover:border-brand-400 hover:text-brand-600 transition w-full justify-center mt-2">
+        <FiPlus className="w-4 h-4" /> New profession
+      </button>
+    );
+  }
+
+  return (
+    <div className="card mt-3 border-brand-200 bg-brand-50/30">
+      <h3 className="font-semibold text-slate-800 mb-4">New profession</h3>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Slug (unique, lowercase)</label>
+            <input value={draft.slug} onChange={e => setDraft(d => ({ ...d, slug: e.target.value }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" placeholder="e.g. data_scientist" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Display name</label>
+            <input value={draft.display_name} onChange={e => setDraft(d => ({ ...d, display_name: e.target.value }))}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" placeholder="e.g. Data Scientist" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">Keywords (comma-separated)</label>
+          <input value={draft.keywords.join(", ")}
+            onChange={e => setDraft(d => ({ ...d, keywords: e.target.value.split(",").map(k => k.trim()).filter(Boolean) }))}
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300"
+            placeholder="data scientist, data analyst, ml engineer" />
+        </div>
+        {PROMPT_FIELDS.map(f => (
+          <div key={f.key}>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">{f.label}</label>
+            <textarea rows={3} value={String(draft[f.key] ?? "")} onChange={e => setDraft(d => ({ ...d, [f.key]: e.target.value }))}
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-y" />
+          </div>
+        ))}
+        {err && <p className="text-sm text-red-600">{err}</p>}
+        <div className="flex gap-2">
+          <button onClick={handleCreate} disabled={saving}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition">
+            <FiPlus className="w-3.5 h-3.5" /> {saving ? "Creating…" : "Create profession"}
+          </button>
+          <button onClick={() => { setOpen(false); setErr(""); setDraft({ ...EMPTY_PROFESSION }); }}
+            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfessionsTab({
+  professions, loading, fetchedAt, onRefresh,
+}: {
+  professions: AdminProfession[];
+  loading: boolean;
+  fetchedAt: Date | null;
+  onRefresh: () => void;
+}) {
+  const active = professions.filter(p => p.is_active);
+  const inactive = professions.filter(p => !p.is_active);
+
+  return (
+    <div>
+      <TabHeader count={professions.length} label="professions" fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
+      {loading && !professions.length ? <Spinner text="Loading professions…" /> : (
+        <>
+          <p className="text-sm text-slate-500 mb-5">
+            Click a profession to expand and edit its prompts and keywords. Changes take effect on the next resume generation.
+          </p>
+          {active.map(p => <ProfessionCard key={p.slug} profession={p} onSaved={onRefresh} onDeleted={onRefresh} />)}
+          {inactive.length > 0 && (
+            <p className="text-xs text-slate-400 mt-4 mb-2 font-semibold uppercase tracking-wide">Inactive</p>
+          )}
+          {inactive.map(p => <ProfessionCard key={p.slug} profession={p} onSaved={onRefresh} onDeleted={onRefresh} />)}
+          <NewProfessionForm onCreated={onRefresh} />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+  { id: "users",       label: "Users",       icon: <FiUsers className="w-4 h-4" /> },
+  { id: "audit",       label: "Audit Log",   icon: <FiActivity className="w-4 h-4" /> },
+  { id: "prompts",     label: "Prompts",     icon: <FiCpu className="w-4 h-4" /> },
+  { id: "professions", label: "Professions", icon: <FiBriefcase className="w-4 h-4" /> },
+];
+
+export default function AdminPage() {
+  const { data: session, status } = useAuth();
+  const router = useRouter();
+  const [tab, setTab] = useState<Tab>("users");
+
+  // ── Cache (useRef — writes don't trigger re-renders) ───────────────────────
+  const cache = useRef<PageCache>({});
+  const userStatsCache = useRef<Map<string, UserStats>>(new Map());
+
+  // ── Displayed state (drives the UI) ───────────────────────────────────────
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [auditData, setAuditData] = useState<AuditPage | null>(null);
+  const [prompts, setPrompts] = useState<PromptOverride[]>([]);
+  const [professions, setProfessions] = useState<AdminProfession[]>([]);
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, professions: false });
+  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, professions: null });
+
+  function setLoad(t: Tab, v: boolean) { setLoading(prev => ({ ...prev, [t]: v })); }
+  function setFetched(t: Tab, d: Date) { setFetchedAt(prev => ({ ...prev, [t]: d })); }
+
+  // ── Fetchers ───────────────────────────────────────────────────────────────
+  const fetchUsers = useCallback(async (force = false) => {
+    if (!force && cache.current.users) {
+      setUsers(cache.current.users.data);
+      setFetchedAt(prev => ({ ...prev, users: cache.current.users!.fetchedAt }));
+      return;
+    }
+    setLoad("users", true);
+    try {
+      const data = await adminListUsers();
+      const entry = { data, fetchedAt: new Date() };
+      cache.current.users = entry;
+      setUsers(data);
+      setFetched("users", entry.fetchedAt);
+    } finally { setLoad("users", false); }
+  }, []);
+
+  const fetchAudit = useCallback(async (force = false) => {
+    if (!force && cache.current.audit) {
+      setAuditData(cache.current.audit.data);
+      setFetchedAt(prev => ({ ...prev, audit: cache.current.audit!.fetchedAt }));
+      return;
+    }
+    setLoad("audit", true);
+    try {
+      const data = await adminListAudit(1, 50);
+      const entry = { data, fetchedAt: new Date() };
+      cache.current.audit = entry;
+      setAuditData(data);
+      setFetched("audit", entry.fetchedAt);
+    } finally { setLoad("audit", false); }
+  }, []);
+
+  const fetchPrompts = useCallback(async (force = false) => {
+    if (!force && cache.current.prompts) {
+      setPrompts(cache.current.prompts.data);
+      setFetchedAt(prev => ({ ...prev, prompts: cache.current.prompts!.fetchedAt }));
+      return;
+    }
+    setLoad("prompts", true);
+    try {
+      const data = await adminListPrompts();
+      const entry = { data, fetchedAt: new Date() };
+      cache.current.prompts = entry;
+      setPrompts(data);
+      setFetched("prompts", entry.fetchedAt);
+    } finally { setLoad("prompts", false); }
+  }, []);
+
+  const fetchProfessions = useCallback(async (force = false) => {
+    if (!force && cache.current.professions) {
+      setProfessions(cache.current.professions.data);
+      setFetchedAt(prev => ({ ...prev, professions: cache.current.professions!.fetchedAt }));
+      return;
+    }
+    setLoad("professions", true);
+    try {
+      const data = await adminListProfessions();
+      const entry = { data, fetchedAt: new Date() };
+      cache.current.professions = entry;
+      setProfessions(data);
+      setFetched("professions", entry.fetchedAt);
+    } finally { setLoad("professions", false); }
+  }, []);
+
+  // Per-user stats — fetched on expand, cached in a Map
+  const fetchUserStats = useCallback(async (userId: string) => {
+    if (userStatsCache.current.has(userId)) return;
+    try {
+      const stats = await adminGetUserStats(userId);
+      userStatsCache.current.set(userId, stats);
+      // Force a re-render so the expanded row shows the stats
+      setUsers(prev => [...prev]);
+    } catch { /* silently ignore */ }
+  }, []);
+
+  // Refresh handlers — clear cache entry then re-fetch
+  function refreshTab(t: Tab) {
+    if (t === "users")       { cache.current.users       = undefined; fetchUsers(true); }
+    if (t === "audit")       { cache.current.audit       = undefined; fetchAudit(true); }
+    if (t === "prompts")     { cache.current.prompts     = undefined; fetchPrompts(true); }
+    if (t === "professions") { cache.current.professions = undefined; fetchProfessions(true); }
+  }
+
+  // Fetch on tab change (lazy — uses cache if available)
+  function handleTabSelect(t: Tab) {
+    setTab(t);
+    if (t === "users")       fetchUsers();
+    if (t === "audit")       fetchAudit();
+    if (t === "prompts")     fetchPrompts();
+    if (t === "professions") fetchProfessions();
+  }
+
+  // Initial fetch for the default tab
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  // Auth guard
+  useEffect(() => {
+    if (status === "unauthenticated") router.replace("/auth/login");
+    if (status === "authenticated" && !session?.user?.is_superadmin) router.replace("/");
+  }, [status, session, router]);
+
+  if (status === "loading" || !session?.user?.is_superadmin) {
+    return <div className="min-h-screen flex items-center justify-center text-slate-400">Checking access…</div>;
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-50">
+      <div className="max-w-6xl mx-auto px-5 sm:px-6 py-8">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-slate-900">Admin Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-1">Superadmin only. Tabs load on first click and cache until you refresh.</p>
+        </div>
+
+        {/* Tab bar */}
+        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 mb-6 w-fit">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              onClick={() => handleTabSelect(t.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
+                tab === t.id ? "bg-brand-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {t.icon}
+              {t.label}
+              {fetchedAt[t.id] && tab !== t.id && (
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-400" title="Cached" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div>
+          {tab === "users" && (
+            <UsersTab
+              users={users}
+              loading={loading.users}
+              fetchedAt={fetchedAt.users}
+              onRefresh={() => refreshTab("users")}
+              statsCache={userStatsCache.current}
+              fetchStats={fetchUserStats}
+            />
+          )}
+          {tab === "audit" && (
+            <AuditTab
+              initialData={auditData}
+              loading={loading.audit}
+              fetchedAt={fetchedAt.audit}
+              onRefresh={() => refreshTab("audit")}
+            />
+          )}
+          {tab === "prompts" && (
+            <PromptsTab
+              prompts={prompts}
+              loading={loading.prompts}
+              fetchedAt={fetchedAt.prompts}
+              onRefresh={() => refreshTab("prompts")}
+            />
+          )}
+          {tab === "professions" && (
+            <ProfessionsTab
+              professions={professions}
+              loading={loading.professions}
+              fetchedAt={fetchedAt.professions}
+              onRefresh={() => refreshTab("professions")}
+            />
+          )}
+        </div>
+      </div>
+    </main>
+  );
+}

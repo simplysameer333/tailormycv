@@ -50,7 +50,7 @@ class JobAnalyzerAgent(BaseAgent):
         """
         count = n if n is not None else settings.skill_extraction_count
         try:
-            messages = job_analyzer_messages(resume_text, user_profile, job_description, count)
+            messages = await job_analyzer_messages(resume_text, user_profile, job_description, count)
             response = await self._model().ainvoke(messages)
             skills = parse_json_response(response.content)
             if isinstance(skills, list):

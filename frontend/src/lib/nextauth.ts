@@ -34,6 +34,7 @@ export const authOptions: NextAuthOptions = {
             email: data.user.email,
             name: data.user.name,
             tier: data.user.tier,
+            is_superadmin: data.user.is_superadmin ?? false,
             accessToken: data.access_token,
           };
         } catch {
@@ -61,6 +62,7 @@ export const authOptions: NextAuthOptions = {
           const data = await res.json();
           user.id = data.user.id;
           user.tier = data.user.tier;
+          user.is_superadmin = data.user.is_superadmin ?? false;
           user.accessToken = data.access_token;
         } catch {
           return false;
@@ -73,6 +75,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.tier = user.tier;
+        token.is_superadmin = user.is_superadmin ?? false;
         token.accessToken = user.accessToken;
       }
       return token;
@@ -81,6 +84,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.user.id = token.id;
       session.user.tier = token.tier;
+      session.user.is_superadmin = token.is_superadmin ?? false;
       session.accessToken = token.accessToken;
       return session;
     },

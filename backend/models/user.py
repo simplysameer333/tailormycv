@@ -11,6 +11,7 @@ class User(BaseModel):
     google_id: Optional[str] = None
     tier: Literal["free", "plus", "pro"] = "free"
     is_active: bool = True
+    is_superadmin: bool = False
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -21,3 +22,4 @@ class UserPublic(BaseModel):
     name: str
     tier: Literal["free", "plus", "pro"]
     has_password: bool
+    is_superadmin: bool = False

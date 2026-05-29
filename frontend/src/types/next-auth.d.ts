@@ -10,11 +10,13 @@ declare module "next-auth" {
       email: string;
       image?: string;
       tier: string;
+      is_superadmin: boolean;
     };
   }
   interface User {
     tier: string;
     accessToken: string;
+    is_superadmin: boolean;
   }
 }
 
@@ -23,5 +25,6 @@ declare module "next-auth/jwt" {
     id: string;
     tier: string;
     accessToken: string;
+    is_superadmin: boolean;
   }
 }

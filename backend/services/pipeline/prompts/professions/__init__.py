@@ -21,11 +21,13 @@ from .software_engineer import CONFIG as SOFTWARE_ENGINEER_CONFIG
 from .animator import CONFIG as ANIMATOR_CONFIG
 from .hotel_management import CONFIG as HOTEL_MANAGEMENT_CONFIG
 
-# Ordered list used by seed_professions.py and the local fallback resolver.
+# All professions to seed into MongoDB on startup (upsert — never overwrites edited fields).
+# Generic must be last so specific professions take priority in keyword matching.
 INITIAL_PROFESSIONS: list[dict] = [
     SOFTWARE_ENGINEER_CONFIG,
     ANIMATOR_CONFIG,
     HOTEL_MANAGEMENT_CONFIG,
+    GENERIC_CONFIG,
 ]
 
 

@@ -58,7 +58,7 @@ async def register(body: RegisterBody):
     user = await create_user(
         body.email, body.name.strip(), hashed_password=hash_password(body.password), tier=tier
     )
-    token = create_access_token(str(user["_id"]), user["email"], user["tier"])
+    token = create_access_token(str(user["_id"]), user["email"], user["tier"], bool(user.get("is_superadmin")))
     return {"access_token": token, "user": serialize_user(user)}
 
 
@@ -71,7 +71,7 @@ async def login(body: LoginBody):
         raise HTTPException(401, "Invalid email or password.")
     if not user.get("is_active", True):
         raise HTTPException(403, "Account is disabled.")
-    token = create_access_token(str(user["_id"]), user["email"], user["tier"])
+    token = create_access_token(str(user["_id"]), user["email"], user["tier"], bool(user.get("is_superadmin")))
     return {"access_token": token, "user": serialize_user(user)}
 
 
@@ -101,7 +101,7 @@ async def sync_oauth_user(body: OAuthSyncBody):
     if not user:
         user = await create_user(body.email, body.name, google_id=body.google_id)
 
-    token = create_access_token(str(user["_id"]), user["email"], user["tier"])
+    token = create_access_token(str(user["_id"]), user["email"], user["tier"], bool(user.get("is_superadmin")))
     return {"access_token": token, "user": serialize_user(user)}
 
 

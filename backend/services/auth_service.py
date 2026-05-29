@@ -23,10 +23,10 @@ def verify_password(plain: str, hashed: str) -> bool:
     return _pwd.verify(plain, hashed)
 
 
-def create_access_token(user_id: str, email: str, tier: str) -> str:
+def create_access_token(user_id: str, email: str, tier: str, is_superadmin: bool = False) -> str:
     exp = datetime.utcnow() + timedelta(hours=_ACCESS_TTL_H)
     return jwt.encode(
-        {"sub": user_id, "email": email, "tier": tier, "exp": exp},
+        {"sub": user_id, "email": email, "tier": tier, "is_superadmin": is_superadmin, "exp": exp},
         settings.jwt_secret,
         algorithm=settings.jwt_algorithm,
     )
@@ -81,4 +81,5 @@ def serialize_user(user: dict) -> dict:
         "name": user["name"],
         "tier": user.get("tier", "free"),
         "has_password": bool(user.get("hashed_password")),
+        "is_superadmin": bool(user.get("is_superadmin", False)),
     }

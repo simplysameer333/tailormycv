@@ -539,3 +539,109 @@ export async function toggleJobAlert(alertId: string): Promise<{ is_active: bool
   const { data } = await api.patch(`/api/jobs/alerts/${alertId}/toggle`);
   return data;
 }
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  tier: string;
+  is_active: boolean;
+  is_superadmin: boolean;
+  created_at: string | null;
+}
+
+export interface UserStats {
+  user_id: string;
+  session_count: number;
+  resume_count: number;
+  alert_count: number;
+  saved_job_count: number;
+}
+
+export interface AuditEntry {
+  id: string;
+  user_id: string;
+  user_email: string;
+  action: string;
+  metadata: Record<string, unknown>;
+  created_at: string | null;
+}
+
+export interface AuditPage {
+  total: number;
+  page: number;
+  page_size: number;
+  items: AuditEntry[];
+}
+
+export interface PromptOverride {
+  key: string;
+  label: string;
+  body: string;
+  is_override: boolean;
+  default_body: string;
+}
+
+export async function adminListUsers(): Promise<AdminUser[]> {
+  const { data } = await api.get("/api/admin/users");
+  return data;
+}
+
+export async function adminGetUserStats(userId: string): Promise<UserStats> {
+  const { data } = await api.get(`/api/admin/users/${userId}/stats`);
+  return data;
+}
+
+export async function adminListAudit(page = 1, pageSize = 50): Promise<AuditPage> {
+  const { data } = await api.get(`/api/admin/audit?page=${page}&page_size=${pageSize}`);
+  return data;
+}
+
+export async function adminListPrompts(): Promise<PromptOverride[]> {
+  const { data } = await api.get("/api/admin/prompts");
+  return data;
+}
+
+export async function adminUpdatePrompt(key: string, body: string): Promise<void> {
+  await api.put(`/api/admin/prompts/${key}`, { body });
+}
+
+export async function adminResetPrompt(key: string): Promise<{ default_body: string }> {
+  const { data } = await api.delete(`/api/admin/prompts/${key}`);
+  return data;
+}
+
+export interface AdminProfession {
+  slug: string;
+  display_name: string;
+  keywords: string[];
+  generator_context: string;
+  evaluator_context: string;
+  scoring_criteria: string;
+  aggregator_context: string;
+  evaluator_names: string[];
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function adminListProfessions(): Promise<AdminProfession[]> {
+  const { data } = await api.get("/api/admin/professions");
+  return data;
+}
+
+export async function adminCreateProfession(body: Omit<AdminProfession, "is_active" | "created_at" | "updated_at">): Promise<AdminProfession> {
+  const { data } = await api.post("/api/admin/professions", body);
+  return data;
+}
+
+export async function adminUpdateProfession(slug: string, body: Partial<AdminProfession>): Promise<AdminProfession> {
+  const { data } = await api.patch(`/api/admin/professions/${slug}`, body);
+  return data;
+}
+
+export async function adminDeleteProfession(slug: string): Promise<void> {
+  await api.delete(`/api/admin/professions/${slug}`);
+}

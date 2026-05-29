@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from database import get_db
 from dependencies.auth import get_current_user, require_tier
+from services.audit import log_audit
 
 router = APIRouter()
 
@@ -104,6 +105,7 @@ async def create_alert(body: CreateAlertBody, user: dict = Depends(require_tier(
         "seen_job_ids": [],
     })
     doc = await db.job_alerts.find_one({"_id": result.inserted_id})
+    log_audit(user, "job_alert.create", {"alert_id": str(result.inserted_id), "name": body.name.strip()})
     return _serialize(doc)
 
 
@@ -149,6 +151,7 @@ async def delete_alert(alert_id: str, user: dict = Depends(require_tier("plus"))
     result = await db.job_alerts.delete_one({"_id": oid, "user_id": user["_id"]})
     if result.deleted_count == 0:
         raise HTTPException(404, "Alert not found.")
+    log_audit(user, "job_alert.delete", {"alert_id": alert_id})
 
 
 class SendTestEmailBody(BaseModel):

@@ -49,6 +49,10 @@ async def _ensure_indexes():
     # Job alerts — per-user list + scheduler's active-alert scan
     await db.job_alerts.create_index([("user_id", 1), ("created_at", -1)])
     await db.job_alerts.create_index("is_active")
+    # Admin — audit log (recent-first per user) and prompt overrides (unique key)
+    await db.audit_log.create_index([("created_at", -1)])
+    await db.audit_log.create_index([("user_id", 1), ("created_at", -1)])
+    await db.prompt_overrides.create_index("key", unique=True)
 
 
 def get_db():

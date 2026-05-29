@@ -44,9 +44,38 @@ Rules:
 }"""
 
 
-def _build_generator_system(tone: str, profession_config: dict, locked_facts: list) -> str:
+async def _get_generator_base() -> str:
+    try:
+        from services.prompt_store import get_override
+        override = await get_override("generator_system")
+        return override if override else _GENERATOR_SYSTEM_BASE
+    except Exception:
+        return _GENERATOR_SYSTEM_BASE
+
+
+async def _get_job_analyzer_system(n: int) -> str:
+    try:
+        from services.prompt_store import get_override
+        override = await get_override("job_analyzer_system")
+        base = override if override else _JOB_ANALYZER_SYSTEM
+        return base.format(n=n)
+    except Exception:
+        return _JOB_ANALYZER_SYSTEM.format(n=n)
+
+
+async def _get_anthropic_evaluator_base() -> str:
+    try:
+        from services.prompt_store import get_override
+        override = await get_override("anthropic_evaluator_base")
+        return override if override else _ANTHROPIC_EVALUATOR_BASE
+    except Exception:
+        return _ANTHROPIC_EVALUATOR_BASE
+
+
+async def _build_generator_system(tone: str, profession_config: dict, locked_facts: list) -> str:
     """Compose the full generator system prompt from base + profession context + locked facts."""
-    system = TOON_LEGEND + "\n\n" + _GENERATOR_SYSTEM_BASE.replace("{tone}", tone)
+    base = await _get_generator_base()
+    system = TOON_LEGEND + "\n\n" + base.replace("{tone}", tone)
     ctx = profession_config.get("generator_context", "")
     if ctx:
         system += f"\n\n## {ctx}"
@@ -61,7 +90,7 @@ def _build_generator_system(tone: str, profession_config: dict, locked_facts: li
     return system
 
 
-def generator_messages(
+async def generator_messages(
     resume_text: str,
     user_profile: dict,
     job_description: str,
@@ -73,7 +102,7 @@ def generator_messages(
     sample_cv_text: str | None = None,
 ) -> list:
     """Build the full message list for a generator run (full resume generation)."""
-    system = _build_generator_system(tone, profession_config, locked_facts)
+    system = await _build_generator_system(tone, profession_config, locked_facts)
     parts = [
         f"## EXISTING RESUME\n{resume_text}",
         f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}",
@@ -99,7 +128,7 @@ def generator_messages(
     return [SystemMessage(content=system), HumanMessage(content="\n\n".join(parts))]
 
 
-def section_messages(
+async def section_messages(
     resume_text: str,
     user_profile: dict,
     job_description: str,
@@ -112,7 +141,7 @@ def section_messages(
     sample_cv_text: str | None = None,
 ) -> list:
     """Build the full message list for a section-only regeneration."""
-    system = _build_generator_system(tone, profession_config, locked_facts)
+    system = await _build_generator_system(tone, profession_config, locked_facts)
     parts = [
         f"## EXISTING RESUME\n{resume_text}",
         f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}",
@@ -148,14 +177,14 @@ Rules:
 ["skill one", "skill two", ...]"""
 
 
-def job_analyzer_messages(
+async def job_analyzer_messages(
     resume_text: str,
     user_profile: dict,
     job_description: str,
     n: int,
 ) -> list:
     """Build messages for JobAnalyzerAgent to extract top-N key skills."""
-    system = _JOB_ANALYZER_SYSTEM.format(n=n)
+    system = await _get_job_analyzer_system(n)
     content = (
         f"## CANDIDATE RESUME\n{resume_text}\n\n"
         f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}\n\n"
@@ -176,7 +205,7 @@ Return ONLY a valid JSON object — no preamble, no markdown:
 {{"score": 0, "suggestions": ["string"]}}"""
 
 
-def anthropic_evaluator_messages(
+async def anthropic_evaluator_messages(
     resume_json: dict,
     job_description: str,
     profession_config: dict,
@@ -185,7 +214,8 @@ def anthropic_evaluator_messages(
     scoring = profession_config.get("scoring_criteria") or GENERIC_CONFIG["scoring_criteria"]
     eval_ctx = profession_config.get("evaluator_context", "")
     eval_ctx_block = f"{eval_ctx}\n\n" if eval_ctx else ""
-    system = (TOON_LEGEND + "\n\n" + _ANTHROPIC_EVALUATOR_BASE).format(
+    base = await _get_anthropic_evaluator_base()
+    system = (TOON_LEGEND + "\n\n" + base).format(
         scoring_criteria=scoring,
         evaluator_context=eval_ctx_block,
     )

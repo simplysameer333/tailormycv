@@ -30,6 +30,7 @@ from dependencies.auth import get_current_user, require_tier
 from services.resume_parser import parse_resume
 from services.storage import get_storage
 from services.file_generator import generate_docx
+from services.audit import log_audit
 
 router = APIRouter()
 
@@ -122,6 +123,7 @@ async def upload_resume(
         "updated_at": now,
     })
     doc = await db.saved_resumes.find_one({"_id": result.inserted_id})
+    log_audit(user, "resume_library.upload", {"name": display_name, "resume_id": str(result.inserted_id)})
     return _serialize(doc)
 
 

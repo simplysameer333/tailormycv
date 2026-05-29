@@ -1,14 +1,28 @@
 """MongoDB CRUD for profession configs + runtime resolution.
 
-Professions are seeded from code (seed_professions.py) and can be managed
-via the /api/professions endpoints. The pipeline resolves the correct config
-once before invoking the graph — no DB calls happen inside the eval loop.
+Professions are seeded into MongoDB on app startup (upsert by slug) and can be
+managed via the /api/professions endpoints or the admin dashboard.
+The pipeline resolves the correct config once before invoking the graph.
 """
 from __future__ import annotations
 from datetime import datetime
 
-from services.pipeline.prompts.professions import resolve_profession
+from services.pipeline.prompts.professions import resolve_profession, INITIAL_PROFESSIONS
 from services.pipeline.prompts.professions.generic import CONFIG as GENERIC_CONFIG
+
+
+async def seed_professions(db) -> None:
+    """Upsert all built-in professions into MongoDB on startup.
+
+    Uses upsert so existing admin edits are preserved — only inserts missing fields.
+    """
+    for config in INITIAL_PROFESSIONS:
+        await db.professions.update_one(
+            {"slug": config["slug"]},
+            {"$setOnInsert": {**config, "created_at": datetime.utcnow().isoformat()},
+             "$set": {"updated_at": datetime.utcnow().isoformat()}},
+            upsert=True,
+        )
 
 
 async def get_all_professions(db) -> list[dict]:
@@ -25,12 +39,21 @@ async def get_profession_by_slug(db, slug: str) -> dict | None:
 async def resolve_profession_for_role(db, target_role: str) -> dict:
     """Return the best-matching profession config for the target role.
 
-    Fetches all active professions from MongoDB and delegates matching to
-    the code-level resolve_profession() function. Falls back to GENERIC_CONFIG
-    if the DB is empty or no profession matches.
+    Fetches all active professions from MongoDB. Non-generic professions are
+    checked first for keyword match; the DB generic record is returned as
+    fallback. Falls back to the hardcoded GENERIC_CONFIG only if the DB is empty.
     """
     professions = await get_all_professions(db)
-    return resolve_profession(professions, target_role)
+    if not professions:
+        return GENERIC_CONFIG
+    # Separate generic from specific so keyword matching only runs on specific ones
+    specific = [p for p in professions if p.get("slug") != "generic"]
+    generic_db = next((p for p in professions if p.get("slug") == "generic"), GENERIC_CONFIG)
+    matched = resolve_profession(specific, target_role)
+    # resolve_profession returns GENERIC_CONFIG when no match — swap in the DB version
+    if matched.get("slug") == "generic":
+        return generic_db
+    return matched
 
 
 async def create_profession(db, data: dict) -> dict:

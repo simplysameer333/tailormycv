@@ -29,7 +29,7 @@ class GoogleEvaluatorAgent(BaseEvaluatorAgent):
 
     async def run(self, resume_json: dict, job_description: str, profession_config: dict) -> dict:
         try:
-            messages = google_evaluator_messages(resume_json, job_description, profession_config)
+            messages = await google_evaluator_messages(resume_json, job_description, profession_config)
             response = await self._model().ainvoke(messages)
             result = parse_json_response(response.content)
             return {"model": self.name, "score": int(result["score"]), "suggestions": result.get("suggestions", [])}

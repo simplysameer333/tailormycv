@@ -32,6 +32,7 @@ async def _resolve_dev_user(tier: str) -> dict:
             "google_id": None,
             "tier": tier,
             "is_active": True,
+            "is_superadmin": True,
             "created_at": now,
             "updated_at": now,
         })
@@ -61,6 +62,15 @@ async def get_current_user(
     user = await get_user_by_id(user_id)
     if not user or not user.get("is_active", True):
         raise HTTPException(401, "User not found.")
+    return user
+
+
+async def require_superadmin(user: dict = Depends(get_current_user)) -> dict:
+    # In dev bypass mode all local accounts are treated as superadmin
+    if settings.dev_bypass_auth:
+        return user
+    if not user.get("is_superadmin"):
+        raise HTTPException(403, "Admin access required.")
     return user
 
 

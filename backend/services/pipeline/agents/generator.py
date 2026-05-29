@@ -40,7 +40,7 @@ class GeneratorAgent(BaseAgent):
         sample_cv_text: str | None = None,
         feedback: str | None = None,
     ) -> dict:
-        messages = generator_messages(
+        messages = await generator_messages(
             resume_text, user_profile, job_description, tone, feedback,
             profession_config, locked_facts or [], key_skills or [], sample_cv_text,
         )
@@ -60,7 +60,7 @@ class GeneratorAgent(BaseAgent):
         key_skills: list | None = None,
         sample_cv_text: str | None = None,
     ) -> dict:
-        messages = section_messages(
+        messages = await section_messages(
             resume_text, user_profile, job_description, tone, section,
             existing_resume, profession_config, locked_facts or [], key_skills or [],
             sample_cv_text,

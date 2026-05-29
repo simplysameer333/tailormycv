@@ -22,6 +22,7 @@ from database import get_db
 from dependencies.auth import get_current_user
 from services.resume_parser import parse_resume
 from services.storage import get_storage
+from services.audit import log_audit
 
 router = APIRouter()
 
@@ -118,6 +119,7 @@ async def save_profile(body: ProfileBody, user: dict = Depends(get_current_user)
         upsert=True,
     )
     profile = await _get_profile(user["_id"])
+    log_audit(user, "profile.save", {"fields": list(body.model_dump().keys())})
     return _serialize_profile(profile)
 
 
