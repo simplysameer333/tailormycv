@@ -30,12 +30,12 @@ const steps = [
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen flex flex-col">
+    <main className="min-h-screen flex flex-col bg-white">
 
       <Navbar />
 
       {/* ── Hero ── */}
-      <section className="flex flex-1 flex-col items-center justify-center text-center px-5 sm:px-8 py-16 sm:py-24 bg-gradient-to-b from-brand-50 via-white to-teal-50">
+      <section className="flex flex-1 flex-col items-center justify-center text-center px-5 sm:px-8 py-16 sm:py-24 bg-gradient-to-b from-brand-50 to-white rounded-b-[2.5rem] sm:rounded-none shadow-sm sm:shadow-none">
         <div className="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1.5 rounded-full border border-teal-200 mb-6">
           <FiZap className="w-3.5 h-3.5" /> Multi-Agent AI · Built for Job Seekers
         </div>
@@ -73,7 +73,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── Pricing ── */}
-      <section className="py-14 sm:py-20 px-5 sm:px-8 bg-slate-50 border-t border-slate-100">
+      <section className="py-14 sm:py-20 px-5 sm:px-8 bg-slate-50 rounded-t-[2.5rem] sm:rounded-none shadow-[0_-4px_16px_0_rgba(0,0,0,0.04)] sm:shadow-none">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Simple, transparent pricing</h2>
