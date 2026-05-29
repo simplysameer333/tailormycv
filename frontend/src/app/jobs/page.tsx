@@ -173,17 +173,41 @@ function JobCard({
 
       {/* Main info */}
       <div className="flex-1 min-w-0">
-        {/* Row 1 — title + employer */}
-        <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
-        <p className="text-sm text-slate-500 mt-0.5">
-          {job.employer_name}
-          {job.job_publisher && (
-            <span className="ml-2 text-xs text-slate-400">via {job.job_publisher}</span>
-          )}
-        </p>
 
-        {/* Row 2 — actions (always fixed below title) */}
-        <div className="flex items-center gap-2 mt-3 flex-wrap">
+        {/* Row 1 — title (left) + location/type/remote (right) */}
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+            {location && (
+              <span className="flex items-center gap-1 text-xs text-slate-500">
+                <FiMapPin className="w-3 h-3" /> {location}
+              </span>
+            )}
+            {job.job_is_remote && (
+              <span className="text-xs font-semibold text-teal-600 bg-teal-50 rounded-full px-2 py-0.5">Remote</span>
+            )}
+            {empType && (
+              <span className="text-xs text-slate-500 bg-slate-100 rounded-full px-2 py-0.5">{empType}</span>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2 — employer (left) + salary/posted (right) */}
+        <div className="flex items-center justify-between gap-3 mt-0.5">
+          <p className="text-sm text-slate-500 truncate">
+            {job.employer_name}
+            {job.job_publisher && (
+              <span className="ml-2 text-xs text-slate-400">via {job.job_publisher}</span>
+            )}
+          </p>
+          <div className="flex items-center gap-2 shrink-0 text-xs text-slate-400">
+            {salary && <span className="font-medium text-slate-600">{salary}</span>}
+            {posted && <span className="flex items-center gap-1"><FiClock className="w-3 h-3" />{posted}</span>}
+          </div>
+        </div>
+
+        {/* Row 3 — action buttons (always fixed position) */}
+        <div className="flex items-center gap-2 mt-2.5 flex-wrap">
           <button
             onClick={() => onTailor(job)}
             className="btn-primary text-xs px-3 py-1.5 gap-1.5"
@@ -221,45 +245,6 @@ function JobCard({
           )}
         </div>
 
-        {/* Meta row */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-slate-500">
-          {location && (
-            <span className="flex items-center gap-1">
-              <FiMapPin className="w-3 h-3" /> {location}
-            </span>
-          )}
-          {job.job_is_remote && (
-            <span className="flex items-center gap-1 text-teal-600 font-semibold">
-              <FiWifi className="w-3 h-3" /> Remote
-            </span>
-          )}
-          {empType && (
-            <span className="flex items-center gap-1">
-              <FiBriefcase className="w-3 h-3" /> {empType}
-            </span>
-          )}
-          {salary && (
-            <span className="flex items-center gap-1 font-medium text-slate-700">
-              <FiDollarSign className="w-3 h-3" /> {salary}
-            </span>
-          )}
-          {posted && (
-            <span className="flex items-center gap-1 text-slate-400 ml-auto">
-              <FiClock className="w-3 h-3" /> {posted}
-            </span>
-          )}
-        </div>
-
-        {/* Skills chips */}
-        {skills.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2.5">
-            {skills.map((s) => (
-              <span key={s} className="text-xs bg-slate-100 text-slate-600 rounded-full px-2.5 py-0.5 font-medium">
-                {s}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
