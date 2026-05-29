@@ -187,11 +187,8 @@ class SendTestEmailBody(BaseModel):
 
 
 @router.post("/jobs/alerts/send-test")
-async def send_test_alert_email(
-    body: SendTestEmailBody,
-    _user: dict = Depends(get_current_user),
-):
-    """On-demand alert email for testing.
+async def send_test_alert_email(body: SendTestEmailBody):
+    """On-demand alert email for testing — no auth required.
 
     Looks up the target email in MongoDB:
     - User found with alerts → runs a live JSearch for their first active alert,
