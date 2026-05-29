@@ -64,10 +64,8 @@ async def send_job_alert_email(
         raise RuntimeError("BREVO_API_KEY is not set — add it to .env and Railway")
 
     html = _render_alert_email(user_name, alert_name, jobs, settings.frontend_url)
-    subject = (
-        f"Your job alert: {alert_name} — "
-        f"{len(jobs)} new listing{'s' if len(jobs) != 1 else ''}"
-    )
+    n = len(jobs)
+    subject = f"Your job alert: {alert_name} — Top {n} job{'s' if n != 1 else ''}"
 
     payload = {
         "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
@@ -129,20 +127,15 @@ def _render_alert_email(
         posted = _time_ago(job.get("job_posted_at_datetime_utc"))
         skills = (job.get("job_required_skills") or [])[:4]
 
-        # Logo or initials fallback
-        if logo:
-            logo_html = (
-                f'<img src="{logo}" width="44" height="44" '
-                f'style="border-radius:10px;border:1px solid #f1f5f9;'
-                f'object-fit:contain;display:block;background:#fff;" />'
-            )
-        else:
-            initials = (employer[:2] if employer else "?").upper()
-            logo_html = (
-                f'<div style="width:44px;height:44px;border-radius:10px;'
-                f'background:#e2e8f0;text-align:center;line-height:44px;'
-                f'font-size:14px;font-weight:700;color:#64748b;">{initials}</div>'
-            )
+        # Initials avatar — no external images (email clients block them)
+        initials = (employer[:2] if employer else "?").upper()
+        _colours = ["#2B579A","#0f766e","#6d28d9","#b45309","#be185d","#065f46","#1d4ed8"]
+        bg = _colours[sum(ord(c) for c in employer) % len(_colours)]
+        logo_html = (
+            f'<div style="width:44px;height:44px;border-radius:10px;'
+            f'background:{bg};text-align:center;line-height:44px;'
+            f'font-size:15px;font-weight:700;color:#fff;">{initials}</div>'
+        )
 
         via_html = (
             f' <span style="color:#94a3b8;font-size:11px;">via {publisher}</span>'
@@ -203,7 +196,7 @@ def _render_alert_email(
         </div>"""
 
     count = len(jobs)
-    count_label = f"{count} new listing{'s' if count != 1 else ''}"
+    count_label = f"Top {count} job{'s' if count != 1 else ''}"
 
     return f"""<!DOCTYPE html>
 <html>
@@ -223,7 +216,7 @@ def _render_alert_email(
     <div style="background:#f8fafc;padding:28px 32px 16px;">
       <p style="font-size:16px;color:#1e293b;margin:0 0 6px;">Hi {user_name},</p>
       <p style="font-size:14px;color:#475569;margin:0 0 24px;">
-        We found <strong>{count_label}</strong> matching your alert
+        Here are your <strong>{count_label}</strong> matching your alert
         <strong>&ldquo;{alert_name}&rdquo;</strong>.
       </p>
 
