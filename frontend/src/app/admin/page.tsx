@@ -430,7 +430,9 @@ function PromptsTab({
 
 // ── Professions tab ────────────────────────────────────────────────────────────
 
-const PROMPT_FIELDS: { key: keyof AdminProfession; label: string; rows: number }[] = [
+type ProfessionPromptKey = "generator_context" | "evaluator_context" | "scoring_criteria" | "aggregator_context";
+
+const PROMPT_FIELDS: { key: ProfessionPromptKey; label: string; rows: number }[] = [
   { key: "generator_context",  label: "Generator context (appended to generator system prompt)", rows: 6 },
   { key: "evaluator_context",  label: "Evaluator context (appended to all evaluator prompts)", rows: 5 },
   { key: "scoring_criteria",   label: "Scoring criteria (replaces default evaluator scoring guide)", rows: 7 },
