@@ -23,7 +23,7 @@ from typing import Any
 
 import httpx
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from config import settings
@@ -73,6 +73,7 @@ async def search_jobs(
     query: str,
     location: str = "",
     page: int = 1,
+    page_size: int = Query(default=10, ge=1, le=50),
     _user: dict = Depends(require_tier("plus")),
 ):
     if not settings.rapidapi_key:
@@ -94,8 +95,8 @@ async def search_jobs(
     # Build search query (JSearch takes location inline)
     q = f"{query.strip()} {location.strip()}".strip()
 
-    # Cache lookup
-    cache_key = _cache_key(q, str(page))
+    # Cache lookup (keyed on query + page + page_size)
+    cache_key = _cache_key(q, str(page), str(page_size))
     cached = await _get_cache(cache_key)
     if cached:
         cached["from_cache"] = True
@@ -106,7 +107,7 @@ async def search_jobs(
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.get(
                 f"{_JSEARCH_BASE}/search",
-                params={"query": q, "page": str(page), "num_results": "10"},
+                params={"query": q, "page": str(page), "num_results": str(page_size)},
                 headers=_headers(),
             )
             res.raise_for_status()

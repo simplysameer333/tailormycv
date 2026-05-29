@@ -17,6 +17,7 @@ import { setSessionId } from "@/lib/session";
 import { useAuth } from "@/lib/useAuth";
 import ResumePickerModal from "@/components/ResumePickerModal";
 import TagInput from "@/components/TagInput";
+import { JSEARCH_PAGE_SIZES, JSEARCH_DEFAULT_PAGE_SIZE, type JsearchPageSize } from "@/lib/config";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 
@@ -101,6 +102,17 @@ function formatSalary(job: Job) {
 
 function employerInitials(name: string) {
   return name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+
+const MAX_PAGES = 10;
+
+function getPaginationPages(current: number, max: number): (number | "...")[] {
+  if (max <= 7) return Array.from({ length: max }, (_, i) => i + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, "...", max];
+  if (current >= max - 3) return [1, "...", max - 4, max - 3, max - 2, max - 1, max];
+  return [1, "...", current - 1, current, current + 1, "...", max];
 }
 
 // ── Upgrade wall ──────────────────────────────────────────────────────────────
@@ -271,7 +283,8 @@ export default function JobsPage() {
   const canSearch = tier === "plus" || tier === "pro";
 
   const [queryTags, setQueryTags] = useState<string[]>([]);
-  const [location, setLocation] = useState("");
+  const [locationTags, setLocationTags] = useState<string[]>([]);
+  const [pageSize, setPageSize] = useState<JsearchPageSize>(JSEARCH_DEFAULT_PAGE_SIZE);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [hasProfileResume, setHasProfileResume] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -279,16 +292,18 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [quotaWarningDismissed, setQuotaWarningDismissed] = useState<string | null>(null);
   const [pickerJob, setPickerJob] = useState<Job | null>(null);
 
-  const runSearch = useCallback(async (q: string, loc: string, p: number) => {
+  const runSearch = useCallback(async (q: string, loc: string, p: number, ps: number) => {
     if (!q.trim()) return;
     setLoading(true);
     try {
-      const result = await searchJobs(q, loc, p);
+      const result = await searchJobs(q, loc, p, ps);
       setJobs(result.jobs);
+      setHasMore(result.jobs.length >= ps);
       setSearched(true);
       // Update quota display from response
       if (result.quota_pct !== undefined) {
@@ -325,12 +340,12 @@ export default function JobsPage() {
         const tags: string[] = [];
         if (profile?.target_roles?.length) tags.push(...profile.target_roles);
         if (profile?.primary_skill) tags.push(profile.primary_skill);
-        const loc = profile?.location ?? "";
+        const locTags = profile?.location ? [profile.location] : [];
         if (tags.length) setQueryTags(tags);
-        if (loc) setLocation(loc);
+        if (locTags.length) setLocationTags(locTags);
         setHasProfileResume(!!profile?.resume_text);
         setProfileLoaded(true);
-        if (tags.length) runSearch(tags.join(" "), loc, 1);
+        if (tags.length) runSearch(tags.join(" "), locTags.join(" OR "), 1, JSEARCH_DEFAULT_PAGE_SIZE);
       })
       .catch(() => setProfileLoaded(true));
     getJobsQuota().then(setQuota).catch(() => {});
@@ -340,7 +355,8 @@ export default function JobsPage() {
     e.preventDefault();
     if (!queryTags.length) return;
     setPage(1);
-    await runSearch(queryTags.join(" "), location, 1);
+    setHasMore(false);
+    await runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, pageSize);
   }
 
   async function handleSave(job: Job) {
@@ -438,16 +454,29 @@ export default function JobsPage() {
                 placeholder="Job title, keywords, or company…"
               />
             </div>
-            <div className="relative flex-1">
-              <FiMapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="City, country, or Remote"
-                className="input pl-9"
+            <div className="flex-1">
+              <TagInput
+                value={locationTags}
+                onChange={setLocationTags}
+                fetchSuggestions={async () => []}
+                placeholder="City, country, or Remote…"
               />
             </div>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                const ps = Number(e.target.value) as JsearchPageSize;
+                setPageSize(ps);
+                setPage(1);
+                if (searched) runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, ps);
+              }}
+              className="input shrink-0 w-28 cursor-pointer"
+              title="Results per page"
+            >
+              {JSEARCH_PAGE_SIZES.map((n) => (
+                <option key={n} value={n}>{n} / page</option>
+              ))}
+            </select>
             <button type="submit" disabled={loading || !queryTags.length} className="btn-primary shrink-0">
               {loading ? "Searching…" : "Search"}
             </button>
@@ -477,7 +506,7 @@ export default function JobsPage() {
           {!loading && searched && jobs.length === 0 && (
             <div className="card text-center py-12 text-slate-500">
               No jobs found for <strong>{queryTags.join(", ")}</strong>
-              {location ? ` in ${location}` : ""}. Try broader keywords.
+              {locationTags.length > 0 ? ` in ${locationTags.join(", ")}` : ""}. Try broader keywords.
             </div>
           )}
 
@@ -520,18 +549,43 @@ export default function JobsPage() {
                 ))}
               </div>
 
-              <div className="flex justify-center gap-3 pt-2">
-                {page > 1 && (
-                  <button
-                    className="btn-secondary text-sm"
-                    onClick={() => { const p = page - 1; setPage(p); runSearch(queryTags.join(" "), location, p); }}
-                  >
-                    ← Previous
-                  </button>
-                )}
+              {/* Google-style pagination */}
+              <div className="flex items-center justify-center gap-1 pt-2 flex-wrap">
+                {/* ← Prev */}
                 <button
-                  className="btn-secondary text-sm"
-                  onClick={() => { const p = page + 1; setPage(p); runSearch(queryTags.join(" "), location, p); }}
+                  disabled={page === 1}
+                  onClick={() => { const p = page - 1; setPage(p); runSearch(queryTags.join(" "), locationTags.join(" OR "), p, pageSize); }}
+                  className="flex items-center gap-1 px-3 h-9 rounded-full text-sm text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  ← Prev
+                </button>
+
+                {/* Page numbers */}
+                {getPaginationPages(page, hasMore ? MAX_PAGES : page).map((n, i) =>
+                  n === "..." ? (
+                    <span key={`ellipsis-${i}`} className="w-9 h-9 flex items-center justify-center text-slate-400 text-sm select-none">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={n}
+                      onClick={() => { if (n !== page) { setPage(n); runSearch(queryTags.join(" "), locationTags.join(" OR "), n, pageSize); } }}
+                      className={`w-9 h-9 rounded-full text-sm font-medium transition ${
+                        n === page
+                          ? "bg-brand-600 text-white shadow-sm"
+                          : "text-slate-600 hover:bg-brand-50 hover:text-brand-600 border border-slate-200"
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  )
+                )}
+
+                {/* Next → */}
+                <button
+                  disabled={!hasMore}
+                  onClick={() => { const p = page + 1; setPage(p); runSearch(queryTags.join(" "), locationTags.join(" OR "), p, pageSize); }}
+                  className="flex items-center gap-1 px-3 h-9 rounded-full text-sm text-slate-600 hover:text-brand-600 hover:bg-brand-50 transition disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   Next →
                 </button>

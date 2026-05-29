@@ -335,8 +335,8 @@ export interface SearchResult {
   quota_warning: string | null;
 }
 
-export async function searchJobs(query: string, location: string, page = 1): Promise<SearchResult> {
-  const params = new URLSearchParams({ query, location, page: String(page) });
+export async function searchJobs(query: string, location: string, page = 1, pageSize = 10): Promise<SearchResult> {
+  const params = new URLSearchParams({ query, location, page: String(page), page_size: String(pageSize) });
   const { data } = await api.get(`/api/jobs/search?${params}`);
   return data;
 }
