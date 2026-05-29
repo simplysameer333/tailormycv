@@ -61,7 +61,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="w-full max-w-2xl">
+    <div className="w-full max-w-4xl">
       <div className="flex flex-col gap-6">
 
         {/* Header */}
