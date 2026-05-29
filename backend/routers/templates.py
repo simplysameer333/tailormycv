@@ -13,7 +13,7 @@ UPLOADS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "template
 @router.get("/templates")
 async def list_templates():
     db = get_db()
-    cursor = db.templates.find({})
+    cursor = db.templates.find({"is_active": {"$ne": False}})
     templates = []
     async for doc in cursor:
         doc["_id"] = str(doc["_id"])

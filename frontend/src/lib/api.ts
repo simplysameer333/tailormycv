@@ -645,3 +645,53 @@ export async function adminUpdateProfession(slug: string, body: Partial<AdminPro
 export async function adminDeleteProfession(slug: string): Promise<void> {
   await api.delete(`/api/admin/professions/${slug}`);
 }
+
+// ── Admin: Templates ──────────────────────────────────────────────────────────
+
+export interface AdminTemplate {
+  id: string;
+  name: string;
+  type: "prebuilt" | "custom";
+  description: string;
+  placeholders: string[];
+  preview_image_url: string;
+  file_path: string;
+  is_active: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export async function adminListTemplates(): Promise<AdminTemplate[]> {
+  const { data } = await api.get("/api/admin/templates");
+  return data;
+}
+
+export async function adminUploadTemplate(
+  file: File,
+  name: string,
+  description: string,
+): Promise<AdminTemplate> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("name", name);
+  form.append("description", description);
+  const { data } = await api.post("/api/admin/templates/upload", form);
+  return data;
+}
+
+export async function adminUpdateTemplate(
+  id: string,
+  body: { name?: string; description?: string; is_active?: boolean },
+): Promise<AdminTemplate> {
+  const { data } = await api.patch(`/api/admin/templates/${id}`, body);
+  return data;
+}
+
+export async function adminDeleteTemplate(id: string): Promise<void> {
+  await api.delete(`/api/admin/templates/${id}`);
+}
+
+export function adminTemplateDownloadUrl(id: string): string {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
+  return `${base}/api/admin/templates/${id}/download`;
+}

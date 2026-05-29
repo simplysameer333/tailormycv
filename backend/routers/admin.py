@@ -10,7 +10,8 @@ DELETE /api/admin/prompts/{key}    — remove override (revert to hardcoded defa
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from bson import ObjectId
 
@@ -230,3 +231,171 @@ async def admin_delete_profession(slug: str, _: dict = Depends(require_superadmi
     )
     if result.modified_count == 0:
         raise HTTPException(404, f"Profession '{slug}' not found.")
+
+
+# ── Templates ─────────────────────────────────────────────────────────────────
+
+def _serialize_template(doc: dict) -> dict:
+    return {
+        "id": str(doc["_id"]),
+        "name": doc.get("name", ""),
+        "type": doc.get("type", "custom"),
+        "description": doc.get("description", ""),
+        "placeholders": doc.get("placeholders", []),
+        "preview_image_url": doc.get("preview_image_url", ""),
+        "file_path": doc.get("file_path", ""),
+        "is_active": doc.get("is_active", True),
+        "created_at": doc.get("created_at"),
+        "updated_at": doc.get("updated_at"),
+    }
+
+
+@router.get("/admin/templates")
+async def admin_list_templates(_: dict = Depends(require_superadmin)):
+    """Return ALL templates including inactive ones."""
+    db = get_db()
+    docs = await db.templates.find({}).sort("created_at", 1).to_list(length=200)
+    return [_serialize_template(d) for d in docs]
+
+
+@router.post("/admin/templates/upload", status_code=201)
+async def admin_upload_template(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    description: str = Form(""),
+    _: dict = Depends(require_superadmin),
+):
+    """Upload a new template DOCX, validate its placeholders, and store it."""
+    import os, io
+    from datetime import datetime
+    from docx import Document
+
+    if not file.filename or not file.filename.endswith(".docx"):
+        raise HTTPException(400, "Only .docx files are accepted.")
+
+    file_bytes = await file.read()
+    if len(file_bytes) > 5 * 1024 * 1024:
+        raise HTTPException(400, "File exceeds 5 MB limit.")
+
+    # Extract placeholders from the DOCX
+    try:
+        doc = Document(io.BytesIO(file_bytes))
+        full_text = "\n".join(p.text for p in doc.paragraphs)
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    full_text += "\n" + "\n".join(p.text for p in cell.paragraphs)
+    except Exception as exc:
+        raise HTTPException(422, f"Could not read DOCX: {exc}")
+
+    import re
+    found_placeholders = sorted(set(re.findall(r"\{\{[A-Z_]+\}\}", full_text)))
+
+    # Require at minimum the core contact + content placeholders
+    required = {"{{NAME}}", "{{SUMMARY}}", "{{EXPERIENCE}}", "{{EDUCATION}}"}
+    missing = required - set(found_placeholders)
+    if missing:
+        raise HTTPException(
+            422,
+            f"Template is missing required placeholders: {', '.join(sorted(missing))}. "
+            f"Found: {', '.join(found_placeholders) or 'none'}",
+        )
+
+    # Save file
+    uploads_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "templates", "uploads",
+    )
+    os.makedirs(uploads_dir, exist_ok=True)
+    safe_name = f"{datetime.utcnow().timestamp()}_{file.filename}"
+    dest = os.path.join(uploads_dir, safe_name)
+    with open(dest, "wb") as f_out:
+        f_out.write(file_bytes)
+
+    db = get_db()
+    now = datetime.utcnow()
+    result = await db.templates.insert_one({
+        "name": name.strip(),
+        "type": "custom",
+        "description": description.strip(),
+        "preview_image_url": "",
+        "file_path": f"templates/uploads/{safe_name}",
+        "placeholders": found_placeholders,
+        "is_active": True,
+        "created_at": now,
+        "updated_at": now,
+    })
+    doc_out = await db.templates.find_one({"_id": result.inserted_id})
+    return _serialize_template(doc_out)
+
+
+class TemplatePatchBody(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    is_active: bool | None = None
+
+
+@router.patch("/admin/templates/{template_id}")
+async def admin_update_template(
+    template_id: str,
+    body: TemplatePatchBody,
+    _: dict = Depends(require_superadmin),
+):
+    from datetime import datetime
+    db = get_db()
+    try:
+        oid = ObjectId(template_id)
+    except Exception:
+        raise HTTPException(400, "Invalid template ID.")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(400, "No fields to update.")
+    updates["updated_at"] = datetime.utcnow()
+    result = await db.templates.find_one_and_update(
+        {"_id": oid}, {"$set": updates}, return_document=True
+    )
+    if not result:
+        raise HTTPException(404, "Template not found.")
+    return _serialize_template(result)
+
+
+@router.delete("/admin/templates/{template_id}", status_code=204)
+async def admin_delete_template(template_id: str, _: dict = Depends(require_superadmin)):
+    import os
+    from datetime import datetime
+    from services.template_service import get_template_path
+    db = get_db()
+    try:
+        oid = ObjectId(template_id)
+    except Exception:
+        raise HTTPException(400, "Invalid template ID.")
+    doc = await db.templates.find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(404, "Template not found.")
+    if doc.get("type") == "prebuilt":
+        raise HTTPException(400, "Prebuilt templates cannot be deleted. Deactivate them instead.")
+    # Delete the file if it's in uploads
+    file_path = doc.get("file_path", "")
+    if "uploads" in file_path:
+        abs_path = get_template_path(file_path)
+        if os.path.exists(abs_path):
+            os.remove(abs_path)
+    await db.templates.delete_one({"_id": oid})
+
+
+@router.get("/admin/templates/{template_id}/download")
+async def admin_download_template(template_id: str, _: dict = Depends(require_superadmin)):
+    from services.template_service import get_template_path
+    db = get_db()
+    try:
+        oid = ObjectId(template_id)
+    except Exception:
+        raise HTTPException(400, "Invalid template ID.")
+    doc = await db.templates.find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(404, "Template not found.")
+    abs_path = get_template_path(doc.get("file_path", ""))
+    if not abs_path or not __import__("os").path.exists(abs_path):
+        raise HTTPException(404, "Template file not found on disk.")
+    filename = f"{doc.get('name', 'template')}.docx"
+    return FileResponse(abs_path, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", filename=filename)

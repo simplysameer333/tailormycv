@@ -6,17 +6,20 @@ import {
   adminListUsers, adminGetUserStats, adminListAudit, adminListPrompts,
   adminUpdatePrompt, adminResetPrompt,
   adminListProfessions, adminCreateProfession, adminUpdateProfession, adminDeleteProfession,
-  AdminUser, UserStats, AuditPage, PromptOverride, AdminProfession,
+  adminListTemplates, adminUploadTemplate, adminUpdateTemplate, adminDeleteTemplate,
+  AdminUser, UserStats, AuditPage, PromptOverride, AdminProfession, AdminTemplate,
 } from "@/lib/api";
+import api from "@/lib/api";
 import {
   FiUsers, FiActivity, FiCpu, FiRefreshCw, FiSave, FiRotateCcw,
   FiChevronLeft, FiChevronRight, FiBriefcase, FiPlus, FiTrash2,
   FiChevronDown, FiChevronUp, FiToggleLeft, FiToggleRight, FiClock,
+  FiLayout, FiDownload, FiUploadCloud, FiEdit2, FiX,
 } from "react-icons/fi";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Tab = "users" | "audit" | "prompts" | "professions";
+type Tab = "users" | "audit" | "prompts" | "professions" | "templates";
 
 interface CacheEntry<T> {
   data: T;
@@ -28,6 +31,7 @@ interface PageCache {
   audit?: CacheEntry<AuditPage>;
   prompts?: CacheEntry<PromptOverride[]>;
   professions?: CacheEntry<AdminProfession[]>;
+  templates?: CacheEntry<AdminTemplate[]>;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -657,6 +661,273 @@ function ProfessionsTab({
   );
 }
 
+// ── Templates tab ─────────────────────────────────────────────────────────────
+
+const TYPE_COLORS: Record<string, string> = {
+  prebuilt: "bg-brand-100 text-brand-700",
+  custom:   "bg-teal-100 text-teal-700",
+};
+
+async function downloadTemplateFile(id: string, name: string) {
+  try {
+    const res = await api.get(`/api/admin/templates/${id}/download`, { responseType: "blob" });
+    const url = URL.createObjectURL(new Blob([res.data]));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    alert("Download failed — template file may not exist on disk.");
+  }
+}
+
+function TemplateCard({ template, onSaved, onDeleted }: {
+  template: AdminTemplate;
+  onSaved: () => void;
+  onDeleted: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(template.name);
+  const [draftDesc, setDraftDesc] = useState(template.description);
+  const [saving, setSaving] = useState(false);
+  const [toggling, setToggling] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  function flash(t: string) { setMsg(t); setTimeout(() => setMsg(""), 3000); }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await adminUpdateTemplate(template.id, { name: draftName.trim(), description: draftDesc.trim() });
+      flash("Saved"); setEditing(false); onSaved();
+    } catch { flash("Save failed"); }
+    finally { setSaving(false); }
+  }
+
+  async function handleToggle() {
+    setToggling(true);
+    try {
+      await adminUpdateTemplate(template.id, { is_active: !template.is_active });
+      flash(template.is_active ? "Deactivated" : "Activated"); onSaved();
+    } catch { flash("Failed"); }
+    finally { setToggling(false); }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Delete template "${template.name}"? This cannot be undone.`)) return;
+    setDeleting(true);
+    try { await adminDeleteTemplate(template.id); onDeleted(); }
+    catch (e: unknown) {
+      const err = e instanceof Error ? e.message : "";
+      flash(err.includes("400") ? "Prebuilt templates cannot be deleted." : "Delete failed");
+    }
+    finally { setDeleting(false); }
+  }
+
+  return (
+    <div className={`card mb-3 ${!template.is_active ? "opacity-60" : ""}`}>
+      <div className="flex items-start justify-between gap-3">
+        {/* Left: name + meta */}
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <div className="space-y-2 mb-3">
+              <input
+                value={draftName}
+                onChange={e => setDraftName(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-300"
+              />
+              <textarea
+                rows={2}
+                value={draftDesc}
+                onChange={e => setDraftDesc(e.target.value)}
+                placeholder="Description…"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
+              />
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="font-semibold text-slate-800">{template.name}</span>
+                <span className={`text-xs font-semibold rounded px-2 py-0.5 ${TYPE_COLORS[template.type] ?? "bg-slate-100 text-slate-600"}`}>
+                  {template.type}
+                </span>
+                {!template.is_active && (
+                  <span className="text-xs bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">Inactive</span>
+                )}
+              </div>
+              {template.description && (
+                <p className="text-sm text-slate-500 mb-2">{template.description}</p>
+              )}
+            </>
+          )}
+
+          {/* Placeholder chips */}
+          {template.placeholders.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {template.placeholders.map(p => (
+                <span key={p} className="text-xs bg-slate-100 text-slate-600 font-mono rounded px-1.5 py-0.5">{p}</span>
+              ))}
+            </div>
+          )}
+          {template.placeholders.length === 0 && !editing && (
+            <p className="text-xs text-amber-600 mt-1">No placeholders detected — template may not work correctly.</p>
+          )}
+        </div>
+
+        {/* Right: actions */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {msg && <span className={`text-xs font-medium ${msg.includes("fail") || msg.includes("cannot") ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
+
+          {editing ? (
+            <>
+              <button onClick={handleSave} disabled={saving}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 disabled:opacity-50 transition">
+                <FiSave className="w-3.5 h-3.5" /> {saving ? "Saving…" : "Save"}
+              </button>
+              <button onClick={() => { setEditing(false); setDraftName(template.name); setDraftDesc(template.description); }}
+                className="p-1.5 text-slate-400 hover:text-slate-600">
+                <FiX className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => setEditing(true)} title="Edit name & description"
+                className="p-1.5 text-slate-400 hover:text-brand-600 transition">
+                <FiEdit2 className="w-4 h-4" />
+              </button>
+              <button onClick={() => downloadTemplateFile(template.id, template.name)} title="Download DOCX"
+                className="p-1.5 text-slate-400 hover:text-teal-600 transition">
+                <FiDownload className="w-4 h-4" />
+              </button>
+              <button onClick={handleToggle} disabled={toggling}
+                title={template.is_active ? "Deactivate (hide from users)" : "Activate"}
+                className="text-slate-400 hover:text-slate-600 disabled:opacity-50">
+                {template.is_active
+                  ? <FiToggleRight className="w-5 h-5 text-teal-600" />
+                  : <FiToggleLeft className="w-5 h-5" />}
+              </button>
+              {template.type !== "prebuilt" && (
+                <button onClick={handleDelete} disabled={deleting} title="Delete"
+                  className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-50 transition">
+                  <FiTrash2 className="w-4 h-4" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UploadTemplateForm({ onUploaded }: { onUploaded: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleUpload() {
+    if (!file) { setErr("Select a .docx file."); return; }
+    if (!name.trim()) { setErr("Template name is required."); return; }
+    setUploading(true); setErr("");
+    try {
+      await adminUploadTemplate(file, name.trim(), description.trim());
+      setFile(null); setName(""); setDescription(""); setOpen(false); onUploaded();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "";
+      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setErr(detail || msg || "Upload failed.");
+    }
+    finally { setUploading(false); }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-dashed border-slate-300 text-slate-500 text-sm hover:border-brand-400 hover:text-brand-600 transition w-full justify-center mt-2">
+        <FiUploadCloud className="w-4 h-4" /> Upload new template
+      </button>
+    );
+  }
+
+  return (
+    <div className="card mt-3 border-brand-200 bg-brand-50/30">
+      <h3 className="font-semibold text-slate-800 mb-4">Upload new template</h3>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 mb-1">DOCX file</label>
+          <input type="file" accept=".docx"
+            onChange={e => setFile(e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-700 file:text-sm file:font-medium hover:file:bg-brand-100" />
+          <p className="text-xs text-slate-400 mt-1">
+            Must contain at minimum: <span className="font-mono">{`{{NAME}} {{SUMMARY}} {{EXPERIENCE}} {{EDUCATION}}`}</span>
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Template name</label>
+            <input value={name} onChange={e => setName(e.target.value)}
+              placeholder="e.g. Minimal Sidebar"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 mb-1">Description (optional)</label>
+            <input value={description} onChange={e => setDescription(e.target.value)}
+              placeholder="e.g. Two-column layout, blue accent"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+          </div>
+        </div>
+        {err && <p className="text-sm text-red-600">{err}</p>}
+        <div className="flex gap-2">
+          <button onClick={handleUpload} disabled={uploading || !file}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition">
+            <FiUploadCloud className="w-3.5 h-3.5" /> {uploading ? "Uploading…" : "Upload"}
+          </button>
+          <button onClick={() => { setOpen(false); setErr(""); setFile(null); setName(""); setDescription(""); }}
+            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TemplatesTab({ templates, loading, fetchedAt, onRefresh }: {
+  templates: AdminTemplate[];
+  loading: boolean;
+  fetchedAt: Date | null;
+  onRefresh: () => void;
+}) {
+  const active   = templates.filter(t => t.is_active);
+  const inactive = templates.filter(t => !t.is_active);
+
+  return (
+    <div>
+      <TabHeader count={templates.length} label="templates" fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
+      {loading && !templates.length ? <Spinner text="Loading templates…" /> : (
+        <>
+          <p className="text-sm text-slate-500 mb-5">
+            Prebuilt templates cannot be deleted — deactivate them to hide from users.
+            Each template must contain at minimum <span className="font-mono text-xs">{`{{NAME}} {{SUMMARY}} {{EXPERIENCE}} {{EDUCATION}}`}</span>.
+            Download any template to inspect or edit its DOCX layout.
+          </p>
+          {active.map(t => <TemplateCard key={t.id} template={t} onSaved={onRefresh} onDeleted={onRefresh} />)}
+          {inactive.length > 0 && (
+            <p className="text-xs text-slate-400 mt-4 mb-2 font-semibold uppercase tracking-wide">Inactive</p>
+          )}
+          {inactive.map(t => <TemplateCard key={t.id} template={t} onSaved={onRefresh} onDeleted={onRefresh} />)}
+          <UploadTemplateForm onUploaded={onRefresh} />
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
@@ -664,6 +935,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "audit",       label: "Audit Log",   icon: <FiActivity className="w-4 h-4" /> },
   { id: "prompts",     label: "Prompts",     icon: <FiCpu className="w-4 h-4" /> },
   { id: "professions", label: "Professions", icon: <FiBriefcase className="w-4 h-4" /> },
+  { id: "templates",   label: "Templates",   icon: <FiLayout className="w-4 h-4" /> },
 ];
 
 export default function AdminPage() {
@@ -680,8 +952,9 @@ export default function AdminPage() {
   const [auditData, setAuditData] = useState<AuditPage | null>(null);
   const [prompts, setPrompts] = useState<PromptOverride[]>([]);
   const [professions, setProfessions] = useState<AdminProfession[]>([]);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, professions: false });
-  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, professions: null });
+  const [templates, setTemplates] = useState<AdminTemplate[]>([]);
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, professions: false, templates: false });
+  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, professions: null, templates: null });
 
   function setLoad(t: Tab, v: boolean) { setLoading(prev => ({ ...prev, [t]: v })); }
   function setFetched(t: Tab, d: Date) { setFetchedAt(prev => ({ ...prev, [t]: d })); }
@@ -751,6 +1024,22 @@ export default function AdminPage() {
     } finally { setLoad("professions", false); }
   }, []);
 
+  const fetchTemplates = useCallback(async (force = false) => {
+    if (!force && cache.current.templates) {
+      setTemplates(cache.current.templates.data);
+      setFetchedAt(prev => ({ ...prev, templates: cache.current.templates!.fetchedAt }));
+      return;
+    }
+    setLoad("templates", true);
+    try {
+      const data = await adminListTemplates();
+      const entry = { data, fetchedAt: new Date() };
+      cache.current.templates = entry;
+      setTemplates(data);
+      setFetched("templates", entry.fetchedAt);
+    } finally { setLoad("templates", false); }
+  }, []);
+
   // Per-user stats — fetched on expand, cached in a Map
   const fetchUserStats = useCallback(async (userId: string) => {
     if (userStatsCache.current.has(userId)) return;
@@ -768,15 +1057,16 @@ export default function AdminPage() {
     if (t === "audit")       { cache.current.audit       = undefined; fetchAudit(true); }
     if (t === "prompts")     { cache.current.prompts     = undefined; fetchPrompts(true); }
     if (t === "professions") { cache.current.professions = undefined; fetchProfessions(true); }
+    if (t === "templates")   { cache.current.templates   = undefined; fetchTemplates(true); }
   }
 
-  // Fetch on tab change (lazy — uses cache if available)
   function handleTabSelect(t: Tab) {
     setTab(t);
     if (t === "users")       fetchUsers();
     if (t === "audit")       fetchAudit();
     if (t === "prompts")     fetchPrompts();
     if (t === "professions") fetchProfessions();
+    if (t === "templates")   fetchTemplates();
   }
 
   // Initial fetch for the default tab
@@ -853,6 +1143,14 @@ export default function AdminPage() {
               loading={loading.professions}
               fetchedAt={fetchedAt.professions}
               onRefresh={() => refreshTab("professions")}
+            />
+          )}
+          {tab === "templates" && (
+            <TemplatesTab
+              templates={templates}
+              loading={loading.templates}
+              fetchedAt={fetchedAt.templates}
+              onRefresh={() => refreshTab("templates")}
             />
           )}
         </div>
