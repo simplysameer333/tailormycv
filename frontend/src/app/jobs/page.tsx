@@ -173,55 +173,52 @@ function JobCard({
 
       {/* Main info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2 flex-wrap">
-          <div>
-            <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {job.employer_name}
-              {job.job_publisher && (
-                <span className="ml-2 text-xs text-slate-400">via {job.job_publisher}</span>
-              )}
-            </p>
-          </div>
+        {/* Row 1 — title + employer */}
+        <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
+        <p className="text-sm text-slate-500 mt-0.5">
+          {job.employer_name}
+          {job.job_publisher && (
+            <span className="ml-2 text-xs text-slate-400">via {job.job_publisher}</span>
+          )}
+        </p>
 
-          {/* Actions — top-right */}
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={() => onTailor(job)}
-              className="btn-primary text-xs px-3 py-1.5 gap-1.5"
-              title="AI-tailor your resume for this job"
-            >
-              <FiZap className="w-3.5 h-3.5" /> Tailor Resume
-            </button>
-            <button
-              onClick={() => onUseSaved(job)}
+        {/* Row 2 — actions (always fixed below title) */}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <button
+            onClick={() => onTailor(job)}
+            className="btn-primary text-xs px-3 py-1.5 gap-1.5"
+            title="AI-tailor your resume for this job"
+          >
+            <FiZap className="w-3.5 h-3.5" /> Tailor Resume
+          </button>
+          <button
+            onClick={() => onUseSaved(job)}
+            className="btn-secondary text-xs px-3 py-1.5 gap-1.5"
+            title="Apply using a resume from your library"
+          >
+            <FiFileText className="w-3.5 h-3.5" /> Apply with Saved
+          </button>
+          <button
+            onClick={() => onSave(job)}
+            title={saved ? "Remove from saved" : "Save job"}
+            className={`rounded-lg border px-2.5 py-1.5 transition ${
+              saved
+                ? "border-brand-300 bg-brand-50 text-brand-600 hover:bg-brand-100"
+                : "border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
+            }`}
+          >
+            <FiBookmark className={`w-4 h-4 ${saved ? "fill-brand-500" : ""}`} />
+          </button>
+          {job.job_apply_link && job.job_apply_link !== "#" && (
+            <a
+              href={job.job_apply_link}
+              target="_blank"
+              rel="noopener noreferrer"
               className="btn-secondary text-xs px-3 py-1.5 gap-1.5"
-              title="Apply using a resume from your library"
             >
-              <FiFileText className="w-3.5 h-3.5" /> Apply with Saved
-            </button>
-            <button
-              onClick={() => onSave(job)}
-              title={saved ? "Remove from saved" : "Save job"}
-              className={`rounded-lg border px-2.5 py-1.5 transition ${
-                saved
-                  ? "border-brand-300 bg-brand-50 text-brand-600 hover:bg-brand-100"
-                  : "border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              <FiBookmark className={`w-4 h-4 ${saved ? "fill-brand-500" : ""}`} />
-            </button>
-            {job.job_apply_link && job.job_apply_link !== "#" && (
-              <a
-                href={job.job_apply_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn-secondary text-xs px-3 py-1.5 gap-1.5"
-              >
-                Apply <FiExternalLink className="w-3.5 h-3.5" />
-              </a>
-            )}
-          </div>
+              Apply <FiExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
         </div>
 
         {/* Meta row */}
