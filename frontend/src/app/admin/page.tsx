@@ -130,6 +130,23 @@ function UserRow({
   const [msg, setMsg] = useState("");
   const stats = statsCache.get(user.id);
 
+  // Draft state — edits stay local until Save is clicked
+  const [draftTier, setDraftTier] = useState(user.tier);
+  const [draftActive, setDraftActive] = useState(user.is_active);
+  const [draftAdmin, setDraftAdmin] = useState(user.is_superadmin);
+
+  // Keep draft in sync if the underlying user changes (e.g. after refresh)
+  useEffect(() => {
+    setDraftTier(user.tier);
+    setDraftActive(user.is_active);
+    setDraftAdmin(user.is_superadmin);
+  }, [user.tier, user.is_active, user.is_superadmin]);
+
+  const dirty =
+    draftTier !== user.tier ||
+    draftActive !== user.is_active ||
+    draftAdmin !== user.is_superadmin;
+
   function flash(t: string) { setMsg(t); setTimeout(() => setMsg(""), 3000); }
 
   async function handleExpand() {
@@ -142,29 +159,37 @@ function UserRow({
     }
   }
 
-  async function handleToggleSuperadmin(e: React.MouseEvent) {
+  async function handleSave(e: React.MouseEvent) {
     e.stopPropagation();
-    if (user.is_superadmin && !confirm(`Remove superadmin from ${user.email}?`)) return;
-    if (!user.is_superadmin && !confirm(`Grant superadmin to ${user.email}? They will have full admin access.`)) return;
+    // Confirm superadmin grant/revoke since it is a privilege change
+    if (draftAdmin !== user.is_superadmin) {
+      const ok = draftAdmin
+        ? confirm(`Grant superadmin to ${user.email}? They will have full admin access.`)
+        : confirm(`Remove superadmin from ${user.email}?`);
+      if (!ok) return;
+    }
+    const payload: { tier?: string; is_active?: boolean; is_superadmin?: boolean } = {};
+    if (draftTier !== user.tier) payload.tier = draftTier;
+    if (draftActive !== user.is_active) payload.is_active = draftActive;
+    if (draftAdmin !== user.is_superadmin) payload.is_superadmin = draftAdmin;
+
     setActioning(true);
     try {
-      await adminUpdateUser(user.id, { is_superadmin: !user.is_superadmin });
-      flash(user.is_superadmin ? "Admin removed" : "Admin granted");
+      await adminUpdateUser(user.id, payload);
+      flash("Saved");
       onRefresh();
-    } catch { flash("Failed"); }
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      flash(detail || "Save failed");
+    }
     finally { setActioning(false); }
   }
 
-  async function handleToggleActive(e: React.MouseEvent) {
+  function handleReset(e: React.MouseEvent) {
     e.stopPropagation();
-    if (user.is_superadmin) { flash("Revoke superadmin first"); return; }
-    setActioning(true);
-    try {
-      await adminUpdateUser(user.id, { is_active: !user.is_active });
-      flash(user.is_active ? "Disabled" : "Enabled");
-      onRefresh();
-    } catch { flash("Failed"); }
-    finally { setActioning(false); }
+    setDraftTier(user.tier);
+    setDraftActive(user.is_active);
+    setDraftAdmin(user.is_superadmin);
   }
 
   async function handleDelete(e: React.MouseEvent) {
@@ -184,7 +209,7 @@ function UserRow({
 
   return (
     <>
-      <tr className="hover:bg-slate-50 transition cursor-pointer" onClick={handleExpand}>
+      <tr className={`hover:bg-slate-50 transition cursor-pointer ${dirty ? "bg-amber-50/40" : ""}`} onClick={handleExpand}>
         <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">
           <span className="flex items-center gap-1.5">
             {open ? <FiChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <FiChevronDown className="w-3.5 h-3.5 text-slate-400" />}
@@ -194,19 +219,10 @@ function UserRow({
         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{user.email}</td>
         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
           <select
-            value={user.tier}
+            value={draftTier}
             disabled={actioning}
-            onChange={async e => {
-              const newTier = e.target.value;
-              setActioning(true);
-              try {
-                await adminUpdateUser(user.id, { tier: newTier });
-                flash(`Tier → ${newTier}`);
-                onRefresh();
-              } catch { flash("Failed"); }
-              finally { setActioning(false); }
-            }}
-            className={`text-xs font-semibold rounded-lg px-2 py-1 border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-40 capitalize ${TIER_COLORS[user.tier] ?? "bg-slate-100 text-slate-600"}`}
+            onChange={e => setDraftTier(e.target.value)}
+            className={`text-xs font-semibold rounded-lg px-2 py-1 border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-40 capitalize ${TIER_COLORS[draftTier] ?? "bg-slate-100 text-slate-600"}`}
           >
             <option value="free">free</option>
             <option value="plus">plus</option>
@@ -215,58 +231,78 @@ function UserRow({
         </td>
         <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatDate(user.created_at)}</td>
         <td className="px-4 py-3">
-          <span className={`text-xs font-semibold rounded px-2 py-0.5 ${user.is_active ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
-            {user.is_active ? "Active" : "Disabled"}
+          <span className={`text-xs font-semibold rounded px-2 py-0.5 ${draftActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+            {draftActive ? "Active" : "Disabled"}
           </span>
         </td>
         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-end gap-3">
             {msg && (
-              <span className={`text-xs font-medium whitespace-nowrap ${msg.includes("Revoke") || msg === "Failed" || msg.includes("failed") ? "text-red-600" : "text-green-600"}`}>
+              <span className={`text-xs font-medium whitespace-nowrap ${msg.includes("Revoke") || msg.includes("failed") || msg.includes("Failed") ? "text-red-600" : "text-green-600"}`}>
                 {msg}
               </span>
             )}
 
-            {/* Superadmin checkbox — always visible */}
+            {/* Superadmin checkbox — edits draft only */}
             <label
               className="flex items-center gap-1.5 cursor-pointer"
               onClick={e => e.stopPropagation()}
-              title={user.is_superadmin ? "Revoke superadmin" : "Grant superadmin"}
+              title="Grant or revoke superadmin (applies on Save)"
             >
               <input
                 type="checkbox"
-                checked={user.is_superadmin}
+                checked={draftAdmin}
                 disabled={actioning}
-                onChange={() => {}}
-                onClick={handleToggleSuperadmin}
+                onChange={e => setDraftAdmin(e.target.checked)}
                 className="w-3.5 h-3.5 accent-brand-600 cursor-pointer disabled:opacity-40"
               />
               <span className="text-xs text-slate-500 select-none">Admin</span>
             </label>
 
-            <div className="w-px h-4 bg-slate-200" />
-
-            {/* Enable/Disable toggle */}
+            {/* Enable/Disable toggle — edits draft only; superadmins can't be disabled */}
             <button
-              onClick={handleToggleActive}
+              onClick={e => { e.stopPropagation(); if (draftAdmin) { flash("Revoke superadmin first"); return; } setDraftActive(v => !v); }}
               disabled={actioning}
-              title={user.is_superadmin ? "Revoke superadmin first" : user.is_active ? "Disable account" : "Enable account"}
+              title={draftAdmin ? "Revoke superadmin first" : draftActive ? "Disable account" : "Enable account"}
               className="text-slate-400 hover:text-slate-700 disabled:opacity-40"
             >
-              {user.is_active
-                ? <FiToggleRight className={`w-5 h-5 ${user.is_superadmin ? "opacity-30" : "text-teal-600"}`} />
+              {draftActive
+                ? <FiToggleRight className={`w-5 h-5 ${draftAdmin ? "opacity-30" : "text-teal-600"}`} />
                 : <FiToggleLeft className="w-5 h-5" />}
             </button>
 
-            {/* Delete */}
-            <button
-              onClick={handleDelete}
-              disabled={actioning}
-              title={user.is_superadmin ? "Revoke superadmin first" : "Delete user and all data"}
-              className="text-slate-400 hover:text-red-500 disabled:opacity-40"
-            >
-              <FiTrash2 className={`w-4 h-4 ${user.is_superadmin ? "opacity-30" : ""}`} />
-            </button>
+            <div className="w-px h-4 bg-slate-200" />
+
+            {/* Save / Reset — only when there are unsaved changes */}
+            {dirty ? (
+              <>
+                <button
+                  onClick={handleSave}
+                  disabled={actioning}
+                  title="Save changes"
+                  className="flex items-center gap-1 text-xs font-semibold bg-brand-600 text-white rounded-lg px-2.5 py-1 hover:bg-brand-700 disabled:opacity-40"
+                >
+                  <FiSave className="w-3 h-3" /> Save
+                </button>
+                <button
+                  onClick={handleReset}
+                  disabled={actioning}
+                  title="Discard changes"
+                  className="text-slate-400 hover:text-slate-600 disabled:opacity-40"
+                >
+                  <FiRotateCcw className="w-3.5 h-3.5" />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={handleDelete}
+                disabled={actioning}
+                title={user.is_superadmin ? "Revoke superadmin first" : "Delete user and all data"}
+                className="text-slate-400 hover:text-red-500 disabled:opacity-40"
+              >
+                <FiTrash2 className={`w-4 h-4 ${user.is_superadmin ? "opacity-30" : ""}`} />
+              </button>
+            )}
           </div>
         </td>
       </tr>
@@ -338,7 +374,7 @@ function UsersTab({
           </table>
         </div>
       )}
-      <p className="text-xs text-slate-400 mt-2">Click a row to expand activity counts. To disable or delete a superadmin, first uncheck their Admin checkbox.</p>
+      <p className="text-xs text-slate-400 mt-2">Click a row to expand activity counts. Tier, Admin, and Active changes are staged — click <span className="font-semibold">Save</span> to apply. To delete a superadmin, uncheck Admin and Save first.</p>
     </div>
   );
 }
