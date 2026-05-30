@@ -48,6 +48,8 @@ export default function PreviewPage() {
     const saved = localStorage.getItem("tailormycv_bold_keywords");
     return saved === null ? true : saved === "true";
   });
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [loadingMsg, setLoadingMsg] = useState(0);
 
   useEffect(() => {
     const storedResume = localStorage.getItem(LS_RESUME);
@@ -116,6 +118,7 @@ export default function PreviewPage() {
       return;
     }
 
+    setGenerationError(null);
     if (!section) await persistTemplateToSession(sessionId);
 
     const additionalInstructions = section
@@ -140,8 +143,8 @@ export default function PreviewPage() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        "Generation failed.";
-      toast.error(msg);
+        "Resume generation failed. Please try again.";
+      setGenerationError(msg);
     } finally {
       setLoading(false);
       setLoadingSection(null);
@@ -190,15 +193,92 @@ export default function PreviewPage() {
     }
   }
 
+  const LOADING_MESSAGES = [
+    { title: "Analysing your resume and job description…",     sub: "Matching your background to the role requirements" },
+    { title: "Extracting key skills from the job description…", sub: "Identifying the terms that matter most to this employer" },
+    { title: "Generating your tailored resume draft…",          sub: "AI writer crafting a targeted version of your experience" },
+    { title: "Quality evaluators reviewing the draft…",         sub: "Anthropic, OpenAI and Google Gemini scoring the result" },
+    { title: "Refining based on evaluation feedback…",          sub: "Addressing gaps and strengthening weak areas" },
+    { title: "Selecting the best version…",                     sub: "Picking the highest-scoring iteration for you" },
+    { title: "Final polish underway…",                          sub: "Almost there — wrapping up your tailored resume" },
+  ];
+
+  // Cycle message every 7 s while loading
+  useEffect(() => {
+    if (!loading) return;
+    setLoadingMsg(0);
+    const id = setInterval(() => setLoadingMsg(n => (n + 1) % LOADING_MESSAGES.length), 7000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   if (loading) {
+    const msg = LOADING_MESSAGES[loadingMsg];
     return (
-      <div className="flex flex-col items-center justify-center py-32 gap-4">
-        <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-slate-700 font-semibold text-lg">Tailoring your resume…</p>
-        <p className="text-sm text-slate-500">
-          AI generates a draft → quality reviewers refine it → best version selected
+      <div className="flex flex-col items-center justify-center py-32 gap-5">
+        {/* Spinner */}
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-brand-100" />
+          <div className="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
+        </div>
+
+        {/* Rotating message */}
+        <div className="text-center max-w-sm">
+          <p className="text-slate-800 font-semibold text-lg leading-snug transition-all duration-500">
+            {msg.title}
+          </p>
+          <p className="text-sm text-slate-500 mt-1.5 transition-all duration-500">{msg.sub}</p>
+        </div>
+
+        {/* Step indicators */}
+        <div className="flex gap-1.5 mt-2">
+          {LOADING_MESSAGES.map((_, i) => (
+            <div
+              key={i}
+              className={`h-1 rounded-full transition-all duration-500 ${
+                i === loadingMsg ? "w-6 bg-brand-600" : "w-2 bg-slate-200"
+              }`}
+            />
+          ))}
+        </div>
+
+        <p className="text-xs text-slate-400 mt-1">Usually takes 30–90 seconds</p>
+      </div>
+    );
+  }
+
+  // Error state — generation failed, resume is still null
+  if (!resume && generationError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-5">
+        <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+          <FiRefreshCw className="w-7 h-7 text-red-400" />
+        </div>
+        <div className="text-center max-w-md">
+          <h2 className="text-lg font-semibold text-slate-800">Resume generation failed</h2>
+          <p className="text-sm text-slate-500 mt-2">{generationError}</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => runGenerate()}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition"
+          >
+            <FiRefreshCw className="w-4 h-4" />
+            Try again
+          </button>
+          <button
+            onClick={() => router.back()}
+            className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition"
+          >
+            Go back
+          </button>
+        </div>
+        <p className="text-xs text-slate-400">
+          If the problem persists, contact{" "}
+          <a href="mailto:support@tailormycv.com" className="text-brand-600 hover:underline">
+            support@tailormycv.com
+          </a>
         </p>
-        <p className="text-xs text-slate-400 mt-1">Usually takes 30–60 seconds</p>
       </div>
     );
   }
@@ -289,11 +369,11 @@ export default function PreviewPage() {
             value={resume.name}
             onChange={(v) => updateField(["name"], v)}
           />
-          {(["email", "phone", "linkedin", "location"] as const).map((f) => (
+          {(["email", "phone", "linkedin", "github", "website", "location"] as const).map((f) => (
             <EditableField
               key={f}
               label={f.charAt(0).toUpperCase() + f.slice(1)}
-              value={resume.contact[f]}
+              value={resume.contact?.[f] ?? ""}
               onChange={(v) => updateField(["contact", f], v)}
             />
           ))}

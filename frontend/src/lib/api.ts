@@ -29,18 +29,38 @@ export default api;
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    const status = err?.response?.status;
+    const status: number | undefined = err?.response?.status;
     const detail: string = err?.response?.data?.detail ?? "";
-    // Only treat 404 as a session expiry when the error is specifically about
-    // the session document — not for generic route-not-found 404s.
-    const isSessionGone =
-      status === 404 &&
-      detail.toLowerCase().includes("session");
 
+    // ── Session gone (404 on session document) ────────────────────────────────
+    const isSessionGone = status === 404 && detail.toLowerCase().includes("session");
     if (isSessionGone && typeof window !== "undefined") {
       SESSION_KEYS.forEach((k) => localStorage.removeItem(k));
-      // Let the page handle the redirect — emit a custom event so any component can react
       window.dispatchEvent(new CustomEvent("session-expired"));
+    }
+
+    // ── 401 Unauthorised — token expired / invalid ────────────────────────────
+    if (status === 401 && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("auth-error"));
+      // Don't double-toast — let the component handle it via the event
+      return Promise.reject(err);
+    }
+
+    // ── 5xx Server errors — show a generic toast (import lazily to avoid SSR) ─
+    if (status !== undefined && status >= 500) {
+      import("react-hot-toast").then(({ default: toast }) => {
+        const msg = detail || "Server error — please try again in a moment.";
+        toast.error(msg, { id: `server-${status}`, duration: 6000 });
+      });
+    }
+
+    // ── Network / timeout errors (no response at all) ─────────────────────────
+    if (!err.response && err.code !== "ERR_CANCELED") {
+      import("react-hot-toast").then(({ default: toast }) => {
+        toast.error("Network error — check your connection and try again.", {
+          id: "network-error", duration: 6000,
+        });
+      });
     }
 
     return Promise.reject(err);
@@ -153,6 +173,8 @@ export interface ContactInfo {
   phone: string;
   linkedin: string;
   location: string;
+  github?: string;
+  website?: string;
 }
 
 export interface ExperienceItem {

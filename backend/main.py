@@ -1,10 +1,23 @@
-from fastapi import FastAPI
+import logging
+import traceback
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from contextlib import asynccontextmanager
+
 from config import settings
 from database import connect_db, disconnect_db
-from routers import resume, profile, job_description, templates, generate, export, professions, auth, jobs, account, catalog, resume_library, job_alerts, admin
+from routers import (
+    resume, profile, job_description, templates, generate, export,
+    professions, auth, jobs, account, catalog, resume_library, job_alerts, admin,
+)
 from services.alert_scheduler import start_scheduler, stop_scheduler
+
+logger = logging.getLogger("tailormycv")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
 @asynccontextmanager
@@ -28,6 +41,48 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Global exception handlers ─────────────────────────────────────────────────
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    """Return human-readable validation errors instead of raw Pydantic detail."""
+    errors = []
+    for err in exc.errors():
+        field = " → ".join(str(loc) for loc in err["loc"] if loc != "body")
+        errors.append(f"{field}: {err['msg']}" if field else err["msg"])
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "; ".join(errors) or "Invalid request body"},
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exc: StarletteHTTPException):
+    """Ensure all HTTP errors return consistent JSON."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": str(exc.detail)},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_error_handler(request: Request, exc: Exception):
+    """Catch-all for unexpected server errors — log the traceback, return generic 500."""
+    logger.error(
+        "Unhandled exception on %s %s\n%s",
+        request.method,
+        request.url.path,
+        traceback.format_exc(),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected server error occurred. Please try again or contact support."},
+    )
+
+
+# ── Routers ────────────────────────────────────────────────────────────────────
 
 app.include_router(auth.router, prefix="/api")
 app.include_router(resume.router, prefix="/api")
