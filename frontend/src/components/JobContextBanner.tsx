@@ -12,15 +12,23 @@ const LS_KEY = "tailormycv_tailor_context";
 
 export default function JobContextBanner() {
   const [ctx, setCtx] = useState<TailorContext | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (raw) setCtx(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw) as TailorContext;
+        // Only show if we have at least a title — guards against empty/corrupt entries
+        if (parsed?.title) setCtx(parsed);
+      }
     } catch { /* ignore corrupt data */ }
   }, []);
 
-  if (!ctx) return null;
+  // Return null until client hydration is complete AND context exists.
+  // This prevents any flash of empty space or border during SSR.
+  if (!mounted || !ctx) return null;
 
   const hasLink = ctx.apply_link && ctx.apply_link !== "#";
 
