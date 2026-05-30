@@ -416,29 +416,50 @@ export default function PreviewPage() {
         ))}
       </Section>
 
-      {/* Skills */}
-      <Section
-        title="Skills"
-        onRegenerate={(comment) => runGenerate("skills", comment)}
-        loading={loadingSection === "skills"}
-        comment={sectionComments["skills"] ?? ""}
-        onCommentChange={(v) => setComment("skills", v)}
-      >
-        <textarea
-          className="input text-sm resize-none"
-          rows={3}
-          value={resume.skills.join(", ")}
-          onChange={(e) =>
-            updateField(
-              ["skills"],
-              e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
-            )
-          }
-        />
-      </Section>
+      {/* Dynamic sections (new format) — each section from the AI output */}
+      {resume.sections && resume.sections.map((sec, i) => (
+        <Section
+          key={`sec-${i}`}
+          title={sec.title}
+          onRegenerate={(comment) => runGenerate(sec.title.toLowerCase(), comment)}
+          loading={loadingSection === sec.title.toLowerCase()}
+          comment={sectionComments[sec.title] ?? ""}
+          onCommentChange={(v) => setComment(sec.title, v)}
+        >
+          <textarea
+            className="input text-sm resize-none"
+            rows={Math.max(2, Math.min(sec.items.length + 1, 6))}
+            value={sec.items.join("\n")}
+            onChange={(e) => {
+              const updated = [...(resume.sections ?? [])];
+              updated[i] = { ...updated[i], items: e.target.value.split("\n").filter(Boolean) };
+              updateField(["sections"], updated);
+            }}
+          />
+          <p className="text-xs text-slate-400 mt-1">One item per line</p>
+        </Section>
+      ))}
 
-      {/* Certifications */}
-      {resume.certifications.length > 0 && (
+      {/* Legacy Skills + Certifications (old format sessions without sections[]) */}
+      {!resume.sections && resume.skills && resume.skills.length > 0 && (
+        <Section
+          title="Skills"
+          onRegenerate={(comment) => runGenerate("skills", comment)}
+          loading={loadingSection === "skills"}
+          comment={sectionComments["skills"] ?? ""}
+          onCommentChange={(v) => setComment("skills", v)}
+        >
+          <textarea
+            className="input text-sm resize-none"
+            rows={3}
+            value={resume.skills.join(", ")}
+            onChange={(e) =>
+              updateField(["skills"], e.target.value.split(",").map((s) => s.trim()).filter(Boolean))
+            }
+          />
+        </Section>
+      )}
+      {!resume.sections && resume.certifications && resume.certifications.length > 0 && (
         <Section
           title="Certifications"
           onRegenerate={(comment) => runGenerate("certifications", comment)}
@@ -451,10 +472,7 @@ export default function PreviewPage() {
             rows={2}
             value={resume.certifications.join(", ")}
             onChange={(e) =>
-              updateField(
-                ["certifications"],
-                e.target.value.split(",").map((s) => s.trim()).filter(Boolean)
-              )
+              updateField(["certifications"], e.target.value.split(",").map((s) => s.trim()).filter(Boolean))
             }
           />
         </Section>

@@ -168,14 +168,22 @@ export interface EducationItem {
   dates: string;
 }
 
+export interface DynamicSection {
+  title: string;
+  items: string[];
+}
+
 export interface GeneratedResume {
   name: string;
   contact: ContactInfo;
   summary: string;
   experience: ExperienceItem[];
   education: EducationItem[];
-  skills: string[];
-  certifications: string[];
+  // New dynamic format — sections determined by template / reference CV
+  sections?: DynamicSection[];
+  // Legacy flat format — backward compat with sessions generated before dynamic sections
+  skills?: string[];
+  certifications?: string[];
 }
 
 export interface EvaluatorResult {
