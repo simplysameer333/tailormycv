@@ -34,7 +34,9 @@ export const DevSessionContext = createContext<DevContextValue>({
 });
 
 export function useDevSession() {
-  return useContext(DevSessionContext).session;
+  const { session } = useContext(DevSessionContext);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return { ...session, update: async (_data?: any) => null };
 }
 
 export function useDevContext() {

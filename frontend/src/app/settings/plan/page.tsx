@@ -141,9 +141,17 @@ function TierCard({ tier, currentTier }: { tier: typeof TIERS[0]; currentTier: T
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PlanPage() {
-  const { data: session, status } = useAuth();
+  const { data: session, status, update } = useAuth();
   const tier = (session?.user?.tier ?? "free") as Tier;
   const [stats, setStats] = useState<AccountStats | null>(null);
+
+  // Force session refresh on mount so tier shown is always live (not stale JWT)
+  useEffect(() => {
+    if (status === "authenticated" && update) {
+      update(); // triggers NextAuth jwt callback → re-fetches tier from DB
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   useEffect(() => {
     if (status === "authenticated") {

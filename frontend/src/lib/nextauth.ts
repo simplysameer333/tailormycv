@@ -72,12 +72,38 @@ export const authOptions: NextAuthOptions = {
     },
 
     async jwt({ token, user }) {
+      // Initial sign-in: populate from the login/sync response
       if (user) {
         token.id = user.id;
         token.tier = user.tier;
         token.is_superadmin = user.is_superadmin ?? false;
         token.accessToken = user.accessToken;
+        token.tierCheckedAt = Date.now();
+        return token;
       }
+
+      // Subsequent session checks: re-fetch tier from DB every 5 minutes.
+      // This ensures tier changes made by admin are reflected without re-login.
+      const TIER_TTL_MS = 5 * 60 * 1000; // 5 minutes
+      const stale = Date.now() - (token.tierCheckedAt ?? 0) > TIER_TTL_MS;
+
+      if (stale && token.accessToken) {
+        try {
+          const res = await fetch(`${API_URL}/api/account/me`, {
+            headers: { Authorization: `Bearer ${token.accessToken}` },
+            cache: "no-store",
+          });
+          if (res.ok) {
+            const me = await res.json();
+            token.tier = me.tier;
+            token.is_superadmin = me.is_superadmin;
+            token.tierCheckedAt = Date.now();
+          }
+        } catch {
+          // Network error — keep existing tier, try again next interval
+        }
+      }
+
       return token;
     },
 

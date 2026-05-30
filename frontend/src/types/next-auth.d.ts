@@ -26,5 +26,7 @@ declare module "next-auth/jwt" {
     tier: string;
     accessToken: string;
     is_superadmin: boolean;
+    /** Unix ms — when tier was last confirmed from the DB. Used for auto-refresh. */
+    tierCheckedAt?: number;
   }
 }

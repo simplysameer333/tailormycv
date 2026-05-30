@@ -26,6 +26,24 @@ from services.audit import log_audit
 
 router = APIRouter()
 
+
+@router.get("/account/me")
+async def get_me(user: dict = Depends(get_current_user)):
+    """Return the authenticated user's live profile data.
+
+    Called by the NextAuth jwt callback every 5 minutes to keep
+    session.user.tier in sync with DB without requiring re-login.
+    """
+    return {
+        "id": str(user["_id"]),
+        "email": user.get("email", ""),
+        "name": user.get("name", ""),
+        "tier": user.get("tier", "free"),
+        "is_superadmin": bool(user.get("is_superadmin", False)),
+        "is_active": bool(user.get("is_active", True)),
+    }
+
+
 MAX_FILE_SIZE = 5 * 1024 * 1024
 ACCEPTED_TYPES = {
     "application/pdf",
