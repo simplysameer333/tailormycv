@@ -45,6 +45,9 @@ export default function UploadPage() {
   const [linkedinFetching, setLinkedinFetching] = useState(false);
   const [linkedinProfile, setLinkedinProfile] = useState<LinkedInProfile | null>(null);
   const [linkedinError, setLinkedinError] = useState<string | null>(null);
+  // Manual paste fallback — shown when the LinkedIn API isn't available
+  const [showManualPaste, setShowManualPaste] = useState(false);
+  const [manualText, setManualText] = useState("");
 
   // ── Submission state ───────────────────────────────────────────────────────
   const [uploading, setUploading] = useState(false);
@@ -100,25 +103,50 @@ export default function UploadPage() {
     try {
       const profile = await parseLinkedInProfile(url);
       setLinkedinProfile(profile);
+      setShowManualPaste(false);
       toast.success(`Found: ${profile.full_name}`);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-        ?? "Could not fetch LinkedIn profile. Please check the URL or upload your resume instead.";
-      setLinkedinError(msg);
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      // 503 = LinkedIn API not subscribed on this server — offer manual paste
+      if (status === 503) {
+        setShowManualPaste(true);
+        setLinkedinError(null);
+      } else {
+        const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+          ?? "Could not fetch LinkedIn profile. Check the URL or paste your profile text below.";
+        setLinkedinError(msg);
+      }
     } finally {
       setLinkedinFetching(false);
     }
+  }
+
+  function applyManualPaste() {
+    const text = manualText.trim();
+    if (!text) return;
+    // Wrap the pasted text as a minimal LinkedInProfile so the rest of the
+    // flow (combine with resume, send to backend) works identically.
+    setLinkedinProfile({
+      full_name: "", headline: "", location: "", email: "", summary: "", skills: [],
+      raw_text: text,
+    });
+    setShowManualPaste(false);
+    toast.success("Profile text saved — it will be combined with your resume.");
   }
 
   function clearLinkedin() {
     setLinkedinUrl("");
     setLinkedinProfile(null);
     setLinkedinError(null);
+    setShowManualPaste(false);
+    setManualText("");
   }
 
   // ── Upload & continue ──────────────────────────────────────────────────────
+  const hasLinkedinContent = !!(linkedinProfile?.raw_text);
+
   async function handleUpload() {
-    if (!file && !linkedinProfile) return;
+    if (!file && !hasLinkedinContent) return;
     setUploading(true);
     try {
       const res = await uploadResume(file, linkedinProfile?.raw_text);
@@ -157,7 +185,7 @@ export default function UploadPage() {
 
   const isTailoring = !!(jobTitle || employer);
   const hasLibrary  = libraryLoaded && library.length > 0;
-  const canContinue = !!(file || linkedinProfile);
+  const canContinue = !!(file || hasLinkedinContent);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -336,6 +364,42 @@ export default function UploadPage() {
               <div className="flex items-start gap-2 text-xs text-red-600">
                 <FiAlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 {linkedinError}
+              </div>
+            )}
+
+            {/* Manual paste fallback — shown when LinkedIn API isn't subscribed */}
+            {showManualPaste && (
+              <div className="space-y-2 border border-brand-100 rounded-xl bg-brand-50 p-3">
+                <p className="text-xs font-semibold text-brand-700 flex items-center gap-1.5">
+                  <FiLinkedin className="w-3.5 h-3.5" />
+                  Paste your LinkedIn profile text
+                </p>
+                <p className="text-xs text-slate-500">
+                  On your LinkedIn profile, copy your About section, experience, and skills,
+                  then paste it below. The AI will use it to populate your resume.
+                </p>
+                <textarea
+                  rows={6}
+                  value={manualText}
+                  onChange={e => setManualText(e.target.value)}
+                  placeholder="Paste your LinkedIn About, experience, education and skills here…"
+                  className="input text-sm resize-none w-full"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={applyManualPaste}
+                    disabled={!manualText.trim()}
+                    className="btn-primary text-xs px-4 py-1.5 disabled:opacity-40"
+                  >
+                    Use this text →
+                  </button>
+                  <button
+                    onClick={() => setShowManualPaste(false)}
+                    className="text-xs text-slate-400 hover:text-slate-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
           </div>
