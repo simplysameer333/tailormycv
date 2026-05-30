@@ -5,12 +5,13 @@ import toast from "react-hot-toast";
 import {
   FiUpload, FiUser, FiMail, FiPhone,
   FiMapPin, FiBriefcase, FiTag, FiFileText, FiCheck, FiLoader,
-  FiDownload, FiTrash2, FiEdit2, FiPlus, FiLock,
+  FiDownload, FiTrash2, FiEdit2, FiPlus, FiLock, FiArrowDownCircle,
 } from "react-icons/fi";
 import {
   getAccountProfile,
   saveAccountProfile,
   uploadProfileResume,
+  parseLinkedInProfile,
   searchCatalogRoles,
   searchCatalogSkills,
   listSavedResumes,
@@ -48,6 +49,7 @@ export default function ProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingResume, setUploadingResume] = useState(false);
+  const [linkedinImporting, setLinkedinImporting] = useState(false);
 
   // Resume library
   const [library, setLibrary] = useState<SavedResume[]>([]);
@@ -164,6 +166,29 @@ export default function ProfilePage() {
       setLibrary((prev) => prev.map((r) => r.id === id ? updated : r));
       setEditingId(null);
     } catch { toast.error("Could not rename."); }
+  }
+
+  async function handleLinkedInImport() {
+    const url = form.linkedin.trim();
+    if (!url) { toast.error("Enter your LinkedIn profile URL first."); return; }
+    setLinkedinImporting(true);
+    try {
+      const profile = await parseLinkedInProfile(url);
+      setForm((f) => ({
+        ...f,
+        full_name:    profile.full_name    || f.full_name,
+        email:        profile.email        || f.email,
+        location:     profile.location     || f.location,
+        summary:      profile.summary      || f.summary,
+        key_skills:   profile.skills.length ? profile.skills : f.key_skills,
+      }));
+      toast.success(`Profile imported — ${profile.full_name || "details"} loaded. Review and save.`);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(msg ?? "Could not import LinkedIn profile. Check the URL and try again.");
+    } finally {
+      setLinkedinImporting(false);
+    }
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -400,10 +425,30 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="sm:col-span-2">
-              <label className="label">LinkedIn URL</label>
-              <input type="url" value={form.linkedin}
-                onChange={(e) => patch("linkedin", e.target.value)}
-                className="input" placeholder="https://linkedin.com/in/username" />
+              <label className="label flex items-center justify-between">
+                LinkedIn URL
+                <span className="text-xs font-normal text-slate-400">Paste URL then click Import to auto-fill</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={form.linkedin}
+                  onChange={(e) => patch("linkedin", e.target.value)}
+                  className="input flex-1"
+                  placeholder="https://linkedin.com/in/username"
+                />
+                <button
+                  type="button"
+                  onClick={handleLinkedInImport}
+                  disabled={!form.linkedin.trim() || linkedinImporting}
+                  className="btn-secondary text-sm px-3 gap-1.5 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+                >
+                  {linkedinImporting
+                    ? <><FiLoader className="w-3.5 h-3.5 animate-spin" /> Importing…</>
+                    : <><FiArrowDownCircle className="w-3.5 h-3.5" /> Import Profile</>
+                  }
+                </button>
+              </div>
             </div>
           </div>
         </div>

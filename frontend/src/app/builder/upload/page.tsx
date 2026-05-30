@@ -5,9 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   FiUploadCloud, FiFile, FiZap, FiTarget, FiAward, FiX, FiBriefcase, FiLoader,
+  FiArrowDownCircle, FiUser,
 } from "react-icons/fi";
 import {
-  uploadResume, listSavedResumes,
+  uploadResume, listSavedResumes, parseLinkedInProfile,
   createSessionFromLibraryResume, type SavedResume,
 } from "@/lib/api";
 import { setSessionId } from "@/lib/session";
@@ -37,6 +38,8 @@ function UploadPageInner() {
   const [library, setLibrary]               = useState<SavedResume[]>([]);
   const [libraryLoaded, setLibraryLoaded]   = useState(false);
   const [libraryLoadingId, setLibraryLoadingId] = useState<string | null>(null);
+  const [linkedinUrl, setLinkedinUrl]       = useState("");
+  const [linkedinImporting, setLinkedinImporting] = useState(false);
 
   useEffect(() => {
     // Clear legacy localStorage keys and any stale tailor context
@@ -96,6 +99,25 @@ function UploadPageInner() {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Failed to load resume.";
       toast.error(msg);
       setLibraryLoadingId(null);
+    }
+  }
+
+  async function handleLinkedInImport() {
+    const url = linkedinUrl.trim();
+    if (!url) return;
+    setLinkedinImporting(true);
+    try {
+      const profile = await parseLinkedInProfile(url);
+      const res = await uploadResume(null, profile.raw_text);
+      setSessionId(res.session_id);
+      STALE_KEYS.forEach((k) => localStorage.removeItem(k));
+      toast.success(`LinkedIn profile imported — continue to review your details.`);
+      router.push("/builder/profile");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast.error(msg ?? "Could not import LinkedIn profile. Check the URL and try again.");
+    } finally {
+      setLinkedinImporting(false);
     }
   }
 
@@ -203,6 +225,41 @@ function UploadPageInner() {
           )}
         </div>
       </div>
+
+      {/* LinkedIn import */}
+      {!file && (
+        <>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 border-t border-slate-200" />
+            <span className="text-xs text-slate-400">or import from LinkedIn</span>
+            <div className="flex-1 border-t border-slate-200" />
+          </div>
+
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="url"
+                value={linkedinUrl}
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+                placeholder="https://linkedin.com/in/your-username"
+                className="input pl-9 text-sm"
+                onKeyDown={(e) => e.key === "Enter" && handleLinkedInImport()}
+              />
+            </div>
+            <button
+              onClick={handleLinkedInImport}
+              disabled={!linkedinUrl.trim() || linkedinImporting}
+              className="btn-primary text-sm px-4 gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              {linkedinImporting
+                ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Importing…</>
+                : <><FiArrowDownCircle className="w-4 h-4" /> Import</>
+              }
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Upload button */}
       {file && (
