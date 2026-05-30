@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
+import toast from "react-hot-toast";
 import {
   adminListUsers, adminGetUserStats, adminUpdateUser, adminDeleteUser,
   adminListAudit, adminListPrompts,
@@ -15,12 +16,13 @@ import {
   FiUsers, FiActivity, FiCpu, FiRefreshCw, FiSave, FiRotateCcw,
   FiChevronLeft, FiChevronRight, FiBriefcase, FiPlus, FiTrash2,
   FiChevronDown, FiChevronUp, FiToggleLeft, FiToggleRight, FiClock,
-  FiLayout, FiDownload, FiUploadCloud, FiEdit2, FiX,
+  FiLayout, FiDownload, FiUploadCloud, FiEdit2, FiX, FiSliders, FiAlertCircle,
 } from "react-icons/fi";
+import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Tab = "users" | "audit" | "prompts" | "professions" | "templates";
+type Tab = "users" | "audit" | "prompts" | "professions" | "templates" | "tier_config";
 
 interface CacheEntry<T> {
   data: T;
@@ -1096,7 +1098,179 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "prompts",     label: "Prompts",     icon: <FiCpu className="w-4 h-4" /> },
   { id: "professions", label: "Professions", icon: <FiBriefcase className="w-4 h-4" /> },
   { id: "templates",   label: "Templates",   icon: <FiLayout className="w-4 h-4" /> },
+  { id: "tier_config", label: "Tier Config", icon: <FiSliders className="w-4 h-4" /> },
 ];
+
+// ── TierConfigTab ──────────────────────────────────────────────────────────────
+
+const ALL_TIERS = ["free", "plus", "pro"] as const;
+
+function TierConfigTab() {
+  const [cfg, setCfg] = useState<TierConfigPayload | null>(null);
+  const [draft, setDraft] = useState<TierConfigPayload | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchTierConfig().then(data => { setCfg(data); setDraft(data); }).catch(() => {});
+  }, []);
+
+  if (!draft) return <div className="text-sm text-slate-400 py-8 text-center">Loading tier config…</div>;
+
+  const dirty = JSON.stringify(draft) !== JSON.stringify(cfg);
+
+  function toggleFeatureTier(feature: string, tier: string) {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const current = prev.features[feature] ?? [];
+      const updated = current.includes(tier)
+        ? current.filter(t => t !== tier)
+        : [...current, tier];
+      return { ...prev, features: { ...prev.features, [feature]: updated } };
+    });
+  }
+
+  function setLimit(limitKey: string, tier: string, value: string) {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const parsed = value === "" || value === "∞" ? null : parseInt(value, 10);
+      return {
+        ...prev,
+        limits: {
+          ...prev.limits,
+          [limitKey]: { ...(prev.limits[limitKey] ?? {}), [tier]: isNaN(parsed as number) ? null : parsed },
+        },
+      };
+    });
+  }
+
+  async function handleSave() {
+    if (!draft) return;
+    setSaving(true);
+    setErrors([]);
+    try {
+      const result = await adminUpdateTierConfig({ features: draft.features, limits: draft.limits });
+      setCfg(result);
+      setDraft(result);
+      toast.success("Tier config saved and reloaded.");
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: { errors?: string[] } | string } } })?.response?.data?.detail;
+      if (detail && typeof detail === "object" && detail.errors) {
+        setErrors(detail.errors);
+      } else {
+        toast.error("Save failed — check the console for details.");
+      }
+    } finally { setSaving(false); }
+  }
+
+  const featureLabels = draft.feature_labels ?? {};
+  const limitLabels   = draft.limit_labels   ?? {};
+
+  return (
+    <div className="space-y-8">
+      {/* Validation errors */}
+      {errors.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 space-y-1">
+          <p className="text-sm font-semibold text-red-700 flex items-center gap-2">
+            <FiAlertCircle className="w-4 h-4" /> Config has contradictions — fix before saving:
+          </p>
+          {errors.map((e, i) => <p key={i} className="text-xs text-red-600 pl-6">{e}</p>)}
+        </div>
+      )}
+
+      {/* ── Feature gates ───────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Feature Gates</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Check which tiers can use each feature. Higher tiers must always include features available on lower ones.</p>
+          </div>
+          {dirty && (
+            <button onClick={handleSave} disabled={saving}
+              className="btn-primary text-sm gap-1.5 flex items-center disabled:opacity-40">
+              <FiSave className="w-3.5 h-3.5" />
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          )}
+        </div>
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="text-left text-xs font-semibold text-slate-500 px-4 py-2.5 w-full">Feature</th>
+                {ALL_TIERS.map(t => (
+                  <th key={t} className="text-center text-xs font-semibold text-slate-500 px-4 py-2.5 capitalize min-w-[70px]">{t}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {Object.keys(draft.features).map(feat => (
+                <tr key={feat} className="hover:bg-slate-50 transition">
+                  <td className="px-4 py-2.5 text-slate-700 text-xs font-medium">
+                    {featureLabels[feat] ?? feat}
+                    <span className="ml-2 text-slate-300 font-normal">{feat}</span>
+                  </td>
+                  {ALL_TIERS.map(tier => (
+                    <td key={tier} className="px-4 py-2.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={(draft.features[feat] ?? []).includes(tier)}
+                        onChange={() => toggleFeatureTier(feat, tier)}
+                        className="w-4 h-4 accent-brand-600 cursor-pointer"
+                      />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Limits ──────────────────────────────────────────────────────── */}
+      <div>
+        <h3 className="text-sm font-semibold text-slate-800 mb-1">Numeric Limits</h3>
+        <p className="text-xs text-slate-400 mb-3">Leave blank or enter ∞ for unlimited. Limits must be non-decreasing across tiers.</p>
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="text-left text-xs font-semibold text-slate-500 px-4 py-2.5 w-full">Limit</th>
+                {ALL_TIERS.map(t => (
+                  <th key={t} className="text-center text-xs font-semibold text-slate-500 px-4 py-2.5 capitalize min-w-[90px]">{t}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {Object.keys(draft.limits).map(limitKey => (
+                <tr key={limitKey} className="hover:bg-slate-50 transition">
+                  <td className="px-4 py-2.5 text-slate-700 text-xs font-medium">
+                    {limitLabels[limitKey] ?? limitKey}
+                    <span className="ml-2 text-slate-300 font-normal">{limitKey}</span>
+                  </td>
+                  {ALL_TIERS.map(tier => {
+                    const val = draft.limits[limitKey]?.[tier];
+                    return (
+                      <td key={tier} className="px-4 py-2.5 text-center">
+                        <input
+                          type="text"
+                          value={val === null ? "∞" : (val ?? "")}
+                          onChange={e => setLimit(limitKey, tier, e.target.value)}
+                          className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300"
+                          placeholder="0"
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const { data: session, status } = useAuth();
@@ -1113,8 +1287,8 @@ export default function AdminPage() {
   const [prompts, setPrompts] = useState<PromptOverride[]>([]);
   const [professions, setProfessions] = useState<AdminProfession[]>([]);
   const [templates, setTemplates] = useState<AdminTemplate[]>([]);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, professions: false, templates: false });
-  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, professions: null, templates: null });
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, professions: false, templates: false, tier_config: false });
+  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, professions: null, templates: null, tier_config: null });
 
   function setLoad(t: Tab, v: boolean) { setLoading(prev => ({ ...prev, [t]: v })); }
   function setFetched(t: Tab, d: Date) { setFetchedAt(prev => ({ ...prev, [t]: d })); }
@@ -1318,6 +1492,7 @@ export default function AdminPage() {
               onRefresh={() => refreshTab("templates")}
             />
           )}
+          {tab === "tier_config" && <TierConfigTab />}
         </div>
       </div>
     </main>

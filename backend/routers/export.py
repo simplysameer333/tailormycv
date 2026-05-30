@@ -47,11 +47,10 @@ async def export_resume(
         if tmpl:
             template_path = get_template_path(tmpl["file_path"])
 
-    # PDF export requires Plus or Pro
     if body.include_pdf:
-        user_tier = (user or {}).get("tier", "free")
-        if user_tier not in ("plus", "pro"):
-            raise HTTPException(403, "PDF export requires a Plus or Pro subscription.")
+        from services.tier_config_service import has_feature as _hf
+        if not _hf((user or {}).get("tier", "free"), "pdf_export"):
+            raise HTTPException(403, "PDF export is not available on your plan. Visit /settings/plan to upgrade.")
 
     # Resolve key_skills for bold-keyword rendering
     bold_keywords: list[str] = []

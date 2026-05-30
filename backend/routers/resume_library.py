@@ -26,7 +26,7 @@ from pydantic import BaseModel
 
 from config import settings
 from database import get_db
-from dependencies.auth import get_current_user, require_tier
+from dependencies.auth import get_current_user, require_feature
 from services.resume_parser import parse_resume
 from services.storage import get_storage
 from services.file_generator import generate_docx
@@ -62,7 +62,7 @@ def _serialize(doc: dict) -> dict:
 # ── List ──────────────────────────────────────────────────────────────────────
 
 @router.get("/account/resumes")
-async def list_resumes(user: dict = Depends(require_tier("plus"))):
+async def list_resumes(user: dict = Depends(require_feature("resume_library"))):
     db = get_db()
     cursor = db.saved_resumes.find({"user_id": user["_id"]}).sort("created_at", -1)
     docs = await cursor.to_list(100)
@@ -75,7 +75,7 @@ async def list_resumes(user: dict = Depends(require_tier("plus"))):
 async def upload_resume(
     file: UploadFile = File(...),
     name: str = Form(""),
-    user: dict = Depends(require_tier("plus")),
+    user: dict = Depends(require_feature("resume_library")),
 ):
     if file.content_type not in _ACCEPTED:
         raise HTTPException(400, "Only PDF and DOCX files are accepted.")
@@ -139,7 +139,7 @@ class FromSessionBody(BaseModel):
 @router.post("/account/resumes/from-session", status_code=201)
 async def save_from_session(
     body: FromSessionBody,
-    user: dict = Depends(require_tier("plus")),
+    user: dict = Depends(require_feature("resume_library")),
 ):
     db = get_db()
     try:

@@ -75,6 +75,30 @@ export async function uploadResume(file: File | null, linkedinText?: string) {
   return data as { session_id: string; parsed: { raw_text: string; filename: string } };
 }
 
+// ── Tier config ────────────────────────────────────────────────────────────────
+
+export interface TierConfigPayload {
+  features: Record<string, string[]>;
+  limits: Record<string, Record<string, number | null>>;
+  feature_labels?: Record<string, string>;
+  limit_labels?: Record<string, string>;
+}
+
+export async function fetchTierConfig(): Promise<TierConfigPayload> {
+  const { data } = await api.get("/api/config/tiers");
+  return data as TierConfigPayload;
+}
+
+export async function adminUpdateTierConfig(payload: {
+  features: Record<string, string[]>;
+  limits: Record<string, Record<string, number | null>>;
+}): Promise<TierConfigPayload> {
+  const { data } = await api.put("/api/admin/config/tiers", payload);
+  return data as TierConfigPayload;
+}
+
+// ── LinkedIn ────────────────────────────────────────────────────────────────────
+
 export interface LinkedInProfile {
   full_name: string;
   headline: string;

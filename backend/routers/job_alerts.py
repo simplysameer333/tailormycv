@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from database import get_db
-from dependencies.auth import get_current_user, require_tier
+from dependencies.auth import get_current_user, require_feature
 from services.audit import log_audit
 
 router = APIRouter()
@@ -51,7 +51,7 @@ class UpdateAlertBody(BaseModel):
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("/jobs/alerts")
-async def list_alerts(user: dict = Depends(require_tier("plus"))):
+async def list_alerts(user: dict = Depends(require_feature("job_alerts"))):
     db = get_db()
     cursor = db.job_alerts.find({"user_id": user["_id"]}).sort("created_at", -1)
     docs = await cursor.to_list(length=100)
@@ -59,7 +59,7 @@ async def list_alerts(user: dict = Depends(require_tier("plus"))):
 
 
 @router.post("/jobs/alerts", status_code=201)
-async def create_alert(body: CreateAlertBody, user: dict = Depends(require_tier("plus"))):
+async def create_alert(body: CreateAlertBody, user: dict = Depends(require_feature("job_alerts"))):
     if not body.query_tags and not body.company:
         raise HTTPException(400, "Provide at least one search keyword or company name.")
 
@@ -113,7 +113,7 @@ async def create_alert(body: CreateAlertBody, user: dict = Depends(require_tier(
 async def update_alert(
     alert_id: str,
     body: UpdateAlertBody,
-    user: dict = Depends(require_tier("plus")),
+    user: dict = Depends(require_feature("job_alerts")),
 ):
     db = get_db()
     try:
@@ -141,7 +141,7 @@ async def update_alert(
 
 
 @router.delete("/jobs/alerts/{alert_id}", status_code=204)
-async def delete_alert(alert_id: str, user: dict = Depends(require_tier("plus"))):
+async def delete_alert(alert_id: str, user: dict = Depends(require_feature("job_alerts"))):
     db = get_db()
     try:
         oid = ObjectId(alert_id)
@@ -231,7 +231,7 @@ async def send_test_alert_email(body: SendTestEmailBody):
 
 
 @router.patch("/jobs/alerts/{alert_id}/toggle")
-async def toggle_alert(alert_id: str, user: dict = Depends(require_tier("plus"))):
+async def toggle_alert(alert_id: str, user: dict = Depends(require_feature("job_alerts"))):
     db = get_db()
     try:
         oid = ObjectId(alert_id)

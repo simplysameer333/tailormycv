@@ -123,12 +123,12 @@ async def generate(
     # Resolve user tier early so we can gate Pro-only session features.
     # Done here (before the body.section check) so section regen also respects it.
     # NOTE: user_tier is re-resolved later after skill count; keep both in sync.
+    from services.tier_config_service import has_feature as _has_feature
     _early_tier = (user or {}).get("tier", "free")
-    if _early_tier != "pro":
-        # Locked facts and sample CV reference are Pro-only.
-        # If the user was downgraded, silently drop any session data for these
-        # so a mid-lifecycle tier change doesn't grant Pro features to non-Pro users.
+    # Drop Pro-only session data for non-entitled users (handles mid-lifecycle downgrades).
+    if not _has_feature(_early_tier, "locked_facts"):
         locked_facts = []
+    if not _has_feature(_early_tier, "sample_cv"):
         sample_cv_text = None
 
     # Merge stored upload-time instructions + request-time additional_instructions into profile.
@@ -171,10 +171,11 @@ async def generate(
 
     # ── Section-only regeneration (Pro only) ─────────────────────────────────
     if body.section:
-        if user_tier not in ("pro",):
+        from services.tier_config_service import has_feature as _hf
+        if not _hf(user_tier, "section_regen"):
             raise HTTPException(
                 403,
-                "Section-level regeneration is a Pro feature. Upgrade your plan to unlock it.",
+                "Section-level regeneration is not available on your plan. Visit /settings/plan to upgrade.",
             )
         await _check_cost_limit(db, session_id, 1)
         try:
@@ -318,8 +319,9 @@ async def set_locked_facts(
     generate call. The generator is instructed never to modify or remove them.
     """
     user_tier = (user or {}).get("tier", "free")
-    if user_tier not in ("pro",):
-        raise HTTPException(403, "Locked Facts is a Pro feature. Upgrade your plan to unlock it.")
+    from services.tier_config_service import has_feature as _hf
+    if not _hf(user_tier, "locked_facts"):
+        raise HTTPException(403, "Locked Facts is not available on your plan. Visit /settings/plan to upgrade.")
 
     locked = body.get("locked_facts", [])
     if not isinstance(locked, list):

@@ -27,8 +27,19 @@ export const FEATURE_TIERS = {
 
 export type Feature = keyof typeof FEATURE_TIERS;
 
-/** Returns true if the given tier has access to the named feature. */
+/**
+ * Returns true if the given tier has access to the named feature.
+ *
+ * Reads from the runtime MongoDB-backed store (lib/tierConfig.ts) when it has
+ * been initialized, otherwise falls back to the compile-time FEATURE_TIERS
+ * defaults.  The runtime store is populated by AuthProvider at app startup.
+ */
 export function hasFeature(tier: string, feature: Feature): boolean {
+  // Lazy import avoids circular deps (tierConfig imports from config)
+  try {
+    const { hasFeatureDynamic, isInitialized } = require("./tierConfig") as typeof import("./tierConfig");
+    if (isInitialized()) return hasFeatureDynamic(tier, feature);
+  } catch { /* SSR or module not ready — fall through */ }
   return (FEATURE_TIERS[feature] as readonly string[]).includes(tier);
 }
 
@@ -46,6 +57,10 @@ export type LimitKey = keyof typeof TIER_LIMITS;
 
 /** Returns the numeric limit for a tier, or null for unlimited. */
 export function getTierLimit(tier: string, limit: LimitKey): number | null {
+  try {
+    const { getTierLimitDynamic, isInitialized } = require("./tierConfig") as typeof import("./tierConfig");
+    if (isInitialized()) return getTierLimitDynamic(tier, limit);
+  } catch { /* SSR or module not ready — fall through */ }
   const limits = TIER_LIMITS[limit] as Record<string, number | null>;
   return Object.prototype.hasOwnProperty.call(limits, tier) ? limits[tier] : 0;
 }

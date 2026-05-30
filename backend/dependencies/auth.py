@@ -75,11 +75,34 @@ async def require_superadmin(user: dict = Depends(get_current_user)) -> dict:
 
 
 def require_tier(min_tier: str) -> Callable:
-    """Factory — returns a dependency that enforces a minimum subscription tier."""
+    """Factory — enforces a minimum subscription tier (ordinal comparison).
+    Kept for internal use; prefer require_feature() for new gates.
+    """
     async def _check(user: dict = Depends(get_current_user)) -> dict:
         if _TIER_ORDER.get(user.get("tier", "free"), 0) < _TIER_ORDER.get(min_tier, 0):
             raise HTTPException(
                 403, f"This feature requires a {min_tier} subscription or above."
+            )
+        return user
+    return _check
+
+
+def require_feature(feature: str) -> Callable:
+    """Factory — gates a route using the live MongoDB tier config.
+
+    Unlike require_tier(), this reads from tier_config_service which is loaded
+    from MongoDB at startup and reloads immediately when an admin updates it.
+    No restart needed to change which tiers can access a feature.
+    """
+    from services.tier_config_service import has_feature as _has_feature
+
+    async def _check(user: dict = Depends(get_current_user)) -> dict:
+        user_tier = user.get("tier", "free")
+        if not _has_feature(user_tier, feature):
+            raise HTTPException(
+                403,
+                "Your current plan does not include this feature. "
+                "Visit /settings/plan to upgrade.",
             )
         return user
     return _check

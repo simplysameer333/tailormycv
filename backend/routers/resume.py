@@ -140,9 +140,9 @@ async def upload_sample_cv(
 
     The original file is stored via the configured storage backend.
     """
-    user_tier = (user or {}).get("tier", "free")
-    if user_tier not in ("pro",):
-        raise HTTPException(403, "Sample CV reference is a Pro feature. Upgrade your plan to unlock it.")
+    from services.tier_config_service import has_feature as _hf
+    if not _hf((user or {}).get("tier", "free"), "sample_cv"):
+        raise HTTPException(403, "Sample CV reference is not available on your plan. Visit /settings/plan to upgrade.")
 
     if file.content_type not in ACCEPTED_TYPES:
         raise HTTPException(400, "Only PDF and DOCX files are accepted.")

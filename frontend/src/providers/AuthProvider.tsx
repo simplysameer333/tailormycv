@@ -1,7 +1,8 @@
 "use client";
 import { SessionProvider, useSession } from "next-auth/react";
 import { useEffect, useRef } from "react";
-import { setApiToken } from "@/lib/api";
+import { setApiToken, fetchTierConfig } from "@/lib/api";
+import { setTierConfig } from "@/lib/tierConfig";
 import DevProvider from "./DevProvider";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
@@ -18,6 +19,14 @@ const TIER_SENSITIVE_KEYS = [
 function TokenSync() {
   const { data: session } = useSession();
   const prevTierRef = useRef<string | null>(null);
+
+  // Fetch tier config from MongoDB at app startup — populates the runtime store
+  // so hasFeature() and getTierLimit() reflect the live database config.
+  useEffect(() => {
+    fetchTierConfig()
+      .then((cfg) => setTierConfig(cfg.features, cfg.limits))
+      .catch(() => { /* keep hardcoded defaults on network failure */ });
+  }, []);
 
   // Sync Bearer token on session change
   useEffect(() => {

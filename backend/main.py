@@ -13,8 +13,10 @@ from database import connect_db, disconnect_db
 from routers import (
     resume, profile, job_description, templates, generate, export,
     professions, auth, jobs, account, catalog, resume_library, job_alerts, admin, linkedin,
+    config as config_router,
 )
 from services.alert_scheduler import start_scheduler, stop_scheduler
+from services import tier_config_service
 
 logger = logging.getLogger("tailormycv")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -26,6 +28,7 @@ async def lifespan(app: FastAPI):
     from database import get_db
     from services.profession_service import seed_professions
     await seed_professions(get_db())
+    await tier_config_service.load_config(get_db())
     start_scheduler()
     yield
     stop_scheduler()
@@ -105,6 +108,7 @@ app.include_router(resume_library.router, prefix="/api")
 app.include_router(job_alerts.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(linkedin.router, prefix="/api")
+app.include_router(config_router.router, prefix="/api")
 
 
 @app.get("/health")
