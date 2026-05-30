@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from "react";
 import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield } from "react-icons/fi";
 import Logo from "./Logo";
 import { useAuth } from "@/lib/useAuth";
+import { hasFeature } from "@/lib/config";
 import { useDevContext, type Tier } from "@/providers/DevProvider";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
@@ -165,7 +166,7 @@ export default function Navbar() {
                     My Profile
                   </Link>
 
-                  {(tier === "plus" || tier === "pro") && (
+                  {hasFeature(tier ?? "free", "job_alerts") && (
                     <Link
                       href="/jobs?tab=alerts"
                       onClick={() => setOpen(false)}

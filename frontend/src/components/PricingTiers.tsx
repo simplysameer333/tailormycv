@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FiCheck } from "react-icons/fi";
+import { TIER_LIMITS } from "@/lib/config";
 
 export type Tier = "free" | "plus" | "pro";
 type Currency = "USD" | "GBP" | "EUR";
@@ -40,8 +41,8 @@ export const TIERS: {
       "6-step AI resume builder",
       "DOCX export",
       "3 resume templates",
-      "1 AI quality evaluator",
-      "3 key skills extracted from JD",
+      `${TIER_LIMITS.evaluators.free} AI quality evaluator`,
+      `${TIER_LIMITS.key_skills.free} key skills extracted from JD`,
       "Job search (browse only)",
     ],
   },
@@ -52,12 +53,12 @@ export const TIERS: {
     features: [
       "Everything in Free",
       "PDF export",
-      "2 AI quality evaluators",
-      "5 key skills extracted",
-      "Save up to 25 jobs",
-      "Resume Library (5 resumes)",
+      `${TIER_LIMITS.evaluators.plus} AI quality evaluators`,
+      `${TIER_LIMITS.key_skills.plus} key skills extracted`,
+      `Save up to ${TIER_LIMITS.saved_jobs.plus} jobs`,
+      `Resume Library (${TIER_LIMITS.resume_library.plus} resumes)`,
       "One-click Tailor from job listings",
-      "Daily job alerts (5 saved searches)",
+      `Daily job alerts (${TIER_LIMITS.job_alerts.plus} saved searches)`,
     ],
   },
   {
@@ -65,8 +66,8 @@ export const TIERS: {
     name: "Pro",
     features: [
       "Everything in Plus",
-      "3 AI quality evaluators",
-      "10 key skills extracted",
+      `${TIER_LIMITS.evaluators.pro} AI quality evaluators`,
+      `${TIER_LIMITS.key_skills.pro} key skills extracted`,
       "Section-level regeneration",
       "Locked Facts panel",
       "Sample CV reference",

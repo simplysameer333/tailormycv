@@ -11,6 +11,7 @@ import {
 } from "react-icons/fi";
 import Link from "next/link";
 import { useAuth } from "@/lib/useAuth";
+import { hasFeature } from "@/lib/config";
 
 function WordLogo({ size = 48 }: { size?: number }) {
   return (
@@ -54,8 +55,8 @@ export default function DownloadPage() {
   const router = useRouter();
   const { data: session } = useAuth();
   const tier = session?.user?.tier ?? "free";
-  const canSaveToLibrary = tier === "plus" || tier === "pro";
-  const canExportPdf = tier === "plus" || tier === "pro";
+  const canSaveToLibrary = hasFeature(tier, "save_to_library");
+  const canExportPdf     = hasFeature(tier, "pdf_export");
 
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<ExportResult | null>(null);

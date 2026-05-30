@@ -16,7 +16,7 @@ import { useStepGuard } from "@/lib/stepGuard";
 import { useAuth } from "@/lib/useAuth";
 import Link from "next/link";
 import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap } from "react-icons/fi";
-import { SUPPORT_EMAIL } from "@/lib/config";
+import { SUPPORT_EMAIL, hasFeature } from "@/lib/config";
 
 const LS_RESUME = "tailormycv_generated";
 const LS_EVAL = "tailormycv_eval_summary";
@@ -34,7 +34,8 @@ export default function PreviewPage() {
   useStepGuard("preview");
   const router = useRouter();
   const { data: session } = useAuth();
-  const isPro = (session?.user?.tier ?? "free") === "pro";
+  const tier = session?.user?.tier ?? "free";
+  const isPro = hasFeature(tier, "section_regen"); // true only for Pro
   const [resume, setResume] = useState<GeneratedResume | null>(null);
   const [evalSummary, setEvalSummary] = useState<EvalSummary | null>(null);
   const [loading, setLoading] = useState(false);

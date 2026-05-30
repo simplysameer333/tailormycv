@@ -22,6 +22,7 @@ import {
   type SavedResume,
 } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
+import { hasFeature } from "@/lib/config";
 import TagInput from "@/components/TagInput";
 
 const EMPTY: Omit<AccountProfile, "id" | "resume_text"> = {
@@ -44,7 +45,7 @@ export default function ProfilePage() {
   const tier = session?.user?.tier ?? "free";
   // Do NOT use ?? 0 here — null means unlimited (Pro). undefined means unknown tier → cap at 0.
   const libraryLimit: number | null = tier in LIBRARY_LIMITS ? LIBRARY_LIMITS[tier] : 0;
-  const canUseLibrary = tier === "plus" || tier === "pro";
+  const canUseLibrary = hasFeature(tier, "resume_library");
 
   const [form, setForm] = useState(EMPTY);
   const [hasResume, setHasResume] = useState(false);

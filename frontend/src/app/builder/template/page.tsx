@@ -7,6 +7,7 @@ import { listTemplates, uploadSampleCv, type Template } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
 import { useAuth } from "@/lib/useAuth";
+import { hasFeature } from "@/lib/config";
 import Link from "next/link";
 import clsx from "clsx";
 import { FiUploadCloud, FiCheckCircle, FiFile, FiFileText, FiLayers, FiLock, FiZap } from "react-icons/fi";
@@ -147,7 +148,7 @@ export default function TemplatePage() {
   useStepGuard("template");
   const router = useRouter();
   const { data: session } = useAuth();
-  const isPro = (session?.user?.tier ?? "free") === "pro";
+  const isPro = hasFeature(session?.user?.tier ?? "free", "sample_cv");
   const [templates, setTemplates]             = useState<Template[]>([]);
   const [selected, setSelected]               = useState<string | null>(null);
   const [instructions, setInstructions]       = useState("");
