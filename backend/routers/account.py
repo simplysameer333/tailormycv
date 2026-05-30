@@ -221,3 +221,23 @@ async def session_from_profile(
         "output_files": {"docx_file_id": None, "pdf_file_id": None},
     })
     return {"session_id": str(result.inserted_id)}
+
+
+@router.get("/account/stats")
+async def get_account_stats(user: dict = Depends(get_current_user)):
+    """Return the current user's usage counts."""
+    db = get_db()
+    uid = user["_id"]
+    session_count, resume_count, alert_count, saved_job_count = await __import__("asyncio").gather(
+        db.sessions.count_documents({"user_id": uid}),
+        db.saved_resumes.count_documents({"user_id": uid}),
+        db.job_alerts.count_documents({"user_id": uid}),
+        db.saved_jobs.count_documents({"user_id": str(uid)}),
+    )
+    return {
+        "session_count": session_count,
+        "resume_count": resume_count,
+        "alert_count": alert_count,
+        "saved_job_count": saved_job_count,
+        "tier": user.get("tier", "free"),
+    }

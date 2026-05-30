@@ -66,6 +66,7 @@ async def list_users(_: dict = Depends(require_superadmin)):
 class UserPatchBody(BaseModel):
     is_active: bool | None = None
     is_superadmin: bool | None = None
+    tier: str | None = None
 
 
 @router.patch("/admin/users/{user_id}")
@@ -92,6 +93,7 @@ async def admin_update_user(user_id: str, body: UserPatchBody, admin: dict = Dep
         "email": result.get("email"),
         "is_active": result.get("is_active", True),
         "is_superadmin": result.get("is_superadmin", False),
+        "tier": result.get("tier", "free"),
     }
 
 

@@ -258,25 +258,52 @@ function UserRow({
       {open && (
         <tr className="bg-slate-50 border-b border-slate-100">
           <td colSpan={6} className="px-6 py-3">
-            {loadingStats ? (
-              <span className="text-xs text-slate-400">Loading activity…</span>
-            ) : stats ? (
-              <div className="flex gap-6 text-sm">
-                {[
-                  ["Sessions",   stats.session_count],
-                  ["Resumes",    stats.resume_count],
-                  ["Alerts",     stats.alert_count],
-                  ["Saved Jobs", stats.saved_job_count],
-                ].map(([label, val]) => (
-                  <div key={String(label)}>
-                    <span className="text-slate-500 text-xs">{label}</span>
-                    <p className="font-semibold text-slate-800">{val}</p>
-                  </div>
-                ))}
+            <div className="flex items-start gap-8 flex-wrap">
+              {/* Activity stats */}
+              {loadingStats ? (
+                <span className="text-xs text-slate-400">Loading activity…</span>
+              ) : stats ? (
+                <div className="flex gap-6 text-sm">
+                  {[
+                    ["Sessions",   stats.session_count],
+                    ["Resumes",    stats.resume_count],
+                    ["Alerts",     stats.alert_count],
+                    ["Saved Jobs", stats.saved_job_count],
+                  ].map(([label, val]) => (
+                    <div key={String(label)}>
+                      <span className="text-slate-500 text-xs">{label}</span>
+                      <p className="font-semibold text-slate-800">{val}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-xs text-slate-400">No stats available.</span>
+              )}
+
+              {/* Tier selector */}
+              <div className="flex items-center gap-2 pl-6 border-l border-slate-200" onClick={e => e.stopPropagation()}>
+                <span className="text-xs font-medium text-slate-500">Tier</span>
+                <select
+                  value={user.tier}
+                  disabled={actioning}
+                  onChange={async (e) => {
+                    const newTier = e.target.value;
+                    setActioning(true);
+                    try {
+                      await adminUpdateUser(user.id, { tier: newTier });
+                      flash(`Tier → ${newTier}`);
+                      onRefresh();
+                    } catch { flash("Failed"); }
+                    finally { setActioning(false); }
+                  }}
+                  className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-40"
+                >
+                  <option value="free">Free</option>
+                  <option value="plus">Plus</option>
+                  <option value="pro">Pro</option>
+                </select>
               </div>
-            ) : (
-              <span className="text-xs text-slate-400">No stats available.</span>
-            )}
+            </div>
           </td>
         </tr>
       )}

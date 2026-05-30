@@ -605,9 +605,22 @@ export async function adminGetUserStats(userId: string): Promise<UserStats> {
 
 export async function adminUpdateUser(
   userId: string,
-  body: { is_active?: boolean; is_superadmin?: boolean },
-): Promise<{ id: string; email: string; is_active: boolean; is_superadmin: boolean }> {
+  body: { is_active?: boolean; is_superadmin?: boolean; tier?: string },
+): Promise<{ id: string; email: string; is_active: boolean; is_superadmin: boolean; tier: string }> {
   const { data } = await api.patch(`/api/admin/users/${userId}`, body);
+  return data;
+}
+
+export interface AccountStats {
+  session_count: number;
+  resume_count: number;
+  alert_count: number;
+  saved_job_count: number;
+  tier: string;
+}
+
+export async function getUserStats(): Promise<AccountStats> {
+  const { data } = await api.get("/api/account/stats");
   return data;
 }
 
