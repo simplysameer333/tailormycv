@@ -244,6 +244,8 @@ async def generate(
             "eval_history": final_state["eval_history"],
             "key_skills": key_skills,
             "profession_slug": profession_config.get("slug", "generic"),
+            "final_min_score": final_state["min_score"],
+            "final_all_passed": final_state["all_passed"],
         }},
     )
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
-import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield } from "react-icons/fi";
+import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield, FiSettings } from "react-icons/fi";
 import Logo from "./Logo";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
@@ -164,6 +164,15 @@ export default function Navbar() {
                   >
                     <FiUser className="w-4 h-4" />
                     My Profile
+                  </Link>
+
+                  <Link
+                    href="/settings/overview"
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    <FiSettings className="w-4 h-4" />
+                    Settings
                   </Link>
 
                   {hasFeature(tier ?? "free", "job_alerts") && (

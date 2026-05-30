@@ -215,6 +215,7 @@ async def session_from_profile(
 
     db = get_db()
     result = await db.sessions.insert_one({
+        "user_id": user["_id"],
         "created_at": datetime.utcnow(),
         "resume_parsed": {"raw_text": profile["resume_text"], "filename": "profile-resume"},
         "resume_file_key": profile.get("resume_file_key"),
@@ -241,21 +242,60 @@ async def session_from_profile(
     return {"session_id": str(result.inserted_id)}
 
 
+def _quality_label(min_score: int, pass_threshold: int) -> str:
+    if min_score >= pass_threshold + 30:
+        return "Excellent"
+    if min_score >= pass_threshold + 10:
+        return "Strong"
+    if min_score >= pass_threshold:
+        return "Good"
+    return "Reviewed"
+
+
 @router.get("/account/stats")
 async def get_account_stats(user: dict = Depends(get_current_user)):
-    """Return the current user's usage counts."""
+    """Return the current user's usage counts and recent resume history."""
+    import asyncio as _asyncio
+    from config import settings as _settings
     db = get_db()
     uid = user["_id"]
-    session_count, resume_count, alert_count, saved_job_count = await __import__("asyncio").gather(
+
+    (session_count, generated_count, resume_count,
+     alert_count, active_alert_count, saved_job_count) = await _asyncio.gather(
         db.sessions.count_documents({"user_id": uid}),
+        db.sessions.count_documents({"user_id": uid, "generated_resume": {"$ne": None}}),
         db.saved_resumes.count_documents({"user_id": uid}),
         db.job_alerts.count_documents({"user_id": uid}),
+        db.job_alerts.count_documents({"user_id": uid, "is_active": True}),
         db.saved_jobs.count_documents({"user_id": str(uid)}),
     )
+
+    recent_sessions = []
+    cursor = db.sessions.find(
+        {"user_id": uid, "generated_resume": {"$ne": None}},
+        {"created_at": 1, "user_profile": 1, "final_min_score": 1, "eval_history": 1},
+    ).sort("created_at", -1).limit(20)
+    async for doc in cursor:
+        min_score = doc.get("final_min_score")
+        if min_score is None and doc.get("eval_history"):
+            min_score = doc["eval_history"][-1].get("min_score", 0)
+        min_score = min_score or 0
+        target_role = (doc.get("user_profile") or {}).get("target_role", "")
+        recent_sessions.append({
+            "id": str(doc["_id"]),
+            "created_at": doc["created_at"].isoformat(),
+            "target_role": target_role,
+            "quality_label": _quality_label(min_score, _settings.pass_threshold),
+            "min_score": min_score,
+        })
+
     return {
         "session_count": session_count,
+        "generated_count": generated_count,
         "resume_count": resume_count,
         "alert_count": alert_count,
+        "active_alert_count": active_alert_count,
         "saved_job_count": saved_job_count,
         "tier": user.get("tier", "free"),
+        "recent_sessions": recent_sessions,
     }

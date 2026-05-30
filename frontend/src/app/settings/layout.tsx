@@ -7,6 +7,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const pathname = usePathname();
 
   const navItems = [
+    { href: "/settings/overview",    label: "Overview" },
     { href: "/settings/plan",        label: "Plan & Usage" },
     { href: "/settings/professions", label: "Profession Profiles" },
   ];

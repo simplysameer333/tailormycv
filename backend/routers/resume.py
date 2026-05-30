@@ -45,6 +45,7 @@ async def upload_resume(
     file: UploadFile = File(None),
     instructions: str = Form(""),
     linkedin_text: str = Form(""),
+    user: dict | None = Depends(get_optional_user),
 ):
     """Upload a resume and/or provide LinkedIn profile text. Creates a new session.
 
@@ -94,6 +95,7 @@ async def upload_resume(
     # ── Create session ─────────────────────────────────────────────────────────
     db = get_db()
     result = await db.sessions.insert_one({
+        "user_id": user["_id"] if user else None,
         "created_at": datetime.utcnow(),
         "resume_parsed": parsed,
         "resume_file_key": None,

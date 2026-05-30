@@ -673,12 +673,23 @@ export async function adminUpdateUser(
   return data;
 }
 
+export interface ResumeSession {
+  id: string;
+  created_at: string;
+  target_role: string;
+  quality_label: "Excellent" | "Strong" | "Good" | "Reviewed";
+  min_score: number;
+}
+
 export interface AccountStats {
   session_count: number;
+  generated_count: number;
   resume_count: number;
   alert_count: number;
+  active_alert_count: number;
   saved_job_count: number;
   tier: string;
+  recent_sessions: ResumeSession[];
 }
 
 export async function getUserStats(): Promise<AccountStats> {
