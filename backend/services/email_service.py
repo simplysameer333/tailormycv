@@ -344,6 +344,70 @@ def _render_alert_email(
 </html>"""
 
 
+# ── Scheduler failure alert ───────────────────────────────────────────────────
+
+async def send_scheduler_failure_alert(failed: int, total: int, sample_errors: list[str]) -> None:
+    """Email tech support when JSearch fails for one or more alerts in a daily run.
+
+    Sends a single summary email per run — never one per alert — so a full
+    JSearch outage doesn't flood the inbox.  Silently swallows delivery errors.
+    """
+    from config import settings
+
+    if not settings.brevo_api_key:
+        logger.warning("[scheduler-alert] No Brevo key — skipping failure notification")
+        return
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    errors_html = "".join(
+        f'<li style="font-size:12px;color:#475569;margin-bottom:4px;">{e}</li>'
+        for e in sample_errors[:5]
+    )
+
+    html = f"""<!DOCTYPE html>
+<html>
+<body style="font-family:system-ui,sans-serif;background:#f8fafc;margin:0;padding:20px;">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;
+              border:1px solid #e2e8f0;overflow:hidden;">
+    <div style="background:#b45309;padding:20px 24px;">
+      <h1 style="color:#fff;font-size:18px;margin:0;">&#9888; Job Alert Scheduler — JSearch Failures</h1>
+      <p style="color:#fde68a;font-size:13px;margin:6px 0 0;">TailorMyCv Daily Run · {timestamp}</p>
+    </div>
+    <div style="padding:24px;">
+      <p style="font-size:14px;color:#1e293b;margin:0 0 16px;">
+        <strong>{failed} of {total}</strong> active alert(s) could not be processed today because
+        JSearch returned an error or timed out after 3 retries.
+        Affected users were <strong>not</strong> emailed — their alerts will retry tomorrow.
+      </p>
+      {"<p style='font-size:13px;font-weight:600;color:#334155;margin:0 0 8px;'>Sample errors:</p><ul style='margin:0;padding-left:20px;'>" + errors_html + "</ul>" if sample_errors else ""}
+      <p style="font-size:12px;color:#64748b;margin:16px 0 0;">
+        Check Railway logs for full details.  If this repeats, verify RAPIDAPI_KEY and
+        JSearch quota on the RapidAPI dashboard.
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    payload = {
+        "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
+        "to": [{"email": settings.support_email, "name": "TailorMyCv Ops"}],
+        "subject": f"[TailorMyCv] Job alert scheduler: {failed}/{total} alerts failed ({timestamp})",
+        "htmlContent": html,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                json=payload,
+                headers={"api-key": settings.brevo_api_key, "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+        logger.info("[scheduler-alert] Sent failure summary to support (%d/%d failed)", failed, total)
+    except Exception as exc:
+        logger.warning("[scheduler-alert] Could not send failure summary: %s", exc)
+
+
 # ── Error alert ────────────────────────────────────────────────────────────────
 
 async def send_error_alert(method: str, path: str, exc: Exception, tb: str) -> None:
@@ -421,7 +485,7 @@ async def send_error_alert(method: str, path: str, exc: Exception, tb: str) -> N
 
     payload = {
         "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
-        "to": [{"email": "tailormycv.alerts@gmail.com", "name": "TailorMyCv Ops"}],
+        "to": [{"email": settings.support_email, "name": "TailorMyCv Ops"}],
         "subject": subject,
         "htmlContent": html,
     }

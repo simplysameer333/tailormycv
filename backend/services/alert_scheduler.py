@@ -18,7 +18,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from config import settings
 from database import get_db
-from services.email_service import send_job_alert_email, send_no_results_email
+from services.email_service import send_job_alert_email, send_no_results_email, send_scheduler_failure_alert
 from services.quota_service import get_quota, increment as _increment_quota
 
 logger = logging.getLogger("tailormycv")
@@ -75,10 +75,11 @@ async def _search_jobs(query: str, location: str) -> list[dict] | None:
     return None
 
 
-async def _process_alert(db, alert: dict) -> None:
+async def _process_alert(db, alert: dict) -> str | None:
+    """Process one alert.  Returns an error string if JSearch failed, else None."""
     user = await db.users.find_one({"_id": alert["user_id"]})
     if not user or not user.get("is_active"):
-        return
+        return None
 
     # Skip if user's tier no longer qualifies — reads live MongoDB tier config
     from services.tier_config_service import has_feature as _has_feature
@@ -87,7 +88,7 @@ async def _process_alert(db, alert: dict) -> None:
             "[alert-scheduler] Alert %s skipped — user %s (tier=%s) not entitled",
             alert["_id"], user.get("email"), user.get("tier", "free"),
         )
-        return
+        return None
 
     query_parts = list(alert.get("query_tags", []))
     company = alert.get("company")
@@ -95,18 +96,16 @@ async def _process_alert(db, alert: dict) -> None:
         query_parts.append(company)
     query = " ".join(query_parts).strip()
     if not query:
-        return
+        return None
 
     location = " OR ".join(alert.get("location_tags", []))
     jobs = await _search_jobs(query, location)
 
     if jobs is None:
-        # JSearch errored or quota exhausted — skip silently, retry tomorrow
-        logger.warning(
-            "[alert-scheduler] Alert %s skipped — JSearch unavailable (query=%r)",
-            alert["_id"], query,
-        )
-        return
+        # JSearch errored or quota exhausted — report to caller for summary email
+        msg = f"Alert '{alert.get('name')}' (query={query!r}): JSearch unavailable after 3 retries"
+        logger.warning("[alert-scheduler] %s", msg)
+        return msg
 
     if not jobs:
         # JSearch responded successfully but returned zero listings
@@ -151,15 +150,31 @@ async def run_daily_alerts() -> None:
     logger.info("[alert-scheduler] Daily alert run starting")
     db = get_db()
     alerts = await db.job_alerts.find({"is_active": True}).to_list(length=2000)
-    logger.info("[alert-scheduler] Processing %d active alerts", len(alerts))
+    total = len(alerts)
+    logger.info("[alert-scheduler] Processing %d active alerts", total)
 
+    failures: list[str] = []
     for alert in alerts:
         try:
-            await _process_alert(db, alert)
+            error = await _process_alert(db, alert)
+            if error:
+                failures.append(error)
         except Exception as exc:
-            logger.error("[alert-scheduler] Unhandled error on alert %s: %s", alert["_id"], exc)
+            msg = f"Alert '{alert.get('name')}' ({alert['_id']}): unhandled error — {exc}"
+            logger.error("[alert-scheduler] %s", msg)
+            failures.append(msg)
 
-    logger.info("[alert-scheduler] Daily alert run complete")
+    logger.info(
+        "[alert-scheduler] Daily run complete — %d processed, %d JSearch failures",
+        total, len(failures),
+    )
+
+    if failures:
+        await send_scheduler_failure_alert(
+            failed=len(failures),
+            total=total,
+            sample_errors=failures,
+        )
 
 
 def start_scheduler() -> None:
