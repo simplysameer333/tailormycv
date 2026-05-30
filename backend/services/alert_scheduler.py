@@ -56,6 +56,14 @@ async def _process_alert(db, alert: dict) -> None:
     if not user or not user.get("is_active"):
         return
 
+    # Skip if user's tier no longer qualifies for job alerts (e.g. downgraded from Plus)
+    if user.get("tier", "free") not in ("plus", "pro"):
+        logger.info(
+            "[alert-scheduler] Alert %s skipped — user %s is on %s tier",
+            alert["_id"], user.get("email"), user.get("tier", "free"),
+        )
+        return
+
     query_parts = list(alert.get("query_tags", []))
     company = alert.get("company")
     if company:

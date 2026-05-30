@@ -120,6 +120,17 @@ async def generate(
     locked_facts = session.get("locked_facts") or []
     sample_cv_text: str | None = session.get("sample_cv_text") or None
 
+    # Resolve user tier early so we can gate Pro-only session features.
+    # Done here (before the body.section check) so section regen also respects it.
+    # NOTE: user_tier is re-resolved later after skill count; keep both in sync.
+    _early_tier = (user or {}).get("tier", "free")
+    if _early_tier != "pro":
+        # Locked facts and sample CV reference are Pro-only.
+        # If the user was downgraded, silently drop any session data for these
+        # so a mid-lifecycle tier change doesn't grant Pro features to non-Pro users.
+        locked_facts = []
+        sample_cv_text = None
+
     # Merge stored upload-time instructions + request-time additional_instructions into profile.
     extra_parts = []
     upload_instructions = (session.get("upload_instructions") or "").strip()
