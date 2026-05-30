@@ -21,14 +21,9 @@ from .agents.evaluators import EVALUATOR_REGISTRY
 _generator = GeneratorAgent()
 _aggregator = AggregatorAgent()
 
-# Maps evaluator name → enabled flag (driven by subscription tier via .env):
-#   Free    — anthropic only
-#   Pro     — anthropic + google
-#   Premium — anthropic + openai + google
-#
-# When subscription checks are implemented, replace the settings flags here
-# with a per-request tier lookup so each user gets the right evaluator set.
-_EVALUATOR_ENABLED: dict[str, bool] = {
+# Global fallback evaluator flags — used only when no per-request tier is set.
+# In practice every authenticated request now passes enabled_evaluators via state.
+_EVALUATOR_ENABLED_FALLBACK: dict[str, bool] = {
     "anthropic": settings.anthropic_evaluator_enabled,
     "openai": settings.openai_evaluator_enabled,
     "google": settings.google_evaluator_enabled,
@@ -64,11 +59,13 @@ async def evaluate_node(state: PipelineState) -> dict:
     Evaluators that raise an exception return score=0 rather than crashing
     the pipeline.
     """
+    # Per-request enabled map (set by generate router from user tier) or global fallback
+    tier_enabled: dict[str, bool] = state.get("enabled_evaluators") or _EVALUATOR_ENABLED_FALLBACK
     profession_allowed = state["profession_config"].get("evaluator_names") or []
     active = [
         e for e in EVALUATOR_REGISTRY
         if e.is_configured
-        and _EVALUATOR_ENABLED.get(e.name, True)
+        and tier_enabled.get(e.name, False)
         and (not profession_allowed or e.name in profession_allowed)
     ]
     eval_results = list(

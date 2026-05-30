@@ -39,6 +39,26 @@ _TIER_SKILL_COUNT = {"free": 3, "plus": 5, "pro": 10}
 router = APIRouter()
 _job_analyzer = JobAnalyzerAgent()
 
+# Evaluators each tier is entitled to — must still have API keys configured.
+# Free: Anthropic only (1 evaluator, lowest cost)
+# Plus: Anthropic + OpenAI (2 evaluators, richer feedback)
+# Pro:  Anthropic + OpenAI + Google (3 evaluators, highest quality)
+_TIER_EVALUATORS: dict[str, set[str]] = {
+    "free": {"anthropic"},
+    "plus": {"anthropic", "openai"},
+    "pro":  {"anthropic", "openai", "google"},
+}
+
+
+def _enabled_evaluators_for_tier(user_tier: str) -> dict[str, bool]:
+    """Return per-tier evaluator flags, respecting global env flags + API key presence."""
+    allowed = _TIER_EVALUATORS.get(user_tier, {"anthropic"})
+    return {
+        "anthropic": "anthropic" in allowed and settings.anthropic_evaluator_enabled,
+        "openai":    "openai"    in allowed and settings.openai_evaluator_enabled and bool(settings.openai_api_key),
+        "google":    "google"    in allowed and settings.google_evaluator_enabled and bool(settings.google_api_key),
+    }
+
 
 class GenerateBody(BaseModel):
     section: Optional[str] = None
@@ -169,12 +189,9 @@ async def generate(
         return result
 
     # ── Full evaluator-optimizer pipeline ─────────────────────────────────────
-    # Estimate calls: 1 job-analyzer + (1 generator + N evaluators) * max cycles.
-    active_evaluator_count = sum([
-        settings.anthropic_evaluator_enabled and bool(settings.anthropic_api_key),
-        settings.openai_evaluator_enabled and bool(settings.openai_api_key),
-        settings.google_evaluator_enabled and bool(settings.google_api_key),
-    ])
+    # Evaluator selection is tier-aware: Free=1, Plus=2, Pro=3 (subject to API key config).
+    enabled_evaluators = _enabled_evaluators_for_tier(user_tier)
+    active_evaluator_count = sum(enabled_evaluators.values())
     calls_per_cycle = 1 + max(active_evaluator_count, 1)
     estimated_calls = 1 + calls_per_cycle * settings.max_eval_cycles  # +1 for job analyzer
     await _check_cost_limit(db, session_id, estimated_calls)
@@ -188,6 +205,7 @@ async def generate(
         "locked_facts": locked_facts,
         "key_skills": key_skills,
         "sample_cv_text": sample_cv_text,
+        "enabled_evaluators": enabled_evaluators,
         "cycle": 0,
         "feedback": None,
         "resume_json": None,

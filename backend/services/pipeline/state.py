@@ -39,3 +39,9 @@ class PipelineState(TypedDict):
     # ── aggregated decision ───────────────────────────────────────────────────
     all_passed: bool
     min_score: int
+    # ── per-request evaluator selection ──────────────────────────────────────
+    # Set by the generate router based on the user's subscription tier so each
+    # request runs only the evaluators their tier is entitled to.
+    # Keys are evaluator names ("anthropic", "openai", "google"); value is bool.
+    # Falls back to the global _EVALUATOR_ENABLED dict in nodes.py when absent.
+    enabled_evaluators: dict
