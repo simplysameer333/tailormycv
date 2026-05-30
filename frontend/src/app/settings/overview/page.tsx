@@ -106,14 +106,9 @@ function HistoryRow({ session }: { session: ResumeSession }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OverviewPage() {
-  const { data: session, status, update } = useAuth();
+  const { data: session, status } = useAuth();
   const tier = (session?.user?.tier ?? "free") as Tier;
   const [stats, setStats] = useState<AccountStats | null>(null);
-
-  useEffect(() => {
-    if (status === "authenticated" && update) update();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -121,9 +116,7 @@ export default function OverviewPage() {
     }
   }, [status]);
 
-  if (status === "loading") {
-    return <div className="py-20 text-center text-slate-400">Loading…</div>;
-  }
+  if (status === "loading") return null;
 
   const limits = LIMITS[tier] ?? LIMITS.free;
   const tierLabel = tier.charAt(0).toUpperCase() + tier.slice(1);
