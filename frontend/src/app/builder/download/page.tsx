@@ -7,7 +7,7 @@ import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
 import {
   FiDownload, FiCheckCircle,
-  FiAlertCircle, FiRefreshCw, FiArrowLeft, FiBookmark,
+  FiAlertCircle, FiRefreshCw, FiArrowLeft, FiBookmark, FiLock,
 } from "react-icons/fi";
 import Link from "next/link";
 import { useAuth } from "@/lib/useAuth";
@@ -55,6 +55,7 @@ export default function DownloadPage() {
   const { data: session } = useAuth();
   const tier = session?.user?.tier ?? "free";
   const canSaveToLibrary = tier === "plus" || tier === "pro";
+  const canExportPdf = tier === "plus" || tier === "pro";
 
   const [loading, setLoading] = useState(false);
   const [files, setFiles] = useState<ExportResult | null>(null);
@@ -67,7 +68,7 @@ export default function DownloadPage() {
     const boldKeywords = localStorage.getItem("tailormycv_bold_keywords") !== "false";
     setLoading(true);
     try {
-      const result = await exportResume(sessionId, true, boldKeywords);
+      const result = await exportResume(sessionId, canExportPdf, boldKeywords);
       setFiles(result);
       if (result.pdf_error) {
         toast(`PDF error: ${result.pdf_error}`, { icon: "⚠️", duration: 8000 });
@@ -130,16 +131,35 @@ export default function DownloadPage() {
           generated={!!files}
           onRetry={generate}
         />
-        <FormatCard
-          logo={<PdfLogo size={44} />}
-          label="PDF Document"
-          sub=".pdf · print-ready"
-          fileId={files?.pdf_file_id}
-          filename={`${filename}.pdf`}
-          error={files?.pdf_error ?? null}
-          generated={!!files}
-          onRetry={generate}
-        />
+        {canExportPdf ? (
+          <FormatCard
+            logo={<PdfLogo size={44} />}
+            label="PDF Document"
+            sub=".pdf · print-ready"
+            fileId={files?.pdf_file_id}
+            filename={`${filename}.pdf`}
+            error={files?.pdf_error ?? null}
+            generated={!!files}
+            onRetry={generate}
+          />
+        ) : (
+          <Link
+            href="/settings/plan"
+            className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-slate-200 rounded-2xl p-5 text-center hover:border-brand-300 transition group"
+          >
+            <div className="relative">
+              <PdfLogo size={44} />
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-200 rounded-full flex items-center justify-center">
+                <FiLock className="w-3 h-3 text-slate-500" />
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-700">PDF Document</p>
+              <p className="text-xs text-brand-600 font-medium mt-0.5">Plus / Pro feature</p>
+              <p className="text-xs text-slate-400 mt-0.5">Tap to upgrade</p>
+            </div>
+          </Link>
+        )}
       </div>
 
       {/* PDF note */}

@@ -216,7 +216,7 @@ function UserRow({
             {user.name}
           </span>
         </td>
-        <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{user.email}</td>
+        <td className="px-4 py-3 text-slate-600 whitespace-nowrap hidden sm:table-cell">{user.email}</td>
         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
           <select
             value={draftTier}
@@ -229,8 +229,8 @@ function UserRow({
             <option value="pro">pro</option>
           </select>
         </td>
-        <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatDate(user.created_at)}</td>
-        <td className="px-4 py-3">
+        <td className="px-4 py-3 text-slate-500 whitespace-nowrap hidden md:table-cell">{formatDate(user.created_at)}</td>
+        <td className="px-4 py-3 hidden sm:table-cell">
           <span className={`text-xs font-semibold rounded px-2 py-0.5 ${draftActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
             {draftActive ? "Active" : "Disabled"}
           </span>
@@ -358,8 +358,15 @@ function UsersTab({
           <table className="min-w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {["Name", "Email", "Tier", "Joined", "Status", "Actions"].map(h => (
-                  <th key={h} className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${h === "Actions" ? "text-right" : "text-left"}`}>{h}</th>
+                {[
+                  { label: "Name",    cls: "" },
+                  { label: "Email",   cls: "hidden sm:table-cell" },
+                  { label: "Tier",    cls: "" },
+                  { label: "Joined",  cls: "hidden md:table-cell" },
+                  { label: "Status",  cls: "hidden sm:table-cell" },
+                  { label: "Actions", cls: "text-right" },
+                ].map(({ label, cls }) => (
+                  <th key={label} className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${cls}`}>{label}</th>
                 ))}
               </tr>
             </thead>
@@ -430,8 +437,13 @@ function AuditTab({
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  {["Time", "User", "Action", "Details"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  {[
+                    { label: "Time",    cls: "" },
+                    { label: "User",    cls: "hidden sm:table-cell" },
+                    { label: "Action",  cls: "" },
+                    { label: "Details", cls: "hidden md:table-cell" },
+                  ].map(({ label, cls }) => (
+                    <th key={label} className={`px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${cls}`}>{label}</th>
                   ))}
                 </tr>
               </thead>
@@ -439,13 +451,13 @@ function AuditTab({
                 {(data?.items ?? []).map(e => (
                   <tr key={e.id} className="hover:bg-slate-50 transition">
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{formatDateTime(e.created_at)}</td>
-                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{e.user_email}</td>
+                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap hidden sm:table-cell">{e.user_email}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className="text-xs font-medium bg-slate-100 text-slate-700 rounded px-2 py-0.5">
                         {ACTION_LABELS[e.action] ?? e.action}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">
+                    <td className="px-4 py-3 text-slate-500 text-xs max-w-xs truncate hidden md:table-cell">
                       {Object.entries(e.metadata).map(([k, v]) => `${k}: ${v}`).join(" · ") || "—"}
                     </td>
                   </tr>

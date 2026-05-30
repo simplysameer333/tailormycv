@@ -1,11 +1,12 @@
 """Export router — generates DOCX and PDF using pure Python (no LibreOffice)."""
 import io
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from pydantic import BaseModel
 from datetime import datetime
 from database import get_db, get_fs
+from dependencies.auth import get_optional_user
 from services.file_generator import generate_docx, generate_pdf
 from services.template_service import get_template_path
 
@@ -19,7 +20,11 @@ class ExportBody(BaseModel):
 
 
 @router.post("/export")
-async def export_resume(session_id: str, body: ExportBody = ExportBody()):
+async def export_resume(
+    session_id: str,
+    body: ExportBody = ExportBody(),
+    user: dict | None = Depends(get_optional_user),
+):
     db = get_db()
     fs = get_fs()
     session = await db.sessions.find_one({"_id": ObjectId(session_id)})
@@ -41,6 +46,12 @@ async def export_resume(session_id: str, body: ExportBody = ExportBody()):
         tmpl = await db.templates.find_one({"_id": ObjectId(template_id)})
         if tmpl:
             template_path = get_template_path(tmpl["file_path"])
+
+    # PDF export requires Plus or Pro
+    if body.include_pdf:
+        user_tier = (user or {}).get("tier", "free")
+        if user_tier not in ("plus", "pro"):
+            raise HTTPException(403, "PDF export requires a Plus or Pro subscription.")
 
     # Resolve key_skills for bold-keyword rendering
     bold_keywords: list[str] = []
