@@ -46,11 +46,12 @@ export function hasFeature(tier: string, feature: Feature): boolean {
 // ── Per-tier numeric limits ────────────────────────────────────────────────────
 // null = unlimited.  Update here and the pricing display auto-syncs.
 export const TIER_LIMITS = {
-  resume_library: { free: 0,  plus: 5,   pro: null } as const,
-  saved_jobs:     { free: 0,  plus: 25,  pro: null } as const,
-  job_alerts:     { free: 0,  plus: 5,   pro: null } as const,
-  evaluators:     { free: 1,  plus: 2,   pro: 3    } as const,
-  key_skills:     { free: 3,  plus: 5,   pro: 10   } as const,
+  resume_sessions: { free: 5,  plus: 20,  pro: null } as const,
+  resume_library:  { free: 0,  plus: 5,   pro: null } as const,
+  saved_jobs:      { free: 0,  plus: 25,  pro: null } as const,
+  job_alerts:      { free: 0,  plus: 5,   pro: null } as const,
+  evaluators:      { free: 1,  plus: 2,   pro: 3    } as const,
+  key_skills:      { free: 3,  plus: 5,   pro: 10   } as const,
 } as const;
 
 export type LimitKey = keyof typeof TIER_LIMITS;

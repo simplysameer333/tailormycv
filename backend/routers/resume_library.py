@@ -31,10 +31,10 @@ from services.resume_parser import parse_resume
 from services.storage import get_storage
 from services.file_generator import generate_docx
 from services.audit import log_audit
+from services.tier_config_service import get_limit as _get_limit
 
 router = APIRouter()
 
-_LIMITS = {"free": 0, "plus": 5, "pro": None}  # None = unlimited
 _ACCEPTED = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -43,12 +43,11 @@ MAX_FILE_SIZE = 5 * 1024 * 1024
 
 
 def _check_limit(tier: str, current_count: int) -> None:
-    limit = _LIMITS.get(tier)
+    limit = _get_limit(tier, "resume_library")
     if limit is not None and current_count >= limit:
         raise HTTPException(
             403,
-            f"{tier.capitalize()} plan allows up to {limit} saved resumes. "
-            "Upgrade to Pro for unlimited.",
+            f"Your plan allows up to {limit} saved resumes. Upgrade to Pro for unlimited.",
         )
 
 

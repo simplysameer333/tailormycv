@@ -146,7 +146,7 @@ async def get_user_stats(user_id: str, _: dict = Depends(require_superadmin)):
     except Exception:
         raise HTTPException(400, "Invalid user ID.")
     session_count, resume_count, alert_count, saved_job_count = await asyncio.gather(
-        db.sessions.count_documents({"user_id": str(oid)}),
+        db.sessions.count_documents({"user_id": oid}),
         db.saved_resumes.count_documents({"user_id": oid}),
         db.job_alerts.count_documents({"user_id": oid}),
         db.saved_jobs.count_documents({"user_id": str(oid)}),

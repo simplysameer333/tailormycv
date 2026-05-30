@@ -21,6 +21,7 @@ import ResumePickerModal from "@/components/ResumePickerModal";
 import CreateAlertModal from "@/components/CreateAlertModal";
 import TagInput from "@/components/TagInput";
 import { JSEARCH_PAGE_SIZES, JSEARCH_DEFAULT_PAGE_SIZE, type JsearchPageSize } from "@/lib/config";
+import { getTierLimitDynamic } from "@/lib/tierConfig";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 
@@ -400,8 +401,6 @@ function AlertCard({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-const PLUS_ALERT_LIMIT = 5;
-
 export default function JobsPage() {
   const { data: session } = useAuth();
   const router = useRouter();
@@ -445,7 +444,13 @@ export default function JobsPage() {
       setSearched(true);
       if (result.quota_pct !== undefined) {
         setQuota((prev) => prev
-          ? { ...prev, pct: result.quota_pct, remaining: result.quota_remaining, warning: result.quota_warning }
+          ? {
+              ...prev,
+              pct: result.quota_pct,
+              remaining: result.quota_remaining,
+              warning: result.quota_warning,
+              calls: prev.limit - result.quota_remaining,
+            }
           : null
         );
       }
@@ -583,7 +588,8 @@ export default function JobsPage() {
   }
 
   const alertCount = alerts.length;
-  const atPlusLimit = tier === "plus" && alertCount >= PLUS_ALERT_LIMIT;
+  const plusAlertLimit = getTierLimitDynamic("plus", "job_alerts") ?? 5;
+  const atPlusLimit = tier === "plus" && alertCount >= plusAlertLimit;
 
   return (
     <div className="flex flex-col gap-6">
@@ -878,7 +884,7 @@ export default function JobsPage() {
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium text-slate-700">
                         {tier === "plus"
-                          ? `${alertCount} / ${PLUS_ALERT_LIMIT} alerts used`
+                          ? `${alertCount} / ${plusAlertLimit} alerts used`
                           : `${alertCount} alert${alertCount !== 1 ? "s" : ""}`}
                       </p>
                       {atPlusLimit && (
@@ -902,7 +908,7 @@ export default function JobsPage() {
                     <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
                       <FiAlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
                       <span className="text-amber-700">
-                        You&apos;ve reached the Plus limit of {PLUS_ALERT_LIMIT} alerts.
+                        You&apos;ve reached the Plus limit of {plusAlertLimit} alerts.
                         Upgrade to Pro for unlimited job alerts.
                       </span>
                     </div>

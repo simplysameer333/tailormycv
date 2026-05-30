@@ -6,7 +6,7 @@ import {
   getUserStats, type AccountStats, type ResumeSession,
   listJobAlerts, toggleJobAlert, deleteJobAlert, type JobAlert,
 } from "@/lib/api";
-import { TIERS, type Tier } from "@/components/PricingTiers";
+import { TIERS, buildFeatures, type Tier } from "@/components/PricingTiers";
 import CreateAlertModal from "@/components/CreateAlertModal";
 import {
   FiGrid, FiCreditCard, FiBarChart2, FiBell,
@@ -17,19 +17,18 @@ import {
 } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { SUPPORT_EMAIL } from "@/lib/config";
-import { getPricing, detectCurrencyFromConfig, hasFeatureDynamic } from "@/lib/tierConfig";
+import { getPricing, detectCurrencyFromConfig, hasFeatureDynamic, getTierLimitDynamic } from "@/lib/tierConfig";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type Tab = "overview" | "plan" | "usage" | "alerts";
 
-const LIMITS: Record<string, { sessions: string; resumes: string; saved_jobs: string; alerts: string }> = {
-  free: { sessions: "5",         resumes: "—",        saved_jobs: "—",        alerts: "—" },
-  plus: { sessions: "20",        resumes: "5",         saved_jobs: "25",        alerts: "5" },
-  pro:  { sessions: "Unlimited", resumes: "Unlimited", saved_jobs: "Unlimited", alerts: "Unlimited" },
-};
-
-const PLUS_ALERT_LIMIT = 5;
+function limitStr(tier: string, key: string): string {
+  const v = getTierLimitDynamic(tier, key);
+  if (v === null) return "Unlimited";
+  if (v === 0) return "—";
+  return String(v);
+}
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -167,7 +166,7 @@ function TierCard({ tier, currentTier }: { tier: typeof TIERS[0]; currentTier: T
       </div>
       <PlanPrice tierId={tier.id} />
       <ul className="flex flex-col gap-2 flex-1 mb-5">
-        {tier.features.map((f) => (
+        {buildFeatures(tier.id).map((f) => (
           <li key={f} className="flex items-start gap-2 text-sm text-slate-600">
             <FiCheck className="w-3.5 h-3.5 text-teal-500 mt-0.5 shrink-0" />{f}
           </li>
@@ -305,7 +304,6 @@ function PlanTab({ tier }: { tier: Tier }) {
 }
 
 function UsageTab({ stats, tier }: { stats: AccountStats | null; tier: Tier }) {
-  const limits = LIMITS[tier] ?? LIMITS.free;
   return (
     <div className="space-y-8">
       <div>
@@ -326,10 +324,10 @@ function UsageTab({ stats, tier }: { stats: AccountStats | null; tier: Tier }) {
             </div>
           ) : (
             <>
-              <UsageRow label="Resume Sessions"  description="Builder sessions started"         used={stats.session_count}    limit={limits.sessions} />
-              <UsageRow label="Saved Resumes"    description="Resumes in your library"          used={stats.resume_count}     limit={limits.resumes} />
-              <UsageRow label="Saved Jobs"       description="Job listings bookmarked"          used={stats.saved_job_count}  limit={limits.saved_jobs} />
-              <UsageRow label="Job Alerts"       description="Active daily email searches"      used={stats.alert_count}      limit={limits.alerts} />
+              <UsageRow label="Resume Sessions"  description="Builder sessions started"         used={stats.session_count}    limit={limitStr(tier, "resume_sessions")} />
+              <UsageRow label="Saved Resumes"    description="Resumes in your library"          used={stats.resume_count}     limit={limitStr(tier, "resume_library")} />
+              <UsageRow label="Saved Jobs"       description="Job listings bookmarked"          used={stats.saved_job_count}  limit={limitStr(tier, "saved_jobs")} />
+              <UsageRow label="Job Alerts"       description="Active daily email searches"      used={stats.alert_count}      limit={limitStr(tier, "job_alerts")} />
             </>
           )}
         </div>
@@ -378,7 +376,8 @@ function AlertsTab({ tier }: { tier: Tier }) {
     listJobAlerts().then((data) => { setAlerts(data); setLoaded(true); }).catch(() => setLoaded(true));
   }, [isFree]);
 
-  const atLimit = tier === "plus" && alerts.length >= PLUS_ALERT_LIMIT;
+  const plusAlertLimit = getTierLimitDynamic("plus", "job_alerts") ?? 5;
+  const atLimit = tier === "plus" && alerts.length >= plusAlertLimit;
 
   async function handleToggle(id: string) {
     try {
@@ -432,7 +431,7 @@ function AlertsTab({ tier }: { tier: Tier }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <p className="text-sm font-medium text-slate-700">
-                {tier === "plus" ? `${alerts.length} / ${PLUS_ALERT_LIMIT} alerts used` : `${alerts.length} alert${alerts.length !== 1 ? "s" : ""}`}
+                {tier === "plus" ? `${alerts.length} / ${plusAlertLimit} alerts used` : `${alerts.length} alert${alerts.length !== 1 ? "s" : ""}`}
               </p>
               {atLimit && <span className="text-xs bg-amber-50 text-amber-600 border border-amber-200 rounded-full px-2 py-0.5">Limit reached</span>}
             </div>
@@ -449,7 +448,7 @@ function AlertsTab({ tier }: { tier: Tier }) {
             <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
               <FiAlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
               <span className="text-amber-700">
-                You&apos;ve reached the Plus limit of {PLUS_ALERT_LIMIT} alerts. Upgrade to Pro for unlimited alerts.
+                You&apos;ve reached the Plus limit of {plusAlertLimit} alerts. Upgrade to Pro for unlimited alerts.
               </span>
             </div>
           )}

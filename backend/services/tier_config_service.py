@@ -64,11 +64,12 @@ DEFAULT_FEATURES: dict[str, list[str]] = {
 }
 
 DEFAULT_LIMITS: dict[str, dict[str, int | None]] = {
-    "resume_library": {"free": 0,  "plus": 5,   "pro": None},
-    "saved_jobs":     {"free": 0,  "plus": 25,  "pro": None},
-    "job_alerts":     {"free": 0,  "plus": 5,   "pro": None},
-    "evaluators":     {"free": 1,  "plus": 2,   "pro": 3},
-    "key_skills":     {"free": 3,  "plus": 5,   "pro": 10},
+    "resume_sessions": {"free": 5,  "plus": 20,  "pro": None},
+    "resume_library":  {"free": 0,  "plus": 5,   "pro": None},
+    "saved_jobs":      {"free": 0,  "plus": 25,  "pro": None},
+    "job_alerts":      {"free": 0,  "plus": 5,   "pro": None},
+    "evaluators":      {"free": 1,  "plus": 2,   "pro": 3},
+    "key_skills":      {"free": 3,  "plus": 5,   "pro": 10},
 }
 
 # Human-readable labels — used by the admin UI
@@ -87,11 +88,12 @@ FEATURE_LABELS: dict[str, str] = {
 }
 
 LIMIT_LABELS: dict[str, str] = {
-    "resume_library": "Resume Library size",
-    "saved_jobs":     "Saved Jobs",
-    "job_alerts":     "Job Alerts",
-    "evaluators":     "AI Evaluators",
-    "key_skills":     "Key Skills extracted from JD",
+    "resume_sessions": "Resume Builder Sessions",
+    "resume_library":  "Resume Library size",
+    "saved_jobs":      "Saved Jobs",
+    "job_alerts":      "Job Alerts",
+    "evaluators":      "AI Evaluators",
+    "key_skills":      "Key Skills extracted from JD",
 }
 
 # ── In-memory cache ────────────────────────────────────────────────────────────

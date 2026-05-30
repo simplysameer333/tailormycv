@@ -17,12 +17,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from database import get_db
-from dependencies.auth import get_current_user, require_feature
+from dependencies.auth import get_current_user, require_feature, require_superadmin
 from services.audit import log_audit
 
 router = APIRouter()
-
-_PLUS_ALERT_LIMIT = 5
 
 
 def _serialize(doc: dict) -> dict:
@@ -131,11 +129,11 @@ async def update_alert(
     if body.name is not None:
         updates["name"] = body.name.strip()
     if body.query_tags is not None:
-        updates["query_tags"] = body.query_tags
+        updates["query_tags"] = sorted(t.strip() for t in body.query_tags)
     if body.location_tags is not None:
-        updates["location_tags"] = body.location_tags
+        updates["location_tags"] = sorted(t.strip() for t in body.location_tags)
     if body.company is not None:
-        updates["company"] = body.company or None
+        updates["company"] = body.company.strip() or None
 
     await db.job_alerts.update_one({"_id": oid}, {"$set": updates})
     doc = await db.job_alerts.find_one({"_id": oid})
@@ -161,7 +159,7 @@ class SendTestEmailBody(BaseModel):
 
 
 @router.post("/jobs/alerts/send-test")
-async def send_test_alert_email(body: SendTestEmailBody):
+async def send_test_alert_email(body: SendTestEmailBody, _: dict = Depends(require_superadmin)):
     """On-demand alert email — triggers a real JSearch + Brevo send.
 
     Requires the user to have at least one active alert. No mock data.

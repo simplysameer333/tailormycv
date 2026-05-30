@@ -518,6 +518,7 @@ export interface SavedResume {
   name: string;
   type: "uploaded" | "tailored";
   file_name?: string;
+  content_type?: string;
   tailored_for_job?: string;
   tailored_for_employer?: string;
   created_at: string;

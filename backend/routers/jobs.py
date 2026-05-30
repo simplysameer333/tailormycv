@@ -34,7 +34,6 @@ from services.quota_service import get_quota, increment, quota_warning
 router = APIRouter()
 
 _JSEARCH_BASE = "https://jsearch.p.rapidapi.com"
-_PLUS_SAVE_LIMIT = 25
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
