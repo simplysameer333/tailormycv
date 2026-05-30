@@ -64,7 +64,7 @@ export default function Navbar() {
 
   return (
     <nav className="w-full bg-white border-b border-slate-200">
-      <div className="max-w-4xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
         <Logo />
 
         <div className="flex items-center gap-1 sm:gap-3">

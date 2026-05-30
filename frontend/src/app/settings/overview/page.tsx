@@ -539,7 +539,7 @@ export default function SettingsPage() {
       </div>
 
       {/* ── Two-column body ── */}
-      <div className="max-w-4xl mx-auto w-full px-5 sm:px-6 py-8">
+      <div className="max-w-5xl mx-auto w-full px-5 sm:px-6 py-8">
         <div className="flex gap-7 items-start">
 
           {/* ── Sidebar ── */}
