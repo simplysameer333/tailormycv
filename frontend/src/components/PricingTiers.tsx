@@ -3,30 +3,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { FiCheck } from "react-icons/fi";
 import { TIER_LIMITS } from "@/lib/config";
+import { getPricing, detectCurrencyFromConfig } from "@/lib/tierConfig";
 
 export type Tier = "free" | "plus" | "pro";
-type Currency = "USD" | "GBP" | "EUR";
-
-// UK timezones (Channel Islands + Isle of Man use GBP too)
-const GB_TIMEZONES = new Set([
-  "Europe/London", "Europe/Belfast", "Europe/Isle_of_Man",
-  "Europe/Jersey", "Europe/Guernsey",
-]);
-
-function detectCurrency(): Currency {
-  try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (GB_TIMEZONES.has(tz)) return "GBP";
-    if (tz.startsWith("Europe/")) return "EUR";
-  } catch { /* */ }
-  return "USD";
-}
-
-const PRICES: Record<Currency, Record<Tier, string>> = {
-  USD: { free: "$0 / mo",  plus: "$9 / mo",  pro: "$19 / mo" },
-  GBP: { free: "£0 / mo",  plus: "£7 / mo",  pro: "£15 / mo" },
-  EUR: { free: "€0 / mo",  plus: "€8 / mo",  pro: "€17 / mo" },
-};
 
 export const TIERS: {
   id: Tier;
@@ -87,17 +66,23 @@ interface PricingTiersProps {
 
 export default function PricingTiers({ selectedTier, onSelect }: PricingTiersProps) {
   const selectable = !!onSelect;
-  const [currency, setCurrency] = useState<Currency>("USD");
+  const [currency, setCurrency] = useState<string>("USD");
 
   useEffect(() => {
-    setCurrency(detectCurrency());
+    setCurrency(detectCurrencyFromConfig());
   }, []);
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-5">
       {TIERS.map((t) => {
         const isSelected = selectedTier === t.id;
-        const price = PRICES[currency][t.id];
+        const pricingMap = getPricing();
+        const curr = pricingMap[currency] || pricingMap["USD"] || { symbol: "$", plus: 9, pro: 19 };
+        const price = t.id === "free"
+          ? `${curr.symbol}0 / mo`
+          : t.id === "plus"
+          ? `${curr.symbol}${curr.plus} / mo`
+          : `${curr.symbol}${curr.pro} / mo`;
 
         const cardClass = `relative flex flex-col rounded-2xl border-2 p-5 transition-all text-left ${
           selectable

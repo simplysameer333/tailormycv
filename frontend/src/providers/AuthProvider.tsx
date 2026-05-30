@@ -24,7 +24,7 @@ function TokenSync() {
   // so hasFeature() and getTierLimit() reflect the live database config.
   useEffect(() => {
     fetchTierConfig()
-      .then((cfg) => setTierConfig(cfg.features, cfg.limits))
+      .then((cfg) => setTierConfig(cfg.features, cfg.limits, cfg.pricing, cfg.currency_zones))
       .catch(() => { /* keep hardcoded defaults on network failure */ });
   }, []);
 

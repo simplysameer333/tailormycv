@@ -1207,12 +1207,130 @@ function TierConfigTab() {
     });
   }
 
+  // ── Pricing helpers ─────────────────────────────────────────────────────────
+
+  function setPricingField(code: string, field: "symbol" | "plus" | "pro", value: string) {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const pricing = { ...(prev.pricing ?? {}) };
+      pricing[code] = {
+        ...(pricing[code] ?? { symbol: "", plus: 0, pro: 0 }),
+        [field]: field === "symbol" ? value : (parseInt(value, 10) || 0),
+      };
+      return { ...prev, pricing };
+    });
+  }
+
+  function addCurrency() {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const pricing = { ...(prev.pricing ?? {}) };
+      const code = `CUR${Object.keys(pricing).length + 1}`;
+      pricing[code] = { symbol: "", plus: 0, pro: 0 };
+      return { ...prev, pricing };
+    });
+  }
+
+  function renameCurrency(oldCode: string, newCode: string) {
+    setDraft(prev => {
+      if (!prev || !newCode.trim() || oldCode === newCode.trim()) return prev;
+      const pricing = { ...(prev.pricing ?? {}) };
+      const entry = pricing[oldCode];
+      delete pricing[oldCode];
+      pricing[newCode.trim().toUpperCase()] = entry;
+      // Update any currency_zones referencing old code
+      const zones = (prev.currency_zones ?? []).map(z =>
+        z.currency === oldCode ? { ...z, currency: newCode.trim().toUpperCase() } : z
+      );
+      return { ...prev, pricing, currency_zones: zones };
+    });
+  }
+
+  function removeCurrency(code: string) {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const pricing = { ...(prev.pricing ?? {}) };
+      delete pricing[code];
+      return { ...prev, pricing };
+    });
+  }
+
+  // ── Currency zone helpers ────────────────────────────────────────────────────
+
+  function setZoneField(idx: number, field: keyof import("@/lib/api").CurrencyZone, value: string | string[]) {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const zones = [...(prev.currency_zones ?? [])];
+      zones[idx] = { ...zones[idx], [field]: value };
+      return { ...prev, currency_zones: zones };
+    });
+  }
+
+  function addZone() {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const firstCurrency = Object.keys(prev.pricing ?? {})[0] ?? "USD";
+      return {
+        ...prev,
+        currency_zones: [...(prev.currency_zones ?? []), {
+          currency: firstCurrency, timezones: [], timezone_prefix: "", locale_codes: [],
+        }],
+      };
+    });
+  }
+
+  function removeZone(idx: number) {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const zones = [...(prev.currency_zones ?? [])];
+      zones.splice(idx, 1);
+      return { ...prev, currency_zones: zones };
+    });
+  }
+
+  function moveZone(idx: number, dir: -1 | 1) {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const zones = [...(prev.currency_zones ?? [])];
+      const target = idx + dir;
+      if (target < 0 || target >= zones.length) return prev;
+      [zones[idx], zones[target]] = [zones[target], zones[idx]];
+      return { ...prev, currency_zones: zones };
+    });
+  }
+
+  function addTagToZone(idx: number, field: "timezones" | "locale_codes", val: string) {
+    if (!val.trim()) return;
+    setDraft(prev => {
+      if (!prev) return prev;
+      const zones = [...(prev.currency_zones ?? [])];
+      const existing = zones[idx][field] ?? [];
+      if (existing.includes(val.trim())) return prev;
+      zones[idx] = { ...zones[idx], [field]: [...existing, val.trim()] };
+      return { ...prev, currency_zones: zones };
+    });
+  }
+
+  function removeTagFromZone(idx: number, field: "timezones" | "locale_codes", val: string) {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const zones = [...(prev.currency_zones ?? [])];
+      zones[idx] = { ...zones[idx], [field]: (zones[idx][field] ?? []).filter((t: string) => t !== val) };
+      return { ...prev, currency_zones: zones };
+    });
+  }
+
   async function handleSave() {
     if (!draft) return;
     setSaving(true);
     setErrors([]);
     try {
-      const result = await adminUpdateTierConfig({ features: draft.features, limits: draft.limits });
+      const result = await adminUpdateTierConfig({
+        features: draft.features,
+        limits: draft.limits,
+        pricing: draft.pricing,
+        currency_zones: draft.currency_zones,
+      });
       setCfg(result);
       setDraft(result);
       toast.success("Tier config saved and reloaded.");
@@ -1228,6 +1346,9 @@ function TierConfigTab() {
 
   const featureLabels = draft.feature_labels ?? {};
   const limitLabels   = draft.limit_labels   ?? {};
+  const pricingEntries = Object.entries(draft.pricing ?? {});
+  const currencyZones  = draft.currency_zones ?? [];
+  const currencyCodes  = Object.keys(draft.pricing ?? {});
 
   return (
     <div className="space-y-8">
@@ -1329,6 +1450,237 @@ function TierConfigTab() {
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      {/* ── Pricing ─────────────────────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Pricing</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Set Plus and Pro prices per currency. Free is always shown as free. Currency is auto-detected from the user&apos;s timezone/locale.</p>
+          </div>
+          <button onClick={addCurrency} className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-400 rounded-lg px-2.5 py-1.5 transition">
+            <FiPlus className="w-3 h-3" /> Add currency
+          </button>
+        </div>
+        <div className="rounded-xl border border-slate-200 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="text-left text-xs font-semibold text-slate-500 px-4 py-2.5">Code</th>
+                <th className="text-left text-xs font-semibold text-slate-500 px-4 py-2.5">Symbol</th>
+                <th className="text-center text-xs font-semibold text-slate-500 px-4 py-2.5">Plus / mo</th>
+                <th className="text-center text-xs font-semibold text-slate-500 px-4 py-2.5">Pro / mo</th>
+                <th className="px-2 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {pricingEntries.map(([code, entry], idx) => (
+                <tr key={code} className="hover:bg-slate-50 transition">
+                  <td className="px-4 py-2">
+                    <input
+                      type="text"
+                      defaultValue={code}
+                      onBlur={e => renameCurrency(code, e.target.value)}
+                      className="w-16 border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono uppercase focus:outline-none focus:ring-2 focus:ring-brand-300"
+                      maxLength={5}
+                    />
+                  </td>
+                  <td className="px-4 py-2">
+                    <input
+                      type="text"
+                      value={entry.symbol}
+                      onChange={e => setPricingField(code, "symbol", e.target.value)}
+                      className="w-12 text-center border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300"
+                      maxLength={3}
+                      placeholder="$"
+                    />
+                  </td>
+                  <td className="px-4 py-2 text-center">
+                    <input
+                      type="number"
+                      value={entry.plus}
+                      onChange={e => setPricingField(code, "plus", e.target.value)}
+                      className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300"
+                      min={0}
+                    />
+                  </td>
+                  <td className="px-4 py-2 text-center">
+                    <input
+                      type="number"
+                      value={entry.pro}
+                      onChange={e => setPricingField(code, "pro", e.target.value)}
+                      className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300"
+                      min={0}
+                    />
+                  </td>
+                  <td className="px-2 py-2 text-center">
+                    {idx > 0 && (
+                      <button onClick={() => removeCurrency(code)} className="text-slate-300 hover:text-red-400 transition p-1">
+                        <FiX className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-slate-400 mt-1.5">First row is the default currency (fallback when no zone rule matches). Cannot be deleted.</p>
+      </div>
+
+      {/* ── Currency detection rules ─────────────────────────────────────── */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">Currency Detection Rules</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Ordered — first matching rule wins. Users with no match get the default (first) currency.</p>
+          </div>
+          <button onClick={addZone} className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-400 rounded-lg px-2.5 py-1.5 transition">
+            <FiPlus className="w-3 h-3" /> Add rule
+          </button>
+        </div>
+        <div className="space-y-3">
+          {currencyZones.length === 0 && (
+            <p className="text-xs text-slate-400 py-4 text-center border border-dashed border-slate-200 rounded-xl">No rules — all users will see the default currency.</p>
+          )}
+          {currencyZones.map((zone, idx) => (
+            <ZoneCard
+              key={idx}
+              zone={zone}
+              idx={idx}
+              total={currencyZones.length}
+              currencyCodes={currencyCodes}
+              onCurrencyChange={c => setZoneField(idx, "currency", c)}
+              onPrefixChange={p => setZoneField(idx, "timezone_prefix", p)}
+              onAddTimezone={v => addTagToZone(idx, "timezones", v)}
+              onRemoveTimezone={v => removeTagFromZone(idx, "timezones", v)}
+              onAddLocale={v => addTagToZone(idx, "locale_codes", v)}
+              onRemoveLocale={v => removeTagFromZone(idx, "locale_codes", v)}
+              onMoveUp={() => moveZone(idx, -1)}
+              onMoveDown={() => moveZone(idx, 1)}
+              onRemove={() => removeZone(idx)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ZoneCard ──────────────────────────────────────────────────────────────────
+
+function ZoneCard({
+  zone, idx, total, currencyCodes,
+  onCurrencyChange, onPrefixChange,
+  onAddTimezone, onRemoveTimezone,
+  onAddLocale, onRemoveLocale,
+  onMoveUp, onMoveDown, onRemove,
+}: {
+  zone: import("@/lib/api").CurrencyZone;
+  idx: number; total: number; currencyCodes: string[];
+  onCurrencyChange: (v: string) => void;
+  onPrefixChange: (v: string) => void;
+  onAddTimezone: (v: string) => void;
+  onRemoveTimezone: (v: string) => void;
+  onAddLocale: (v: string) => void;
+  onRemoveLocale: (v: string) => void;
+  onMoveUp: () => void; onMoveDown: () => void; onRemove: () => void;
+}) {
+  const [tzInput, setTzInput] = useState("");
+  const [locInput, setLocInput] = useState("");
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+      {/* Header row */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-semibold text-slate-400 w-5 shrink-0 text-center">#{idx + 1}</span>
+        <div className="flex items-center gap-2 flex-1">
+          <span className="text-xs text-slate-500 shrink-0">Currency:</span>
+          <select
+            value={zone.currency}
+            onChange={e => onCurrencyChange(e.target.value)}
+            className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-300"
+          >
+            {currencyCodes.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <div className="flex items-center gap-1 ml-auto">
+          <button onClick={onMoveUp} disabled={idx === 0} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30">
+            <FiChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={onMoveDown} disabled={idx === total - 1} className="p-1 text-slate-400 hover:text-slate-600 disabled:opacity-30">
+            <FiChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={onRemove} className="p-1 text-slate-300 hover:text-red-400 transition">
+            <FiX className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Timezone prefix */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-500 w-32 shrink-0">Timezone prefix:</span>
+        <input
+          type="text"
+          value={zone.timezone_prefix}
+          onChange={e => onPrefixChange(e.target.value)}
+          placeholder="e.g. Europe/"
+          className="flex-1 border border-slate-200 rounded-lg px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-300"
+        />
+        <span className="text-xs text-slate-400">matches any timezone starting with this</span>
+      </div>
+
+      {/* Exact timezones */}
+      <div className="space-y-1.5">
+        <span className="text-xs text-slate-500">Exact timezones:</span>
+        <div className="flex flex-wrap gap-1.5">
+          {zone.timezones.map(tz => (
+            <span key={tz} className="flex items-center gap-1 bg-white border border-slate-200 text-xs rounded-full px-2 py-0.5 text-slate-700">
+              {tz}
+              <button onClick={() => onRemoveTimezone(tz)} className="text-slate-300 hover:text-red-400 ml-0.5">
+                <FiX className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          ))}
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={tzInput}
+              onChange={e => setTzInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { onAddTimezone(tzInput); setTzInput(""); } }}
+              placeholder="Europe/London"
+              className="border border-slate-200 rounded-full px-2 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-brand-300 w-36"
+            />
+            <button onClick={() => { onAddTimezone(tzInput); setTzInput(""); }} className="text-xs text-brand-600 hover:text-brand-700 font-medium">+ Add</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Locale codes */}
+      <div className="space-y-1.5">
+        <span className="text-xs text-slate-500">Locale / country codes:</span>
+        <div className="flex flex-wrap gap-1.5">
+          {zone.locale_codes.map(lc => (
+            <span key={lc} className="flex items-center gap-1 bg-white border border-slate-200 text-xs rounded-full px-2 py-0.5 text-slate-700">
+              {lc}
+              <button onClick={() => onRemoveLocale(lc)} className="text-slate-300 hover:text-red-400 ml-0.5">
+                <FiX className="w-2.5 h-2.5" />
+              </button>
+            </span>
+          ))}
+          <div className="flex items-center gap-1">
+            <input
+              type="text"
+              value={locInput}
+              onChange={e => setLocInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { onAddLocale(locInput); setLocInput(""); } }}
+              placeholder="en-GB"
+              className="border border-slate-200 rounded-full px-2 py-0.5 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-brand-300 w-24"
+            />
+            <button onClick={() => { onAddLocale(locInput); setLocInput(""); }} className="text-xs text-brand-600 hover:text-brand-700 font-medium">+ Add</button>
+          </div>
         </div>
       </div>
     </div>

@@ -26,6 +26,27 @@ _DOC_ID = "v1"
 # Used on first run (before any MongoDB document exists) and as a fallback if
 # the DB is unreachable.  Keep in sync with frontend/src/lib/config.ts.
 
+DEFAULT_PRICING: dict[str, dict] = {
+    "USD": {"symbol": "$", "plus": 9,  "pro": 19},
+    "GBP": {"symbol": "£", "plus": 7,  "pro": 15},
+    "EUR": {"symbol": "€", "plus": 8,  "pro": 17},
+}
+
+DEFAULT_CURRENCY_ZONES: list[dict] = [
+    {
+        "currency": "GBP",
+        "timezones": ["Europe/London", "Europe/Belfast", "Europe/Isle_of_Man", "Europe/Jersey", "Europe/Guernsey"],
+        "timezone_prefix": "",
+        "locale_codes": ["en-GB"],
+    },
+    {
+        "currency": "EUR",
+        "timezones": [],
+        "timezone_prefix": "Europe/",
+        "locale_codes": [],
+    },
+]
+
 DEFAULT_FEATURES: dict[str, list[str]] = {
     # Builder
     "pdf_export":      ["plus", "pro"],
@@ -76,6 +97,8 @@ LIMIT_LABELS: dict[str, str] = {
 # ── In-memory cache ────────────────────────────────────────────────────────────
 _features: dict[str, list[str]] = {k: list(v) for k, v in DEFAULT_FEATURES.items()}
 _limits: dict[str, dict[str, int | None]] = {k: dict(v) for k, v in DEFAULT_LIMITS.items()}
+_pricing: dict[str, dict] = {k: dict(v) for k, v in DEFAULT_PRICING.items()}
+_currency_zones: list[dict] = [dict(z) for z in DEFAULT_CURRENCY_ZONES]
 
 
 async def load_config(db=None) -> None:
@@ -83,7 +106,7 @@ async def load_config(db=None) -> None:
 
     Called once at server startup.  If no document exists, seeds the defaults.
     """
-    global _features, _limits
+    global _features, _limits, _pricing, _currency_zones
     if db is None:
         from database import get_db
         db = get_db()
@@ -95,28 +118,42 @@ async def load_config(db=None) -> None:
             "_id": _DOC_ID,
             "features": DEFAULT_FEATURES,
             "limits": DEFAULT_LIMITS,
+            "pricing": DEFAULT_PRICING,
+            "currency_zones": DEFAULT_CURRENCY_ZONES,
             "updated_at": datetime.utcnow(),
         })
         logger.info("[tier-config] Seeded defaults into MongoDB")
         return  # cache already holds defaults
 
-    _features = doc.get("features") or {k: list(v) for k, v in DEFAULT_FEATURES.items()}
-    _limits   = doc.get("limits")   or {k: dict(v) for k, v in DEFAULT_LIMITS.items()}
+    _features       = doc.get("features")       or {k: list(v) for k, v in DEFAULT_FEATURES.items()}
+    _limits         = doc.get("limits")         or {k: dict(v) for k, v in DEFAULT_LIMITS.items()}
+    _pricing        = doc.get("pricing")        or {k: dict(v) for k, v in DEFAULT_PRICING.items()}
+    _currency_zones = doc.get("currency_zones") or [dict(z) for z in DEFAULT_CURRENCY_ZONES]
     logger.info(
-        "[tier-config] Loaded from MongoDB — %d features, %d limits",
-        len(_features), len(_limits),
+        "[tier-config] Loaded from MongoDB — %d features, %d limits, %d currencies",
+        len(_features), len(_limits), len(_pricing),
     )
 
 
-async def save_config(features: dict[str, list[str]], limits: dict[str, dict[str, int | None]]) -> None:
+async def save_config(
+    features: dict[str, list[str]],
+    limits: dict[str, dict[str, int | None]],
+    pricing: dict[str, dict] | None = None,
+    currency_zones: list[dict] | None = None,
+) -> None:
     """Persist new config to MongoDB and reload the in-memory cache immediately."""
     from database import get_db
     db = get_db()
-    await db[_COLLECTION].update_one(
-        {"_id": _DOC_ID},
-        {"$set": {"features": features, "limits": limits, "updated_at": datetime.utcnow()}},
-        upsert=True,
-    )
+    update: dict = {
+        "features": features,
+        "limits": limits,
+        "updated_at": datetime.utcnow(),
+    }
+    if pricing is not None:
+        update["pricing"] = pricing
+    if currency_zones is not None:
+        update["currency_zones"] = currency_zones
+    await db[_COLLECTION].update_one({"_id": _DOC_ID}, {"$set": update}, upsert=True)
     await load_config(db)
     logger.info("[tier-config] Saved and reloaded by admin")
 
@@ -126,6 +163,8 @@ def get_config() -> dict[str, Any]:
     return {
         "features":       _features,
         "limits":         _limits,
+        "pricing":        _pricing,
+        "currency_zones": _currency_zones,
         "feature_labels": FEATURE_LABELS,
         "limit_labels":   LIMIT_LABELS,
     }

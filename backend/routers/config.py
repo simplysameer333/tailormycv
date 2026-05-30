@@ -11,9 +11,24 @@ from services import tier_config_service
 router = APIRouter()
 
 
+class CurrencyPricing(BaseModel):
+    symbol: str
+    plus: int
+    pro: int
+
+
+class CurrencyZone(BaseModel):
+    currency: str
+    timezones: list[str] = []
+    timezone_prefix: str = ""
+    locale_codes: list[str] = []
+
+
 class TierConfigBody(BaseModel):
     features: dict[str, list[str]]
     limits: dict[str, dict[str, int | None]]
+    pricing: dict[str, CurrencyPricing] | None = None
+    currency_zones: list[CurrencyZone] | None = None
 
 
 @router.get("/config/tiers")
@@ -92,5 +107,7 @@ async def update_tier_config(
     if errors:
         raise HTTPException(422, {"message": "Tier config has contradictions", "errors": errors})
 
-    await tier_config_service.save_config(body.features, body.limits)
+    pricing = {k: v.model_dump() for k, v in body.pricing.items()} if body.pricing else None
+    currency_zones = [z.model_dump() for z in body.currency_zones] if body.currency_zones else None
+    await tier_config_service.save_config(body.features, body.limits, pricing, currency_zones)
     return {"ok": True, **tier_config_service.get_config()}

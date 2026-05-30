@@ -6,6 +6,7 @@ import { TIERS, type Tier } from "@/components/PricingTiers";
 import { FiCheck, FiZap, FiMail } from "react-icons/fi";
 import toast from "react-hot-toast";
 import { SUPPORT_EMAIL } from "@/lib/config";
+import { getPricing, detectCurrencyFromConfig } from "@/lib/tierConfig";
 
 // ── Tier limits displayed on the usage card ────────────────────────────────────
 
@@ -70,6 +71,21 @@ function CurrentPlanCard({ tier, stats }: { tier: Tier; stats: AccountStats }) {
   );
 }
 
+// ── Dynamic price display ──────────────────────────────────────────────────────
+
+function PlanPrice({ tierId }: { tierId: string }) {
+  const [price, setPrice] = useState<string>("");
+  useEffect(() => {
+    const pricingMap = getPricing();
+    const currency = detectCurrencyFromConfig();
+    const curr = pricingMap[currency] || pricingMap["USD"] || { symbol: "$", plus: 9, pro: 19 };
+    if (tierId === "free") setPrice("Free");
+    else if (tierId === "plus") setPrice(`${curr.symbol}${curr.plus} / mo`);
+    else setPrice(`${curr.symbol}${curr.pro} / mo`);
+  }, [tierId]);
+  return <p className="text-sm font-bold text-brand-600 mb-4">{price || "—"}</p>;
+}
+
 // ── Tier card ─────────────────────────────────────────────────────────────────
 
 function TierCard({ tier, currentTier }: { tier: typeof TIERS[0]; currentTier: Tier }) {
@@ -100,10 +116,7 @@ function TierCard({ tier, currentTier }: { tier: typeof TIERS[0]; currentTier: T
         {isCurrent && <FiCheck className="w-4 h-4 text-teal-600" />}
       </div>
 
-      <p className="text-sm font-bold text-brand-600 mb-4">
-        {/* Price shown by currency — reuse the simple USD default */}
-        {tier.id === "free" ? "Free" : tier.id === "plus" ? "$9 / mo" : "$19 / mo"}
-      </p>
+      <PlanPrice tierId={tier.id} />
 
       <ul className="flex flex-col gap-2 flex-1 mb-5">
         {tier.features.map((f) => (

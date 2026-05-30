@@ -23,7 +23,6 @@
 
 | Feature | Free | Plus | Pro |
 |---|:---:|:---:|:---:|
-| **Price** | $0/mo | $9/mo | $19/mo |
 | 6-step AI resume builder | ✅ | ✅ | ✅ |
 | DOCX export | ✅ | ✅ | ✅ |
 | PDF export | ❌ | ✅ | ✅ |
@@ -40,7 +39,7 @@
 | Locked Facts panel | ❌ | ❌ | ✅ |
 | Sample CV formatting reference | ❌ | ❌ | ✅ |
 
-> Prices shown in USD. GBP (£7/£15) and EUR (€8/€17) pricing is shown automatically based on your location.
+> Pricing is shown automatically in your local currency based on your timezone/location. Visit the pricing section on the site for current prices.
 
 ---
 
