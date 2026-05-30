@@ -69,13 +69,19 @@ async def http_error_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_error_handler(request: Request, exc: Exception):
-    """Catch-all for unexpected server errors — log the traceback, return generic 500."""
+    """Catch-all for unexpected server errors — log, email alert, return generic 500."""
+    tb = traceback.format_exc()
     logger.error(
         "Unhandled exception on %s %s\n%s",
         request.method,
         request.url.path,
-        traceback.format_exc(),
+        tb,
     )
+    # Fire-and-forget alert email — never blocks the error response
+    import asyncio
+    from services.email_service import send_error_alert
+    asyncio.create_task(send_error_alert(request.method, request.url.path, exc, tb))
+
     return JSONResponse(
         status_code=500,
         content={"detail": "An unexpected server error occurred. Please try again or contact support."},

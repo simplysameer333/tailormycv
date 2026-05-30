@@ -1,9 +1,17 @@
+import hashlib
 import logging
+import time
 from datetime import datetime, timezone
 
 import httpx
 
 logger = logging.getLogger("tailormycv")
+
+# ── Error alert cooldown ──────────────────────────────────────────────────────
+# Prevents inbox flooding when the same error repeats rapidly.
+# Key: (error_type, path) hash — Value: last-sent epoch seconds.
+_alert_cooldown: dict[str, float] = {}
+_ALERT_COOLDOWN_S = 300  # 5 minutes between identical alerts
 
 
 def _time_ago(dt_str: str | None) -> str:
@@ -334,3 +342,99 @@ def _render_alert_email(
   </div>
 </body>
 </html>"""
+
+
+# ── Error alert ────────────────────────────────────────────────────────────────
+
+async def send_error_alert(method: str, path: str, exc: Exception, tb: str) -> None:
+    """Email an unhandled-exception alert to the ops inbox via Brevo.
+
+    Silently swallows any delivery failure — must never raise.
+    Applies a per-(error_type, path) cooldown to prevent flooding.
+    """
+    from config import settings
+
+    if not settings.brevo_api_key:
+        return  # no email configured — dev mode
+
+    exc_type = type(exc).__name__
+    cooldown_key = hashlib.md5(f"{exc_type}:{path}".encode()).hexdigest()
+    now = time.monotonic()
+    if now - _alert_cooldown.get(cooldown_key, 0) < _ALERT_COOLDOWN_S:
+        return  # already alerted recently for this error + path
+    _alert_cooldown[cooldown_key] = now
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    subject = f"[TailorMyCv ERROR] {method} {path} — {exc_type}"
+
+    # Truncate traceback to keep email manageable
+    tb_truncated = tb[-4000:] if len(tb) > 4000 else tb
+
+    html = f"""<!DOCTYPE html>
+<html>
+<body style="font-family:system-ui,sans-serif;background:#f8fafc;margin:0;padding:20px;">
+  <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:12px;
+              border:1px solid #e2e8f0;overflow:hidden;">
+
+    <!-- Header -->
+    <div style="background:#dc2626;padding:20px 24px;">
+      <h1 style="color:#fff;font-size:18px;margin:0;">🚨 Unhandled Server Exception</h1>
+      <p style="color:#fecaca;font-size:13px;margin:6px 0 0;">TailorMyCv Production Alert</p>
+    </div>
+
+    <div style="padding:24px;">
+      <!-- Meta -->
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+        <tr>
+          <td style="padding:6px 0;color:#64748b;font-size:13px;width:120px;">Time</td>
+          <td style="padding:6px 0;font-size:13px;font-weight:600;color:#0f172a;">{timestamp}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#64748b;font-size:13px;">Request</td>
+          <td style="padding:6px 0;font-size:13px;font-weight:600;color:#0f172a;">{method} {path}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#64748b;font-size:13px;">Error type</td>
+          <td style="padding:6px 0;font-size:13px;font-weight:600;color:#dc2626;">{exc_type}</td>
+        </tr>
+        <tr>
+          <td style="padding:6px 0;color:#64748b;font-size:13px;">Message</td>
+          <td style="padding:6px 0;font-size:13px;color:#0f172a;">{str(exc)[:500]}</td>
+        </tr>
+      </table>
+
+      <!-- Traceback -->
+      <p style="font-size:13px;font-weight:600;color:#334155;margin:0 0 8px;">Traceback</p>
+      <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;
+                  padding:14px;font-size:11px;color:#334155;overflow:auto;
+                  white-space:pre-wrap;word-break:break-all;margin:0;">{tb_truncated}</pre>
+    </div>
+
+    <div style="padding:16px 24px;border-top:1px solid #e2e8f0;text-align:center;">
+      <p style="color:#94a3b8;font-size:11px;margin:0;">
+        TailorMyCv error monitoring · reply to this email if urgent
+      </p>
+    </div>
+  </div>
+</body>
+</html>"""
+
+    payload = {
+        "sender": {"name": "TailorMyCv Alerts", "email": settings.brevo_sender_email},
+        "to": [{"email": "tailormycv.alerts@gmail.com", "name": "TailorMyCv Ops"}],
+        "subject": subject,
+        "htmlContent": html,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                json=payload,
+                headers={"api-key": settings.brevo_api_key, "Content-Type": "application/json"},
+            )
+            resp.raise_for_status()
+        logger.info("[error-alert] Sent alert email for %s on %s %s", exc_type, method, path)
+    except Exception as email_exc:
+        # Never let alert delivery failure mask the original error
+        logger.warning("[error-alert] Failed to send alert email: %s", email_exc)
