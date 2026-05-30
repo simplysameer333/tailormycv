@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     generator_model: str = "claude-sonnet-4-20250514"
     anthropic_evaluator_model: str = "claude-sonnet-4-20250514"
     openai_evaluator_model: str = "gpt-4o-mini"
-    google_evaluator_model: str = "gemini-1.5-pro"
+    google_evaluator_model: str = "gemini-2.5-flash"
 
     # ── Evaluator feature flags ───────────────────────────────────────────────
     # Set to true/false in .env to enable/disable each evaluator independently.
