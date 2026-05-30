@@ -273,36 +273,37 @@ function UserRow({
 
             <div className="w-px h-4 bg-slate-200" />
 
-            {/* Save / Reset — only when there are unsaved changes */}
-            {dirty ? (
-              <>
-                <button
-                  onClick={handleSave}
-                  disabled={actioning}
-                  title="Save changes"
-                  className="flex items-center gap-1 text-xs font-semibold bg-brand-600 text-white rounded-lg px-2.5 py-1 hover:bg-brand-700 disabled:opacity-40"
-                >
-                  <FiSave className="w-3 h-3" /> Save
-                </button>
-                <button
-                  onClick={handleReset}
-                  disabled={actioning}
-                  title="Discard changes"
-                  className="text-slate-400 hover:text-slate-600 disabled:opacity-40"
-                >
-                  <FiRotateCcw className="w-3.5 h-3.5" />
-                </button>
-              </>
-            ) : (
+            {/* Save — always visible, disabled until something changes */}
+            <button
+              onClick={handleSave}
+              disabled={!dirty || actioning}
+              title={dirty ? "Save changes" : "No changes to save"}
+              className="flex items-center gap-1 text-xs font-semibold bg-brand-600 text-white rounded-lg px-2.5 py-1 hover:bg-brand-700 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            >
+              <FiSave className="w-3 h-3" /> Save
+            </button>
+
+            {/* Reset — only shown when dirty */}
+            {dirty && (
               <button
-                onClick={handleDelete}
+                onClick={handleReset}
                 disabled={actioning}
-                title={user.is_superadmin ? "Revoke superadmin first" : "Delete user and all data"}
-                className="text-slate-400 hover:text-red-500 disabled:opacity-40"
+                title="Discard changes"
+                className="text-slate-400 hover:text-slate-600 disabled:opacity-40"
               >
-                <FiTrash2 className={`w-4 h-4 ${user.is_superadmin ? "opacity-30" : ""}`} />
+                <FiRotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
+
+            {/* Delete — always available (guarded against superadmin) */}
+            <button
+              onClick={handleDelete}
+              disabled={actioning}
+              title={user.is_superadmin ? "Revoke superadmin first" : "Delete user and all data"}
+              className="text-slate-400 hover:text-red-500 disabled:opacity-40"
+            >
+              <FiTrash2 className={`w-4 h-4 ${user.is_superadmin ? "opacity-30" : ""}`} />
+            </button>
           </div>
         </td>
       </tr>
@@ -381,7 +382,7 @@ function UsersTab({
           </table>
         </div>
       )}
-      <p className="text-xs text-slate-400 mt-2">Click a row to expand activity counts. Tier, Admin, and Active changes are staged — click <span className="font-semibold">Save</span> to apply. To delete a superadmin, uncheck Admin and Save first.</p>
+      <p className="text-xs text-slate-400 mt-2">Change Tier, Admin or Active on any row, then click <span className="font-semibold">Save</span> to apply. To delete a superadmin, uncheck Admin, Save, then delete.</p>
     </div>
   );
 }
