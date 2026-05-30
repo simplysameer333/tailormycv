@@ -192,10 +192,26 @@ function UserRow({
           </span>
         </td>
         <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{user.email}</td>
-        <td className="px-4 py-3">
-          <span className={`text-xs font-semibold rounded px-2 py-0.5 capitalize ${TIER_COLORS[user.tier] ?? "bg-slate-100 text-slate-600"}`}>
-            {user.tier}
-          </span>
+        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+          <select
+            value={user.tier}
+            disabled={actioning}
+            onChange={async e => {
+              const newTier = e.target.value;
+              setActioning(true);
+              try {
+                await adminUpdateUser(user.id, { tier: newTier });
+                flash(`Tier → ${newTier}`);
+                onRefresh();
+              } catch { flash("Failed"); }
+              finally { setActioning(false); }
+            }}
+            className={`text-xs font-semibold rounded-lg px-2 py-1 border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-40 capitalize ${TIER_COLORS[user.tier] ?? "bg-slate-100 text-slate-600"}`}
+          >
+            <option value="free">free</option>
+            <option value="plus">plus</option>
+            <option value="pro">pro</option>
+          </select>
         </td>
         <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{formatDate(user.created_at)}</td>
         <td className="px-4 py-3">
@@ -280,29 +296,6 @@ function UserRow({
                 <span className="text-xs text-slate-400">No stats available.</span>
               )}
 
-              {/* Tier selector */}
-              <div className="flex items-center gap-2 pl-6 border-l border-slate-200" onClick={e => e.stopPropagation()}>
-                <span className="text-xs font-medium text-slate-500">Tier</span>
-                <select
-                  value={user.tier}
-                  disabled={actioning}
-                  onChange={async (e) => {
-                    const newTier = e.target.value;
-                    setActioning(true);
-                    try {
-                      await adminUpdateUser(user.id, { tier: newTier });
-                      flash(`Tier → ${newTier}`);
-                      onRefresh();
-                    } catch { flash("Failed"); }
-                    finally { setActioning(false); }
-                  }}
-                  className="text-xs rounded-lg border border-slate-200 px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:opacity-40"
-                >
-                  <option value="free">Free</option>
-                  <option value="plus">Plus</option>
-                  <option value="pro">Pro</option>
-                </select>
-              </div>
             </div>
           </td>
         </tr>
@@ -1187,8 +1180,13 @@ export default function AdminPage() {
     if (t === "templates")   fetchTemplates();
   }
 
-  // Initial fetch for the default tab
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  // Fetch users only after auth is confirmed — prevents blank tab on first load
+  // (the initial render fires before NextAuth sets the Bearer token on the axios instance)
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.is_superadmin) {
+      fetchUsers();
+    }
+  }, [status, session?.user?.is_superadmin, fetchUsers]);
 
   // Auth guard
   useEffect(() => {
