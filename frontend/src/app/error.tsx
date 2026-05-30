@@ -59,8 +59,8 @@ export default function AppError({ error, reset }: Props) {
 
         <p className="text-xs text-slate-400">
           If this keeps happening, contact{" "}
-          <a href="mailto:support@tailormycv.com" className="text-brand-600 hover:underline">
-            support@tailormycv.com
+          <a href="mailto:tailormycv.alerts@gmail.com" className="text-brand-600 hover:underline">
+            tailormycv.alerts@gmail.com
           </a>
         </p>
       </div>

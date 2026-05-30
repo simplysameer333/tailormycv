@@ -313,4 +313,4 @@ Click **Upgrade to Plus** or **Upgrade to Pro** on the plan card. This will prom
 
 ---
 
-*For support, contact **support@tailormycv.com***
+*For support, contact **tailormycv.alerts@gmail.com***

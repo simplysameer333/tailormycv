@@ -119,7 +119,7 @@ function TierCard({ tier, currentTier }: { tier: typeof TIERS[0]; currentTier: T
         </div>
       ) : isUpgrade ? (
         <button
-          onClick={() => toast("To upgrade, please contact us at support@tailormycv.com", { icon: "✉️", duration: 6000 })}
+          onClick={() => toast("To upgrade, please contact us at tailormycv.alerts@gmail.com", { icon: "✉️", duration: 6000 })}
           className="w-full flex items-center justify-center gap-2 text-sm font-semibold rounded-xl py-2 px-4 bg-brand-600 text-white hover:bg-brand-700 transition"
         >
           <FiZap className="w-3.5 h-3.5" />
@@ -127,7 +127,7 @@ function TierCard({ tier, currentTier }: { tier: typeof TIERS[0]; currentTier: T
         </button>
       ) : (
         <button
-          onClick={() => toast("To change your plan, please contact support@tailormycv.com", { icon: "✉️", duration: 6000 })}
+          onClick={() => toast("To change your plan, please contact tailormycv.alerts@gmail.com", { icon: "✉️", duration: 6000 })}
           className="w-full flex items-center justify-center gap-2 text-sm font-medium rounded-xl py-2 px-4 border border-slate-300 text-slate-600 hover:border-brand-400 hover:text-brand-600 transition"
         >
           <FiMail className="w-3.5 h-3.5" />
@@ -191,7 +191,7 @@ export default function PlanPage() {
 
       <p className="text-xs text-slate-400 text-center">
         Need help choosing?{" "}
-        <a href="mailto:support@tailormycv.com" className="text-brand-600 hover:underline">
+        <a href="mailto:tailormycv.alerts@gmail.com" className="text-brand-600 hover:underline">
           Contact us
         </a>
       </p>
