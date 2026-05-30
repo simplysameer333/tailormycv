@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { FiAlertTriangle, FiRefreshCw, FiArrowLeft } from "react-icons/fi";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 interface Props {
   error: Error & { digest?: string };
@@ -59,8 +60,8 @@ export default function AppError({ error, reset }: Props) {
 
         <p className="text-xs text-slate-400">
           If this keeps happening, contact{" "}
-          <a href="mailto:tailormycv.alerts@gmail.com" className="text-brand-600 hover:underline">
-            tailormycv.alerts@gmail.com
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand-600 hover:underline">
+            {SUPPORT_EMAIL}
           </a>
         </p>
       </div>

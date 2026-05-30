@@ -16,6 +16,7 @@ import { useStepGuard } from "@/lib/stepGuard";
 import { useAuth } from "@/lib/useAuth";
 import Link from "next/link";
 import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap } from "react-icons/fi";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 const LS_RESUME = "tailormycv_generated";
 const LS_EVAL = "tailormycv_eval_summary";
@@ -279,8 +280,8 @@ export default function PreviewPage() {
         </div>
         <p className="text-xs text-slate-400">
           If the problem persists, contact{" "}
-          <a href="mailto:tailormycv.alerts@gmail.com" className="text-brand-600 hover:underline">
-            tailormycv.alerts@gmail.com
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-brand-600 hover:underline">
+            {SUPPORT_EMAIL}
           </a>
         </p>
       </div>

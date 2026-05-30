@@ -29,9 +29,10 @@
 | Resume templates | 3 | 3 | 3 |
 | AI quality evaluators | 1 | 2 | 3 |
 | Key skills extracted from JD | 3 | 5 | 10 |
-| Job search (Indeed, LinkedIn, Glassdoor) | ❌ | ✅ | ✅ |
+| Job search — browse listings | ✅ | ✅ | ✅ |
 | Save jobs | ❌ | Up to 25 | Unlimited |
 | One-click Tailor from job listings | ❌ | ✅ | ✅ |
+| Apply with saved resume | ❌ | ✅ | ✅ |
 | Resume Library | ❌ | 5 resumes | Unlimited |
 | Daily job alerts | ❌ | 5 searches | Unlimited |
 | Section-level regeneration | ❌ | ❌ | ✅ |
@@ -160,31 +161,37 @@ Files expire after **24 hours** — download them promptly.
 
 ## 4. Find Jobs
 
-*Available on Plus and Pro plans.*
-
 Go to **Find Jobs** in the navbar to search job listings from Indeed, LinkedIn, Glassdoor, and more.
+
+**All plans can search and browse listings.** Saving, tailoring, and alerts require Plus or Pro.
+
+| Action | Free | Plus | Pro |
+|---|:---:|:---:|:---:|
+| Search and browse listings | ✅ | ✅ | ✅ |
+| View job details & apply link | ✅ | ✅ | ✅ |
+| Save jobs | ❌ | ✅ (25) | ✅ (unlimited) |
+| Tailor resume from listing | ❌ | ✅ | ✅ |
+| Apply with saved resume | ❌ | ✅ | ✅ |
+| Daily job alerts | ❌ | ✅ (5) | ✅ (unlimited) |
 
 ### Searching
 
 - **Job / Role** field — type a role name and press Enter (e.g. `Python Developer`, `Product Manager`)
 - **Location** field — type a location and press Enter (e.g. `London`, `Remote`)
 - Multiple tags in each field are searched together
-- Your profile's target roles and primary skill pre-fill the search automatically
+- Your profile's target roles and primary skill pre-fill the search automatically on Plus/Pro
 
-### Saving jobs
+### Saving jobs *(Plus & Pro)*
 
 Click the **bookmark icon** on any listing to save it for later. Saved jobs are available in the **Saved** tab.
 
-- **Plus**: up to 25 saved jobs
-- **Pro**: unlimited saved jobs
-
-### One-click Tailor
+### One-click Tailor *(Plus & Pro)*
 
 Click **Tailor Resume** on any job listing to start a new builder session pre-loaded with that job's description. The job title and employer appear as a banner across all 6 builder steps.
 
 ### Applying
 
-Click **Apply →** on a listing (where available) to open the original job posting in a new tab. Use **Apply with Saved** to pick an existing tailored resume from your library when applying.
+Click **Apply →** on a listing (where available) to open the original job posting in a new tab. Use **Apply with Saved** *(Plus/Pro)* to pick an existing tailored resume from your library when applying.
 
 ---
 

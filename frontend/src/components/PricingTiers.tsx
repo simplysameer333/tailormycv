@@ -38,10 +38,11 @@ export const TIERS: {
     name: "Free",
     features: [
       "6-step AI resume builder",
-      "DOCX + PDF export",
+      "DOCX export",
       "3 resume templates",
       "1 AI quality evaluator",
       "3 key skills extracted from JD",
+      "Job search (browse only)",
     ],
   },
   {
@@ -50,9 +51,9 @@ export const TIERS: {
     highlight: true,
     features: [
       "Everything in Free",
+      "PDF export",
       "2 AI quality evaluators",
       "5 key skills extracted",
-      "Job search (Indeed, LinkedIn, Glassdoor)",
       "Save up to 25 jobs",
       "Resume Library (5 resumes)",
       "One-click Tailor from job listings",

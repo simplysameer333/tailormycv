@@ -1,3 +1,6 @@
+// ── Support contact ────────────────────────────────────────────────────────────
+export const SUPPORT_EMAIL = "tailormycv.alerts@gmail.com";
+
 // ── Job search config ─────────────────────────────────────────────────────────
 // Change JSEARCH_PAGE_SIZES to add/remove options from the per-page dropdown.
 // Change JSEARCH_DEFAULT_PAGE_SIZE to set the initial value.

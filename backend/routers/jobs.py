@@ -1,7 +1,7 @@
 """Job search router — JSearch (RapidAPI) integration with caching and quota tracking.
 
-GET    /api/jobs/search              — search jobs (Plus+ only)
-GET    /api/jobs/details/{job_id}    — full job details + highlights (Plus+ only)
+GET    /api/jobs/search              — search jobs (all authenticated users)
+GET    /api/jobs/details/{job_id}    — full job details + highlights (all authenticated users)
 GET    /api/jobs/quota               — current monthly usage stats
 POST   /api/jobs/save                — save a job to the user's list
 GET    /api/jobs/saved               — list saved jobs
@@ -74,7 +74,7 @@ async def search_jobs(
     location: str = "",
     page: int = 1,
     page_size: int = Query(default=10, ge=1, le=50),
-    _user: dict = Depends(require_tier("plus")),
+    _user: dict = Depends(get_current_user),
 ):
     if not settings.rapidapi_key:
         raise HTTPException(
@@ -143,7 +143,7 @@ async def search_jobs(
 @router.get("/jobs/details/{job_id}")
 async def get_job_details(
     job_id: str,
-    _user: dict = Depends(require_tier("plus")),
+    _user: dict = Depends(get_current_user),
 ):
     if not settings.rapidapi_key:
         raise HTTPException(503, "Job search is not configured.")

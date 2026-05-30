@@ -6,7 +6,7 @@ import {
   FiSearch, FiMapPin, FiBookmark, FiZap, FiExternalLink,
   FiClock, FiDollarSign, FiBriefcase, FiWifi, FiUser,
   FiAlertTriangle, FiX, FiFileText, FiBell, FiEdit2,
-  FiTrash2, FiPlusCircle, FiToggleLeft, FiToggleRight,
+  FiTrash2, FiPlusCircle, FiToggleLeft, FiToggleRight, FiLock,
 } from "react-icons/fi";
 import {
   searchJobs, saveJob, unsaveJob, getSavedJobs,
@@ -118,23 +118,19 @@ function getPaginationPages(current: number, max: number): (number | "...")[] {
   return [1, "...", current - 1, current, current + 1, "...", max];
 }
 
-// ── Upgrade wall ──────────────────────────────────────────────────────────────
+// ── Free-tier upsell strip ────────────────────────────────────────────────────
 
-function UpgradeWall() {
+function FreeSearchBanner() {
   return (
-    <div className="card text-center py-14 flex flex-col items-center gap-4">
-      <div className="w-14 h-14 rounded-full bg-brand-100 flex items-center justify-center">
-        <FiBriefcase className="w-7 h-7 text-brand-600" />
-      </div>
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">Job Search is a Plus feature</h2>
-        <p className="text-slate-500 mt-2 max-w-sm mx-auto text-sm">
-          Search jobs from Indeed, LinkedIn, and Glassdoor — then tailor your resume to any listing in one click.
-        </p>
-      </div>
-      <div className="flex flex-col sm:flex-row gap-3 mt-2">
-        <span className="text-xs text-slate-400">Upgrade to Plus or Pro to unlock</span>
-      </div>
+    <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+      <FiLock className="w-4 h-4 text-amber-500 shrink-0" />
+      <p className="text-amber-800 text-xs">
+        <span className="font-semibold">Free plan — search only.</span>{" "}
+        Upgrade to Plus or Pro to save jobs, set up alerts, and tailor your resume in one click.{" "}
+        <a href="/settings/plan" className="font-semibold underline underline-offset-2 hover:text-amber-900">
+          View plans →
+        </a>
+      </p>
     </div>
   );
 }
@@ -151,12 +147,14 @@ const EMPLOYMENT_LABEL: Record<string, string> = {
 function JobCard({
   job,
   saved,
+  isFree,
   onSave,
   onTailor,
   onUseSaved,
 }: {
   job: Job;
   saved: boolean;
+  isFree: boolean;
   onSave: (job: Job) => void;
   onTailor: (job: Job) => void;
   onUseSaved: (job: Job) => void;
@@ -235,31 +233,57 @@ function JobCard({
 
         {/* Row 3 — action buttons */}
         <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-          <button
-            onClick={() => onTailor(job)}
-            className="btn-primary text-xs px-3 py-1.5 gap-1.5"
-            title="AI-tailor your resume for this job"
-          >
-            <FiZap className="w-3.5 h-3.5" /> Tailor Resume
-          </button>
-          <button
-            onClick={() => onUseSaved(job)}
-            className="btn-secondary text-xs px-3 py-1.5 gap-1.5"
-            title="Apply using a resume from your library"
-          >
-            <FiFileText className="w-3.5 h-3.5" /> Apply with Saved
-          </button>
-          <button
-            onClick={() => onSave(job)}
-            title={saved ? "Remove from saved" : "Save job"}
-            className={`rounded-lg border px-2.5 py-1.5 transition ${
-              saved
-                ? "border-brand-300 bg-brand-50 text-brand-600 hover:bg-brand-100"
-                : "border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
-            }`}
-          >
-            <FiBookmark className={`w-4 h-4 ${saved ? "fill-brand-500" : ""}`} />
-          </button>
+          {isFree ? (
+            /* Free tier — show locked upsell buttons for gated actions */
+            <a
+              href="/settings/plan"
+              className="flex items-center gap-1.5 btn-primary text-xs px-3 py-1.5 opacity-70"
+              title="Upgrade to Plus or Pro to tailor your resume"
+            >
+              <FiLock className="w-3 h-3" /> Tailor Resume
+            </a>
+          ) : (
+            <button
+              onClick={() => onTailor(job)}
+              className="btn-primary text-xs px-3 py-1.5 gap-1.5"
+              title="AI-tailor your resume for this job"
+            >
+              <FiZap className="w-3.5 h-3.5" /> Tailor Resume
+            </button>
+          )}
+
+          {!isFree && (
+            <button
+              onClick={() => onUseSaved(job)}
+              className="btn-secondary text-xs px-3 py-1.5 gap-1.5"
+              title="Apply using a resume from your library"
+            >
+              <FiFileText className="w-3.5 h-3.5" /> Apply with Saved
+            </button>
+          )}
+
+          {isFree ? (
+            <a
+              href="/settings/plan"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-slate-300 cursor-pointer"
+              title="Upgrade to save jobs"
+            >
+              <FiLock className="w-4 h-4" />
+            </a>
+          ) : (
+            <button
+              onClick={() => onSave(job)}
+              title={saved ? "Remove from saved" : "Save job"}
+              className={`rounded-lg border px-2.5 py-1.5 transition ${
+                saved
+                  ? "border-brand-300 bg-brand-50 text-brand-600 hover:bg-brand-100"
+                  : "border-slate-300 bg-white text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              <FiBookmark className={`w-4 h-4 ${saved ? "fill-brand-500" : ""}`} />
+            </button>
+          )}
+
           {job.job_apply_link && job.job_apply_link !== "#" && (
             <a
               href={job.job_apply_link}
@@ -383,7 +407,7 @@ export default function JobsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tier = session?.user?.tier ?? "free";
-  const canSearch = tier === "plus" || tier === "pro";
+  const isFree = tier === "free";
 
   // ── Search state ────────────────────────────────────────────────────────────
   const [queryTags, setQueryTags] = useState<string[]>([]);
@@ -446,7 +470,7 @@ export default function JobsPage() {
 
   // Pre-fill search from profile on mount
   useEffect(() => {
-    if (!canSearch) return;
+    // search available to all tiers
     getAccountProfile()
       .then((profile) => {
         const tags: string[] = [];
@@ -461,15 +485,15 @@ export default function JobsPage() {
       })
       .catch(() => setProfileLoaded(true));
     getJobsQuota().then(setQuota).catch(() => {});
-  }, [canSearch, runSearch]);
+  }, [isFree, runSearch]);
 
   // Load alerts when tab becomes active
   useEffect(() => {
-    if (activeTab !== "alerts" || alertsLoaded || !canSearch) return;
+    if (activeTab !== "alerts" || alertsLoaded || false) return;
     listJobAlerts()
       .then((data) => { setAlerts(data); setAlertsLoaded(true); })
       .catch(() => setAlertsLoaded(true));
-  }, [activeTab, alertsLoaded, canSearch]);
+  }, [activeTab, alertsLoaded, isFree]);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -570,10 +594,10 @@ export default function JobsPage() {
         </p>
       </div>
 
-      {!canSearch ? (
-        <UpgradeWall />
-      ) : (
-        <>
+      {/* Free-tier banner — search allowed but actions locked */}
+      {isFree && <FreeSearchBanner />}
+
+      <>
           {/* Profile nudge */}
           {profileLoaded && !hasProfileResume && (
             <div className="flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm">
@@ -729,7 +753,7 @@ export default function JobsPage() {
                     <div className="flex flex-col gap-3">
                       {MOCK_JOBS.map((job) => (
                         <JobCard key={job.job_id} job={job} saved={savedIds.has(job.job_id)}
-                          onSave={handleSave} onTailor={handleTailor} onUseSaved={(j) => setPickerJob(j)} />
+                          isFree={isFree} onSave={handleSave} onTailor={handleTailor} onUseSaved={(j) => setPickerJob(j)} />
                       ))}
                     </div>
                   </>
@@ -779,6 +803,7 @@ export default function JobsPage() {
                         key={job.job_id}
                         job={job}
                         saved={savedIds.has(job.job_id)}
+                        isFree={isFree}
                         onSave={handleSave}
                         onTailor={handleTailor}
                         onUseSaved={(j) => setPickerJob(j)}
@@ -830,6 +855,23 @@ export default function JobsPage() {
           {/* ── My Alerts tab ─────────────────────────────────────────────────── */}
           {activeTab === "alerts" && (
             <div className="flex flex-col gap-4">
+              {isFree ? (
+                /* Free users — upsell card */
+                <div className="card text-center py-14 flex flex-col items-center gap-4">
+                  <div className="w-14 h-14 rounded-full bg-brand-100 flex items-center justify-center">
+                    <FiBell className="w-7 h-7 text-brand-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Daily Job Alerts</h2>
+                    <p className="text-slate-500 mt-1 max-w-sm mx-auto text-sm">
+                      Save your searches and receive a daily email digest with new matching jobs — available on Plus and Pro.
+                    </p>
+                  </div>
+                  <a href="/settings/plan" className="btn-primary text-sm px-6 py-2">
+                    Upgrade to Plus →
+                  </a>
+                </div>
+              ) : (
               <>
                 {/* Header row */}
                   <div className="flex items-center justify-between">
@@ -910,10 +952,10 @@ export default function JobsPage() {
                     </div>
                   )}
               </>
+              )}
             </div>
           )}
-        </>
-      )}
+      </>
 
       <ResumePickerModal
         open={!!pickerJob}
