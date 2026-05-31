@@ -28,17 +28,39 @@ def _extract_username(linkedin_url: str) -> str:
 
 
 def _parse_date_obj(d: dict | str | None) -> str:
-    """Convert a date dict {year, month} or 'YYYY-MM' string to 'MM/YYYY'."""
+    """Convert a date dict {year, month[, day]} or 'YYYY-MM' string to 'MM/YYYY'.
+
+    LinkdAPI uses {year: 0, month: 0, day: 0} for current/open-ended positions,
+    so we treat year==0 as empty (no date).
+    """
     if not d:
         return ""
     if isinstance(d, dict):
-        year  = d.get("year", "")
-        month = d.get("month", "")
-        return f"{month}/{year}" if year else str(year) if year else ""
+        year  = d.get("year") or 0
+        month = d.get("month") or 0
+        if not year:
+            return ""
+        return f"{month}/{year}" if month else str(year)
     if isinstance(d, str):
         parts = d.split("-")
         return f"{parts[1]}/{parts[0]}" if len(parts) >= 2 else d
     return ""
+
+
+def _get_location(data: dict) -> str:
+    """Extract location from LinkdAPI response.
+
+    LinkdAPI returns location under data.geo.full / data.geo.city,
+    not as a top-level 'location' key.
+    """
+    geo = data.get("geo") or {}
+    if isinstance(geo, dict):
+        return geo.get("full") or geo.get("city") or geo.get("country") or ""
+    # Fallback for other providers
+    return (
+        data.get("location") or data.get("addressWithCountry")
+        or data.get("city") or data.get("geoLocation") or ""
+    )
 
 
 def _build_raw_text(data: dict) -> str:
@@ -49,13 +71,10 @@ def _build_raw_text(data: dict) -> str:
         data.get("fullName") or data.get("full_name")
         or f"{data.get('firstName', '')} {data.get('lastName', '')}".strip()
     )
-    headline = data.get("headline") or data.get("occupation") or ""
-    location = (
-        data.get("location") or data.get("addressWithCountry")
-        or data.get("city") or data.get("geoLocation") or ""
-    )
-    summary  = data.get("about") or data.get("summary") or data.get("description") or ""
-    email    = data.get("email") or data.get("personal_email") or ""
+    headline  = data.get("headline") or data.get("occupation") or ""
+    location  = _get_location(data)
+    summary   = data.get("summary") or data.get("about") or data.get("description") or ""
+    email     = data.get("email") or data.get("personal_email") or ""
 
     if full_name:
         lines.append(f"Name: {full_name}")
@@ -68,20 +87,16 @@ def _build_raw_text(data: dict) -> str:
     if summary:
         lines += ["", "Summary:", summary]
 
-    # Experience — LinkdAPI may use "experience", "positions", or "workExperience"
-    for exp in (
-        data.get("experience") or data.get("positions")
-        or data.get("workExperience") or data.get("position") or []
-    ):
-        lines.append("")
+    # Experience — LinkdAPI uses "position" array
+    for exp in (data.get("position") or data.get("experience") or data.get("positions") or []):
         title   = exp.get("title") or exp.get("role") or ""
         company = exp.get("companyName") or exp.get("company") or exp.get("company_name") or ""
         start   = exp.get("start") or exp.get("startDate") or exp.get("starts_at")
         end     = exp.get("end")   or exp.get("endDate")   or exp.get("ends_at")
 
         s_str = _parse_date_obj(start)
-        e_str = _parse_date_obj(end) if end else "Present"
-        date  = f"{s_str} – {e_str}" if s_str else ""
+        e_str = _parse_date_obj(end)
+        date  = f"{s_str} – {e_str or 'Present'}" if s_str else ""
 
         role_line = title
         if company:
@@ -89,20 +104,20 @@ def _build_raw_text(data: dict) -> str:
         if date:
             role_line += f" ({date})"
         if role_line:
+            lines.append("")
             lines.append(role_line)
 
         for dl in (exp.get("description") or "").strip().split("\n")[:6]:
             if dl.strip():
                 lines.append(f"  {dl.strip()}")
 
-    # Education
-    for edu in (data.get("education") or data.get("educations") or []):
-        lines.append("")
+    # Education — LinkdAPI uses "educations"
+    for edu in (data.get("educations") or data.get("education") or []):
         school = edu.get("schoolName") or edu.get("school") or edu.get("school_name") or ""
         degree = edu.get("degreeName") or edu.get("degree") or edu.get("degree_name") or ""
         field  = edu.get("fieldOfStudy") or edu.get("field_of_study") or edu.get("field") or ""
-        start  = _parse_date_obj(edu.get("start") or edu.get("startDate")) or str((edu.get("starts_at") or {}).get("year", ""))
-        end    = _parse_date_obj(edu.get("end")   or edu.get("endDate"))   or str((edu.get("ends_at")   or {}).get("year", ""))
+        start  = _parse_date_obj(edu.get("start") or edu.get("startDate"))
+        end    = _parse_date_obj(edu.get("end")   or edu.get("endDate"))
 
         edu_line = degree
         if field:
@@ -112,9 +127,10 @@ def _build_raw_text(data: dict) -> str:
         if start or end:
             edu_line += f" ({start}–{end})"
         if edu_line:
+            lines.append("")
             lines.append(f"Education: {edu_line}")
 
-    # Skills — may be array of strings or objects with "name"
+    # Skills — array of {name, passedSkillAssessment} objects
     raw_skills = data.get("skills") or data.get("skills_v2") or []
     skill_names = [
         (s.get("name") if isinstance(s, dict) else str(s))
@@ -132,22 +148,21 @@ def _normalize(data: dict) -> dict:
         data.get("fullName") or data.get("full_name")
         or f"{data.get('firstName', '')} {data.get('lastName', '')}".strip()
     )
+    username = data.get("username") or ""
     raw_skills = data.get("skills") or data.get("skills_v2") or []
     skills = [
         (s.get("name") if isinstance(s, dict) else str(s))
         for s in raw_skills[:25]
     ]
     return {
-        "full_name": full_name,
-        "headline":  data.get("headline") or data.get("occupation") or "",
-        "location":  (
-            data.get("location") or data.get("addressWithCountry")
-            or data.get("city") or data.get("geoLocation") or ""
-        ),
-        "email":     data.get("email") or data.get("personal_email") or "",
-        "summary":   data.get("about") or data.get("summary") or data.get("description") or "",
-        "skills":    [s for s in skills if s],
-        "raw_text":  _build_raw_text(data),
+        "full_name":    full_name,
+        "headline":     data.get("headline") or data.get("occupation") or "",
+        "location":     _get_location(data),
+        "email":        data.get("email") or data.get("personal_email") or "",
+        "linkedin_url": f"https://www.linkedin.com/in/{username}" if username else "",
+        "summary":      data.get("summary") or data.get("about") or data.get("description") or "",
+        "skills":       [s for s in skills if s],
+        "raw_text":     _build_raw_text(data),
     }
 
 
@@ -180,7 +195,6 @@ async def fetch_profile(linkedin_url: str, rapidapi_key: str) -> dict:
 
     # LinkdAPI wraps all responses: {"success": bool, "statusCode": int, "message": str, "data": {...}}
     if isinstance(body, dict) and not body.get("success", True):
-        # Log internally but never expose third-party error text to the user
         logger.warning("[linkedin] API returned failure for @%s: %s", username, body.get("message", ""))
         raise ValueError("linkedin_api_unavailable")
 

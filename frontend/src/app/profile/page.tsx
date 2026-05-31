@@ -176,11 +176,12 @@ export default function ProfilePage() {
       const profile = await parseLinkedInProfile(url);
       setForm((f) => ({
         ...f,
-        full_name:    profile.full_name    || f.full_name,
-        email:        profile.email        || f.email,
-        location:     profile.location     || f.location,
-        summary:      profile.summary      || f.summary,
+        full_name:    profile.full_name      || f.full_name,
+        email:        profile.email          || f.email,
+        location:     profile.location       || f.location,
+        summary:      profile.summary        || f.summary,
         key_skills:   profile.skills.length ? profile.skills : f.key_skills,
+        linkedin:     profile.linkedin_url   || f.linkedin,
       }));
       toast.success(`Profile imported — ${profile.full_name || "details"} loaded. Review and save.`);
     } catch (err: unknown) {

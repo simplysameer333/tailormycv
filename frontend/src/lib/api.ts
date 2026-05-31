@@ -121,6 +121,7 @@ export interface LinkedInProfile {
   headline: string;
   location: string;
   email: string;
+  linkedin_url: string;
   summary: string;
   skills: string[];
   raw_text: string;
