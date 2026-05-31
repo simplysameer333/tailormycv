@@ -1,8 +1,8 @@
 # User Requirements Document
 ## TailorMyCv — AI-Powered Resume Builder
 
-**Version:** 1.6
-**Date:** May 2026
+**Version:** 1.7
+**Date:** 2026-05-31
 **App Name:** TailorMyCv
 **Support Email:** samorsameer@gmail.com
 **Deployment Target:** Railway.com
@@ -11,7 +11,7 @@
 
 ## 1. Project Overview
 
-**TailorMyCv** is a full-stack web application that takes three inputs — an existing resume, a user profile, and a job description — and uses a multi-agent AI pipeline to generate a tailored, professionally formatted resume in a user-selected template. The primary output is a `.docx` file; PDF export is an optional server-side feature.
+**TailorMyCv** is a full-stack web application that takes three inputs — an existing resume or LinkedIn profile, a user profile, and a job description — and uses a multi-agent AI pipeline to generate a tailored, professionally formatted resume in a user-selected template. The primary output is a `.docx` file; PDF export is an optional server-side feature.
 
 The AI pipeline is profession-aware and tier-driven:
 - A **Job Analyzer** agent extracts the top-N skills from the job description before generation begins
@@ -19,7 +19,7 @@ The AI pipeline is profession-aware and tier-driven:
 - One or more **Evaluator** agents score the result using profession-specific criteria
 - An **Aggregator** consolidates feedback; the generator refines until the quality threshold is met or max cycles are reached
 
-Users authenticate with email/password or Google OAuth. A persistent **Account Profile** stores career information, a primary skill, and a Resume Library — all of which power job search pre-fill and one-click resume tailoring from job listings.
+Users authenticate with email/password or Google OAuth. A persistent **Account Profile** stores career information, a primary skill, and a Resume Library — all of which power job search pre-fill and one-click resume tailoring from job listings. Users can import their LinkedIn profile directly to auto-fill the profile.
 
 ---
 
@@ -36,14 +36,15 @@ Users authenticate with email/password or Google OAuth. A persistent **Account P
 | AI — Generator | Anthropic Claude API (`GENERATOR_MODEL` env var) |
 | AI — Evaluators | Anthropic + OpenAI + Google (models via `*_EVALUATOR_MODEL` env vars; active set per tier) |
 | Job Search | JSearch via RapidAPI — Indeed, LinkedIn, Glassdoor aggregator |
-| Profession Profiles | MongoDB `professions` collection; managed via `/settings/professions` admin UI |
+| LinkedIn Profile Import | Rock APIs Real-Time LinkedIn Scraper via RapidAPI (`linkedin-api8.p.rapidapi.com`) |
+| Profession Profiles | MongoDB `professions` collection; managed via admin UI |
 | File Parsing | `pdfplumber` (PDF), `python-docx` (DOCX) |
 | File Generation | `python-docx` (DOCX); `reportlab` (PDF — no LibreOffice required) |
 | Storage | Pluggable: `LocalStorageBackend` (dev) or `S3StorageBackend` (prod) via `get_storage()` factory |
 | Token Efficiency | `toon-format==0.9.0b1` — 40–45% token reduction on structured inputs |
 | Observability | LangSmith tracing (optional; auto-detected from env vars) |
-| Email | Brevo HTTP API — job alert digest emails + no-results notifications |
-| Job Alert Scheduler | APScheduler (in-process) — daily cron at `ALERT_SEND_HOUR` UTC |
+| Email | Brevo HTTP API — job alert digest, no-results, and scheduler failure emails |
+| Job Alert Scheduler | APScheduler (in-process) — daily cron at `ALERT_SEND_HOUR` UTC; 3-retry JSearch; quota integration |
 | Deployment | Railway.com — two services: `tailormycv-frontend` (Next.js) + `tailormycv-backend` (FastAPI) |
 
 ---
@@ -73,7 +74,7 @@ NextAuth Google provider → `signIn` callback → `POST /api/auth/sync` → bac
 |---|---|
 | `models/user.py` | `User`, `UserPublic`; `tier: free \| plus \| pro` |
 | `services/auth_service.py` | JWT signing (24h expiry), bcrypt hashing, user CRUD |
-| `dependencies/auth.py` | `get_current_user` (Bearer dep), `require_tier(min_tier)` factory |
+| `dependencies/auth.py` | `get_current_user` (Bearer dep), `require_tier(min_tier)` factory, `require_superadmin` dep |
 | `routers/auth.py` | `/api/auth/register`, `/login`, `/sync`, `/me` |
 
 ### 3.3 Frontend Auth Files
@@ -90,14 +91,15 @@ NextAuth Google provider → `signIn` callback → `POST /api/auth/sync` → bac
 
 ## 4. Application Flow
 
-### Step 1 — Upload Resume
-- User uploads their existing resume as a `.pdf` or `.docx` file (max 5 MB)
+### Step 1 — Upload Resume or Import LinkedIn
+- User uploads their existing resume as a `.pdf` or `.docx` file (max 5 MB), **OR** pastes a LinkedIn profile URL
+- **Resume upload:** Backend parses the file; session created; raw text stored
+- **LinkedIn import:** Backend calls `POST /api/linkedin/parse` → `linkedin_service.py` extracts the username slug from the URL and calls `linkedin-api8.p.rapidapi.com` GET `/` with `?username=slug` → extracts profile data (name, location, summary, key skills); raw text stored in session
 - Optional **Additional Instructions** textarea for prioritisation guidance
-- Backend parses the file; session created; raw text and instructions stored
-- **One-click tailor banner** shown when arriving from Jobs page (job description + employer pre-loaded)
+- **One-click tailor banner** shown when arriving from Jobs page
 
 ### Step 2 — Complete User Profile
-- Claude AI pre-fills profile from resume: name, email, phone, LinkedIn, location, target role, skills, summary
+- Claude AI pre-fills profile from resume or LinkedIn: name, email, phone, LinkedIn, location, target role, skills, summary (max_tokens: 1024)
 - User reviews and confirms; stored in session `user_profile`
 
 ### Step 3 — Paste Job Description
@@ -106,13 +108,14 @@ NextAuth Google provider → `signIn` callback → `POST /api/auth/sync` → bac
 
 ### Step 4 — Select Template + Optional Extras
 - Template gallery (prebuilt or custom upload)
-- Optional formatting reference CV — layout mirrored, content never copied
+- Output format selector — DOCX only (Free) or DOCX + PDF (Plus/Pro); **PDF and Both buttons locked/disabled for free users**
+- Optional formatting reference CV — layout mirrored, content never copied (Pro only)
 - Optional **Additional Instructions** textarea — passed to generator as `additional_instructions`
 
 ### Step 5 — AI Resume Generation
-1. **Profession resolution** — `target_role` matched against keyword lists; falls back to `FEATURED_PROFESSION_SLUG`
-2. **Job Analyzer** — one LLM call extracts top-N skills (N per tier)
-3. **Generator** — writes resume JSON using resume + profile + JD + profession + skills + locked facts + sample CV + instructions
+1. **Profession resolution** — `target_role` matched against keyword lists
+2. **Job Analyzer** — one LLM call extracts top-N skills (N from `get_limit(tier, "key_skills")`)
+3. **Generator** — writes resume JSON
 4. **Evaluators** — run in parallel; score 0–100
 5. **Aggregator** — if all pass `PASS_THRESHOLD` → exit; else send feedback → next cycle
 6. Repeats up to `MAX_EVAL_CYCLES`; best result always returned
@@ -120,14 +123,14 @@ NextAuth Google provider → `signIn` callback → `POST /api/auth/sync` → bac
 Quality scores never shown to users — qualitative labels only (Excellent / Strong / Good / Reviewed).
 
 ### Step 6 — Download
-- DOCX always generated; PDF via reportlab (no LibreOffice)
+- DOCX always generated; PDF via reportlab (Plus/Pro only)
 - Files stored in GridFS; auto-expire after 24 hours
 
 ---
 
 ## 5. Account Profile (`/profile`)
 
-A persistent profile stored in the `user_profiles` MongoDB collection — separate from builder sessions and preserved across sessions.
+A persistent profile stored in the `user_profiles` MongoDB collection.
 
 ### 5.1 Fields
 
@@ -139,20 +142,30 @@ A persistent profile stored in the `user_profiles` MongoDB collection — separa
 | `linkedin` | string | Full URL |
 | `location` | string | City + country/state |
 | `target_roles` | string[] | TagInput (multi); used to seed job searches |
-| `primary_skill` | string | TagInput (single); one core technical/professional skill — combined with roles on job search pre-fill |
+| `primary_skill` | string | TagInput (single); one core technical/professional skill |
 | `key_skills` | string[] | TagInput (multi); async autocomplete from `/api/catalog/skills` |
 | `summary` | string | 2–3 sentence professional summary |
 | `resume_text` | string (internal) | Raw text from uploaded resume |
 
 ### 5.2 Resume Upload + AI Prefill
 - Accept PDF / DOCX; max 5 MB
-- Claude extracts: `full_name`, `email`, `phone`, `linkedin`, `location`, `target_role` → `target_roles`, `primary_skill`, `key_skills`, `summary`
-- Fields only overwritten if AI returns a non-empty value; existing values preserved otherwise
-- `primary_skill` — model instructed to return the single most defining technical or professional skill (one short phrase)
+- Claude extracts (max_tokens 1024): `full_name`, `email`, `phone`, `linkedin`, `location`, `target_role` → `target_roles`, `primary_skill`, `key_skills`, `summary`
+- Fields only overwritten if AI returns a non-empty value
 
-### 5.3 Resume Library (Plus+)
+### 5.3 LinkedIn Profile Import
+- User pastes full LinkedIn profile URL (e.g. `https://www.linkedin.com/in/username/`)
+- UI: "Import Profile" button inline with the LinkedIn URL field
+- Backend: `POST /api/linkedin/parse` → `linkedin_service.py`
+  - Extracts username slug from URL
+  - Calls `GET https://linkedin-api8.p.rapidapi.com/` with `?username=<slug>`
+  - API: Rock APIs Real-Time LinkedIn Scraper; same `RAPIDAPI_KEY` as JSearch
+- Returns: `{full_name, headline, location, email, summary, skills[], raw_text}`
+- Profile fields patched: name, email, location, summary, key_skills (non-empty only)
+- Builder Step 1: also available as "or import from LinkedIn" section — creates session without file upload
+
+### 5.4 Resume Library (Plus+)
 - Upload resumes directly or save tailored ones from the builder
-- Plus: max 5 resumes; Pro: unlimited
+- Plus: max 5 resumes (enforced via `get_limit(tier, "resume_library")`); Pro: unlimited
 - Actions: rename, download, delete
 - Used by "Apply with Saved" on the Jobs page (`ResumePickerModal`)
 
@@ -161,61 +174,49 @@ A persistent profile stored in the `user_profiles` MongoDB collection — separa
 ## 6. Job Search (`/jobs`) — Plus+ only
 
 ### 6.1 Search Bar
-- **Query field** uses `TagInput` — roles, keywords, or companies added as bubble tags
-- Autocomplete from `/api/catalog/roles`; free-text entry also supported
-- **Location field** — plain text input; pre-filled from profile on load
-- Pre-fill on load: profile `target_roles` + `primary_skill` become search tags; `location` pre-fills the location field; auto-search runs immediately
-
-Example: profile has `target_roles: ["Vice President"]` and `primary_skill: "Java"` → search tags `["Vice President", "Java"]` → query sent as `"Vice President Java"`.
+- **Query field** uses `TagInput`; autocomplete from `/api/catalog/roles`
+- **Location field** — plain text TagInput; pre-filled from profile on load
+- Pre-fill: profile `target_roles` + `primary_skill` → search tags; auto-search on Plus/Pro
 
 ### 6.2 Job Cards
-- Employer logo (Clearbit), job title (clickable — opens listing in new tab), employer name, publisher, location, employment type, remote badge, salary, posted date
+- Employer logo, job title (clickable → opens listing in new tab), employer name, publisher, location, employment type, remote badge, salary, posted date
 - **Tailor Resume** — stores JD + job title + employer to localStorage → redirects to `/builder/upload`
-- **Apply with Saved** — opens `ResumePickerModal`; shows Resume Library or "Tailor New Resume" option
+- **Apply with Saved** — opens `ResumePickerModal`
 - **Save / Unsave** — bookmark icon; saved jobs retrievable across sessions
 
 ### 6.3 Result Caching
-- Same query + location + page served from MongoDB cache if within `JSEARCH_CACHE_TTL_S` seconds
-- Cache hit costs zero RapidAPI quota
-- TTL configurable via `.env` (`JSEARCH_CACHE_TTL_S`, default 7200 = 2 hours)
-- Cache stored in `search_cache` MongoDB collection with `cached_at` timestamp
+- Same query + location + page served from MongoDB cache within `JSEARCH_CACHE_TTL_S` seconds
+- Cache stored in `search_cache` collection
 
 ### 6.4 Quota Management
-- Monthly call counter in MongoDB; resets on the 1st of each month
-- Warning banner shown in UI when usage crosses `JSEARCH_QUOTA_WARN_PCT` (default 50%)
-- Hard limit: `JSEARCH_MONTHLY_LIMIT` (default 500); returns HTTP 429 when exhausted
+- Monthly call counter; warning at `JSEARCH_QUOTA_WARN_PCT`%; hard limit `JSEARCH_MONTHLY_LIMIT`
+- Alert scheduler calls also count toward this budget
 
-### 6.5 Loading State
-- Skeleton cards shown during API call — matching job card structure (logo placeholder + title/subtitle/button bars)
-- Prevents empty page during slow RapidAPI responses
-
-### 6.6 Job Alerts (Plus+ only)
-
-Users save named search queries as alerts and receive daily email digests.
+### 6.5 Job Alerts (Plus+ only)
 
 **Alert model:**
-- `name` — user-chosen label
-- `query_tags` — array of role/keyword tags (same as search bar)
-- `location_tags` — array of location strings
-- Enabled/disabled toggle per alert
-- `seen_job_ids[]` — deduplication list, capped at 1000; prevents re-sending same listings (scheduler only; send-test ignores)
+- `name`, `query_tags[]`, `location_tags[]`, `is_active`, `seen_job_ids[]` (capped 1000)
 
-**Limits:** Plus = max 5 alerts; Pro = unlimited; Free = blocked.
+**Limits:** Plus = max 5 alerts; Pro = unlimited (both via `get_limit(tier, "job_alerts")`).
 
-**Duplicate detection:** tags normalised (sorted lowercase) on save; 409 returned if duplicate detected.
+**Duplicate detection:** tags normalised (sorted+stripped) on both create AND update; 409 on duplicate.
 
 **Email digest (Brevo HTTP API):**
 - Sent daily at `ALERT_SEND_HOUR` UTC by APScheduler cron
-- Content: employer logo (JSearch CDN; initials avatar fallback), job title, employer "via publisher", Apply button, salary, posted date, location, remote badge, skill chips
 - Subject: `Your job alert: {name} — Top N jobs`
-- No-results notification sent when JSearch returns empty for an active alert
+- No-results notification when JSearch returns empty
+
+**Scheduler reliability (updated v1.7):**
+- `_search_jobs()` returns `None` (error/quota-exhausted) vs `[]` (genuine zero results)
+- `None` → alert silently skipped, retried tomorrow; user gets no false "no results" email
+- 3 retries with 1-second delay between attempts before returning `None`
+- Quota checked before each JSearch call; counter incremented on success
+- After daily run: ONE summary email to `settings.support_email` if any alerts failed
 
 **send-test endpoint** (`POST /api/jobs/alerts/send-test`):
-- Finds the user's first active alert; calls JSearch with real query
-- Sends digest email if results found; sends no-results email if empty
-- No mock data; returns `jsearch_query`, job count, or `note` field
-
-**Known limitation:** `job_apply_link` for company-hosted jobs (e.g. Monzo, DeepMind) points to the general careers page — this is a JSearch data limitation. Jobs sourced from LinkedIn/Indeed/Glassdoor have specific listing URLs.
+- **Requires superadmin authentication**
+- Sends digest or no-results email for user's first active alert
+- Returns 502 if JSearch unavailable (not a false no-results email)
 
 ---
 
@@ -223,56 +224,44 @@ Users save named search queries as alerts and receive daily email digests.
 
 ### 7.1 Resume Upload & Parsing
 - Accept `.pdf` and `.docx`, max 5 MB
-- Extract structured raw text; store in session
-- Accept optional additional instructions alongside file upload
 
-### 7.2 User Profile Form (builder session)
+### 7.2 LinkedIn Profile Import
+- Accept LinkedIn profile URL; extract username slug; call `linkedin-api8.p.rapidapi.com`
+- Available on Profile page and Builder Step 1
+
+### 7.3 User Profile Form (builder session)
 - Fields: Full Name, Email, Phone, LinkedIn, Location, Target Role, Preferred Tone, Key Skills, Additional Notes
 - Required: Full Name, Email
-- Persisted to MongoDB session
 
-### 7.3 Job Description Input
+### 7.4 Job Description Input
 - Large textarea; min 50 characters enforced
-- Stored in MongoDB against the session
 
-### 7.4 Template System
-- **Prebuilt templates**: `.docx` files with named placeholder tags
-- **Custom template upload**: accept `.docx`; validate required placeholders
-- **Sample CV for formatting reference**: layout mirrored, content never copied
-
-### 7.5 Profession Profile Management (Admin — `/settings/professions`)
-Schema, resolution logic, and built-in professions unchanged from v1.4.
+### 7.5 Template System
+- Prebuilt templates, custom upload, optional formatting reference CV (Pro)
+- **Output format**: DOCX only (Free); PDF/Both buttons unlocked for Plus/Pro; buttons locked with "Plus+" badge for free users at Step 4
 
 ### 7.6 AI Resume Generation Pipeline
-See §3 (pipeline diagram) — unchanged from v1.4.
-
-#### Fact-Locking
-- Users pin specific facts on Preview page
-- Injected as "LOCKED FACTS — MUST NOT BE CHANGED" in generator system prompt
-- Persisted via `PUT /api/sessions/{id}/locked-facts`
+See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "key_skills")`.
 
 ### 7.7 Editable Preview
-- Inline editing; changes persisted to `localStorage`
-- Full pipeline regeneration and per-section regeneration
-- Qualitative quality labels (no raw scores)
-- Locked Facts panel (collapsible)
-- Custom section addition
+- Inline editing; full + per-section regeneration; locked facts (Pro); custom sections; quality labels
 
 ### 7.8 File Generation & Download
-- DOCX always generated; PDF optional (`PDF_EXPORT_ENABLED=true`)
-- Files stored in GridFS; expire after 24 hours
-- Filenames derived from `name` in generated resume JSON
+- DOCX always; PDF (Plus/Pro only); files expire 24h from GridFS
 
 ### 7.9 Subscription Tiers
 
 | Feature | Free | Plus | Pro |
 |---|---|---|---|
 | Resume builder (6-step flow) | ✅ | ✅ | ✅ |
-| DOCX + PDF export | ✅ | ✅ | ✅ |
+| DOCX export | ✅ | ✅ | ✅ |
+| PDF export | ❌ | ✅ | ✅ |
+| LinkedIn profile import | ✅ | ✅ | ✅ |
 | Persistent profile | ✅ | ✅ | ✅ |
-| AI evaluators | Anthropic only | Anthropic + Google | All three |
+| AI evaluators | Anthropic only | Anthropic + OpenAI | All three |
 | Key skills extracted from JD | 3 | 5 | 10 |
-| Job search (JSearch) | ❌ | ✅ | ✅ |
+| Resume sessions | 5 | 20 | Unlimited |
+| Job search (JSearch) | Browse only | ✅ | ✅ |
 | Saved jobs | ❌ | Up to 25 | Unlimited |
 | One-click Tailor | ❌ | ✅ | ✅ |
 | Resume Library | ❌ | Up to 5 | Unlimited |
@@ -281,16 +270,19 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 | Locked Facts panel | ❌ | ❌ | ✅ |
 | Sample CV formatting reference | ❌ | ❌ | ✅ |
 
+> All limits and feature gates are dynamically configurable via Admin → Tier Config without code changes. No hardcoded tier dicts remain in the codebase.
+
 ---
 
 ## 8. Non-Functional Requirements
 
 - **Responsiveness**: Desktop, tablet, and mobile
-- **Performance**: AI generation non-streaming (spinner shown); job search results cached; profession resolution adds zero in-loop latency
-- **Scalability**: Agents stateless; evaluators run concurrently; aggregator pure computation; new professions require no code change
-- **Error handling**: Graceful errors for failed uploads, API failures, invalid templates; evaluator failures score 0; job analyzer failures return empty list
-- **Security**: API keys in Railway env vars; JWT auth for all account/profile/jobs endpoints; scores not shown in UI
+- **Performance**: AI generation non-streaming (spinner shown); job search results cached
+- **Scalability**: Agents stateless; evaluators run concurrently; aggregator pure computation
+- **Error handling**: Graceful errors at all levels; LinkedIn import failure surfaces user-friendly message; scheduler errors send support notification
+- **Security**: API keys in Railway env vars; JWT auth for all account endpoints; `send-test` requires superadmin; scores not shown in UI
 - **File cleanup**: Generated files auto-deleted from GridFS after 24 hours
+- **Dynamic limits**: All tier limits via `get_limit()` / `getTierLimitDynamic()` — admin-configurable
 
 ---
 
@@ -302,7 +294,7 @@ See §3 (pipeline diagram) — unchanged from v1.4.
   "_id": "ObjectId",
   "email": "string (unique index)",
   "name": "string",
-  "hashed_password": "string (optional — absent for Google-only accounts)",
+  "hashed_password": "string (optional)",
   "google_id": "string (sparse unique index)",
   "tier": "free | plus | pro",
   "is_active": true,
@@ -337,6 +329,8 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 {
   "_id": "ObjectId",
   "created_at": "datetime (TTL index — expires after 24h)",
+  "user_id": "ObjectId (ref users, nullable for anonymous sessions)",
+  "linkedin_imported": "boolean",
   "resume_parsed": { "raw_text": "string", "filename": "string" },
   "upload_instructions": "string",
   "user_profile": {},
@@ -353,7 +347,7 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 ```json
 {
   "_id": "ObjectId",
-  "user_id": "ObjectId (ref users)",
+  "user_id": "string (str(ObjectId))",
   "job_id": "string",
   "job_data": {},
   "saved_at": "datetime"
@@ -376,10 +370,11 @@ See §3 (pipeline diagram) — unchanged from v1.4.
   "_id": "ObjectId",
   "user_id": "ObjectId (ref users)",
   "name": "string",
-  "query_tags": ["string"],
-  "location_tags": ["string"],
-  "enabled": true,
+  "query_tags": ["string (sorted)"],
+  "location_tags": ["string (sorted)"],
+  "is_active": true,
   "seen_job_ids": ["string"],
+  "last_sent_at": "datetime (nullable)",
   "created_at": "datetime",
   "updated_at": "datetime"
 }
@@ -393,6 +388,7 @@ See §3 (pipeline diagram) — unchanged from v1.4.
   "name": "string",
   "type": "uploaded | tailored",
   "file_key": "string (storage path)",
+  "content_type": "string",
   "tailored_for_employer": "string (optional)",
   "created_at": "datetime"
 }
@@ -414,9 +410,14 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 | Method | Endpoint | Description |
 |---|---|---|
 | GET | `/api/account/profile` | Get persistent profile |
-| PUT | `/api/account/profile` | Save profile (all fields including `primary_skill`) |
+| PUT | `/api/account/profile` | Save profile |
 | POST | `/api/account/profile/resume` | Upload resume → AI prefill |
 | POST | `/api/sessions/from-profile` | Create builder session from profile |
+
+### LinkedIn Import
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/linkedin/parse` | Parse LinkedIn URL → extract profile data |
 
 ### Resume Library (Plus+)
 | Method | Endpoint | Description |
@@ -429,24 +430,24 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 | GET | `/api/account/resumes/{id}/download` | Download file |
 | POST | `/api/account/resumes/{id}/create-session` | Create session from library resume |
 
-### Job Search (Plus+)
+### Job Search
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/jobs/search` | JSearch — cached by `JSEARCH_CACHE_TTL_S` |
+| GET | `/api/jobs/search` | JSearch — cached |
 | GET | `/api/jobs/quota` | Monthly usage stats |
-| POST | `/api/jobs/save` | Save a job |
+| POST | `/api/jobs/save` | Save a job (Plus+) |
 | GET | `/api/jobs/saved` | List saved jobs |
 | DELETE | `/api/jobs/saved/{job_id}` | Unsave |
 
 ### Job Alerts (Plus+)
 | Method | Endpoint | Description |
 |---|---|---|
-| GET | `/api/jobs/alerts` | List all alerts for current user |
+| GET | `/api/jobs/alerts` | List all alerts |
 | POST | `/api/jobs/alerts` | Create alert |
-| PATCH | `/api/jobs/alerts/{id}` | Update alert (name, tags, location) |
+| PATCH | `/api/jobs/alerts/{id}` | Update alert |
 | DELETE | `/api/jobs/alerts/{id}` | Delete alert |
 | PATCH | `/api/jobs/alerts/{id}/toggle` | Enable / disable alert |
-| POST | `/api/jobs/alerts/send-test` | Trigger test email with real JSearch data |
+| POST | `/api/jobs/alerts/send-test` | Trigger test email (superadmin only) |
 
 ### Builder
 | Method | Endpoint | Description |
@@ -481,14 +482,14 @@ See §3 (pipeline diagram) — unchanged from v1.4.
 | `/` | Landing — hero, how it works, CTA |
 | `/auth/login` | Sign in — credentials + Google OAuth |
 | `/auth/register` | Email/password registration |
-| `/profile` | Account profile — resume upload (AI prefill), personal info, career fields (target roles, primary skill, key skills), Resume Library |
-| `/jobs` | Job search — TagInput query bar (pre-filled from profile), JSearch results, save/tailor/apply actions, My Alerts tab (Plus+) |
-| `/builder/upload` | Step 1 — drag-and-drop resume upload |
+| `/profile` | Account profile — resume upload + LinkedIn import, personal info, career fields, Resume Library |
+| `/jobs` | Job search — TagInput query bar, JSearch results, save/tailor/apply actions, My Alerts tab |
+| `/builder/upload` | Step 1 — drag-and-drop upload OR LinkedIn import |
 | `/builder/profile` | Step 2 — AI pre-filled profile confirmation |
 | `/builder/job` | Step 3 — paste job description |
-| `/builder/template` | Step 4 — template gallery + sample CV + additional instructions |
+| `/builder/template` | Step 4 — template gallery; PDF locked for free users |
 | `/builder/preview` | Step 5 — editable preview; locked facts; section regen; custom sections |
-| `/builder/download` | Step 6 — download DOCX / PDF |
+| `/builder/download` | Step 6 — download DOCX / PDF; PDF locked for free users |
 | `/settings/professions` | Admin — profession profile CRUD |
 
 ---
@@ -503,17 +504,17 @@ OPENAI_API_KEY=
 GOOGLE_API_KEY=
 
 # Auth
-JWT_SECRET=                          # Required in prod; generate: python -c "import secrets; print(secrets.token_hex(32))"
+JWT_SECRET=
 JWT_ALGORITHM=HS256
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-DEV_BYPASS_AUTH=false                # Set true on localhost only
+DEV_BYPASS_AUTH=false
 
 # Model names
 GENERATOR_MODEL=claude-sonnet-4-20250514
 ANTHROPIC_EVALUATOR_MODEL=claude-sonnet-4-20250514
 OPENAI_EVALUATOR_MODEL=gpt-4o-mini
-GOOGLE_EVALUATOR_MODEL=gemini-1.5-pro
+GOOGLE_EVALUATOR_MODEL=gemini-2.5-flash
 
 # Evaluator flags
 ANTHROPIC_EVALUATOR_ENABLED=true
@@ -524,20 +525,20 @@ GOOGLE_EVALUATOR_ENABLED=false
 PASS_THRESHOLD=50
 MAX_EVAL_CYCLES=3
 MAX_AI_CALLS_PER_SESSION=10
-SKILL_EXTRACTION_COUNT=3             # Free=3 | Plus=5 | Pro=10
+SKILL_EXTRACTION_COUNT=3        # Fallback only; tier limits override via tier_config_service
 
-# Job search
-RAPIDAPI_KEY=                        # RapidAPI key for JSearch
+# Job search & LinkedIn import
+RAPIDAPI_KEY=                   # Used for JSearch (job search) AND linkedin-api8 (LinkedIn import)
 JSEARCH_MONTHLY_LIMIT=500
 JSEARCH_QUOTA_WARN_PCT=50
-JSEARCH_CACHE_TTL_S=7200             # Cache TTL in seconds (2 hours default)
+JSEARCH_CACHE_TTL_S=7200
 
 # Feature flags
 PDF_EXPORT_ENABLED=false
 FEATURED_PROFESSION_SLUG=software_engineer
 
 # Storage
-STORAGE_BACKEND=local                # local | s3
+STORAGE_BACKEND=local
 STORAGE_LOCAL_PATH=./uploads
 AWS_S3_BUCKET=
 AWS_S3_PREFIX=uploads/
@@ -548,13 +549,13 @@ AWS_SECRET_ACCESS_KEY=
 # Infrastructure
 MONGODB_URI=
 ALLOWED_ORIGINS=https://your-frontend.railway.app
-SUPPORT_EMAIL=samorsameer@gmail.com
+SUPPORT_EMAIL=samorsameer@gmail.com   # Recipient for error + scheduler failure emails
 
-# Email — Brevo HTTP API (job alert digests)
-BREVO_API_KEY=                       # xkeysib-... from Brevo dashboard
-BREVO_SENDER_EMAIL=                  # Verified sender address in Brevo
-ALERT_SEND_HOUR=8                    # UTC hour for daily digest (0–23)
-ALERT_MAX_JOBS_PER_EMAIL=10          # Max job cards per email
+# Email — Brevo HTTP API
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+ALERT_SEND_HOUR=8
+ALERT_MAX_JOBS_PER_EMAIL=10
 
 # Observability
 LANGSMITH_TRACING=true
@@ -567,21 +568,20 @@ LANGSMITH_PROJECT=tailormycv
 ```
 NEXT_PUBLIC_API_URL=https://your-backend.railway.app
 NEXTAUTH_URL=https://your-frontend.railway.app
-NEXTAUTH_SECRET=                     # Random string; generate: openssl rand -base64 32
+NEXTAUTH_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true # false (or omit) on localhost — hides Google button
-NEXT_PUBLIC_DEV_BYPASS_AUTH=false    # true on localhost only
+NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=true
+NEXT_PUBLIC_DEV_BYPASS_AUTH=false
 ```
 
 ---
 
 ## 13. Out of Scope (v1)
 
-- Subscription billing and per-user tier enforcement (tier is a global env flag; per-user lookup is a future milestone)
+- Subscription billing and payment processor integration
 - Resume version history
 - Cover letter generation
-- LinkedIn import
 - Mobile app
 - Team / multi-user accounts
 - Role-based access control for `/settings/professions`
@@ -599,9 +599,7 @@ Prompts organised by two axes:
 
 ## 15. Token Efficiency — TOON Encoding
 
-All structured LLM inputs serialised with **TOON** (`toon-format==0.9.0b1`); outputs remain plain JSON. Wrapper at `backend/services/pipeline/toon.py`; falls back to compact JSON if unavailable.
-
-Typical savings: 40–45% on structured inputs (~650 tokens → ~370–400 tokens per resume payload).
+All structured LLM inputs serialised with **TOON** (`toon-format==0.9.0b1`); outputs remain plain JSON. Wrapper at `backend/services/pipeline/toon.py`.
 
 | Tier | Active evaluators | Tokens saved / generation |
 |---|---|---|
@@ -611,7 +609,30 @@ Typical savings: 40–45% on structured inputs (~650 tokens → ~370–400 token
 
 ---
 
-## 16. Naming Conventions
+## 16. Dynamic Tier Configuration
+
+All tier-based limits enforced via `tier_config_service` — no hardcoded dicts in any router or page.
+
+**Backend:** `get_limit(tier, key)` from `tier_config_service` — used in `resume_library.py`, `job_alerts.py`, `jobs.py`, `generate.py`.
+
+**Frontend:** `getTierLimitDynamic(tier, key)` from `lib/tierConfig.ts` — used in all limit displays and gating logic. `buildFeatures(tierId)` in `PricingTiers.tsx` computes pricing card features at render time.
+
+**Admin UI:** Admin → Tier Config → Numeric Limits table — edit any limit value; changes take effect immediately.
+
+**TIER_LIMITS keys:**
+
+| Key | Free | Plus | Pro | Description |
+|---|---|---|---|---|
+| `resume_sessions` | 5 | 20 | Unlimited | Builder sessions started |
+| `resume_library` | 0 | 5 | Unlimited | Saved resumes in library |
+| `saved_jobs` | 0 | 25 | Unlimited | Bookmarked job listings |
+| `job_alerts` | 0 | 5 | Unlimited | Daily alert searches |
+| `evaluators` | 1 | 2 | 3 | AI evaluators active |
+| `key_skills` | 3 | 5 | 10 | Skills extracted from JD |
+
+---
+
+## 17. Naming Conventions
 
 | Context | Format |
 |---|---|
@@ -626,4 +647,4 @@ Typical savings: 40–45% on structured inputs (~650 tokens → ~370–400 token
 
 ---
 
-*End of User Requirements Document — TailorMyCv v1.5*
+*End of User Requirements Document — TailorMyCv v1.7*
