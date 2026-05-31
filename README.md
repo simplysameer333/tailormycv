@@ -62,7 +62,7 @@ tailormycv/
 │       ├── file_generator.py        generate_docx (python-docx) + generate_pdf (reportlab)
 │       ├── quota_service.py         Monthly JSearch call counter; warning thresholds
 │       ├── profession_service.py    MongoDB CRUD + resolve_profession_for_role()
-│       ├── linkedin_service.py      LinkedIn profile parser via RapidAPI linkedin-api8
+│       ├── linkedin_service.py      LinkedIn profile parser via LinkdAPI (linkdapi.com)
 │       ├── alert_scheduler.py       APScheduler daily cron; 3-retry JSearch; quota integration;
 │       │                            support email on failures
 │       ├── email_service.py         Brevo HTTP API — job digest + no-results + scheduler failure emails
@@ -135,7 +135,7 @@ tailormycv/
 - OpenAI API key (optional — evaluator)
 - Google API key (optional — evaluator)
 - RapidAPI key with JSearch subscription (optional — job search)
-- RapidAPI key with linkedin-api8 subscription (optional — LinkedIn import; same key)
+- LinkdAPI key (optional — LinkedIn import; free tier at linkdapi.com)
 
 ### Backend
 
@@ -198,7 +198,7 @@ Each step is guarded by `useStepGuard` — navigating to a later step without co
 ### Account Profile (`/profile`)
 - Persistent profile stored in `user_profiles` MongoDB collection (separate from builder sessions)
 - **Resume upload** → Claude AI prefills: name, email, phone, LinkedIn, location, target roles, primary skill, key skills, summary
-- **LinkedIn import** — paste a `linkedin.com/in/username` URL → click "Import Profile" → auto-fills name, location, summary, key skills via Rock APIs `linkedin-api8` (same `RAPIDAPI_KEY` as JSearch; requires subscription to Rock APIs Real-Time LinkedIn Scraper on RapidAPI)
+- **LinkedIn import** — paste a `linkedin.com/in/username` URL → click "Import Profile" → auto-fills name, location, summary, key skills via LinkdAPI (`linkdapi.com`; requires `LINKDAPI_KEY`; free tier available)
 - **Primary skill** — the one core technical/professional skill. Combined with target roles when pre-filling job searches
 - **Target roles** — one or more roles used to seed job searches
 - **Resume Library** (Plus+) — save multiple resumes; upload directly or save tailored ones from the builder
@@ -312,7 +312,8 @@ All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.
 | `DEV_BYPASS_AUTH` | `false` | Skip all auth on localhost |
 | `GOOGLE_CLIENT_ID` | — | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret |
-| `RAPIDAPI_KEY` | — | RapidAPI key for JSearch (job search) **and** LinkedIn import (linkedin-api8) |
+| `RAPIDAPI_KEY` | — | RapidAPI key for JSearch (job search) |
+| `LINKDAPI_KEY` | — | LinkdAPI key for LinkedIn profile import (free tier at linkdapi.com) |
 | `JSEARCH_CACHE_TTL_S` | `7200` | Seconds to cache job search results (2 hours default) |
 | `JSEARCH_MONTHLY_LIMIT` | `500` | Monthly JSearch call budget |
 | `SUPPORT_EMAIL` | — | Recipient for scheduler failure + error alert emails |
@@ -427,7 +428,8 @@ NEXTAUTH_SECRET=<openssl rand -base64 32>
 
 To enable job alerts + LinkedIn import:
 ```
-RAPIDAPI_KEY=<RapidAPI key — subscribe to JSearch and linkedin-api8 on RapidAPI>
+RAPIDAPI_KEY=<RapidAPI key — subscribe to JSearch on RapidAPI>
+LINKDAPI_KEY=<LinkdAPI key — free tier at linkdapi.com>
 BREVO_API_KEY=xkeysib-...
 BREVO_SENDER_EMAIL=your-verified-sender@gmail.com
 ALERT_SEND_HOUR=8

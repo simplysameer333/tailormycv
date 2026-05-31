@@ -1,4 +1,4 @@
-"""LinkedIn profile fetcher via RapidAPI (Real-Time LinkedIn Scraper — linkedin-api8)."""
+"""LinkedIn profile fetcher via LinkdAPI (linkdapi.com)."""
 from __future__ import annotations
 
 import logging
@@ -8,7 +8,7 @@ import httpx
 
 logger = logging.getLogger("tailormycv")
 
-_RAPIDAPI_HOST = "linkedin-api8.p.rapidapi.com"
+_BASE_URL = "https://linkdapi.com"
 _LINKEDIN_URL_RE = re.compile(
     r"^https?://(www\.)?linkedin\.com/in/[a-zA-Z0-9\-_%\.]+/?(\?.*)?$"
 )
@@ -41,16 +41,20 @@ def _parse_date_obj(d: dict | str | None) -> str:
 
 
 def _build_raw_text(data: dict) -> str:
-    """Convert linkedin-api8 response into structured text for the AI pipeline."""
+    """Convert LinkdAPI response into structured text for the AI pipeline."""
     lines: list[str] = []
 
-    first  = data.get("firstName", "")
-    last   = data.get("lastName", "")
-    full_name = data.get("fullName") or data.get("full_name") or f"{first} {last}".strip()
-    headline  = data.get("headline") or data.get("occupation") or ""
-    location  = data.get("location") or data.get("addressWithCountry") or data.get("city") or ""
-    summary   = data.get("summary") or data.get("about") or ""
-    email     = data.get("email") or data.get("personal_email") or ""
+    full_name = (
+        data.get("fullName") or data.get("full_name")
+        or f"{data.get('firstName', '')} {data.get('lastName', '')}".strip()
+    )
+    headline = data.get("headline") or data.get("occupation") or ""
+    location = (
+        data.get("location") or data.get("addressWithCountry")
+        or data.get("city") or data.get("geoLocation") or ""
+    )
+    summary  = data.get("about") or data.get("summary") or data.get("description") or ""
+    email    = data.get("email") or data.get("personal_email") or ""
 
     if full_name:
         lines.append(f"Name: {full_name}")
@@ -63,13 +67,16 @@ def _build_raw_text(data: dict) -> str:
     if summary:
         lines += ["", "Summary:", summary]
 
-    # Experience — linkedin-api8 uses "position" or "experience"
-    for exp in (data.get("position") or data.get("experiences") or data.get("experience") or []):
+    # Experience — LinkdAPI may use "experience", "positions", or "workExperience"
+    for exp in (
+        data.get("experience") or data.get("positions")
+        or data.get("workExperience") or data.get("position") or []
+    ):
         lines.append("")
-        title   = exp.get("title") or ""
-        company = exp.get("companyName") or exp.get("company") or ""
+        title   = exp.get("title") or exp.get("role") or ""
+        company = exp.get("companyName") or exp.get("company") or exp.get("company_name") or ""
         start   = exp.get("start") or exp.get("startDate") or exp.get("starts_at")
-        end     = exp.get("end") or exp.get("endDate") or exp.get("ends_at")
+        end     = exp.get("end")   or exp.get("endDate")   or exp.get("ends_at")
 
         s_str = _parse_date_obj(start)
         e_str = _parse_date_obj(end) if end else "Present"
@@ -87,14 +94,14 @@ def _build_raw_text(data: dict) -> str:
             if dl.strip():
                 lines.append(f"  {dl.strip()}")
 
-    # Education — linkedin-api8 uses "education" array
+    # Education
     for edu in (data.get("education") or data.get("educations") or []):
         lines.append("")
-        school = edu.get("schoolName") or edu.get("school") or ""
+        school = edu.get("schoolName") or edu.get("school") or edu.get("school_name") or ""
         degree = edu.get("degreeName") or edu.get("degree") or edu.get("degree_name") or ""
-        field  = edu.get("fieldOfStudy") or edu.get("field_of_study") or ""
-        start  = _parse_date_obj(edu.get("start") or edu.get("startDate")) or (edu.get("starts_at") or {}).get("year", "")
-        end    = _parse_date_obj(edu.get("end")   or edu.get("endDate"))   or (edu.get("ends_at")   or {}).get("year", "")
+        field  = edu.get("fieldOfStudy") or edu.get("field_of_study") or edu.get("field") or ""
+        start  = _parse_date_obj(edu.get("start") or edu.get("startDate")) or str((edu.get("starts_at") or {}).get("year", ""))
+        end    = _parse_date_obj(edu.get("end")   or edu.get("endDate"))   or str((edu.get("ends_at")   or {}).get("year", ""))
 
         edu_line = degree
         if field:
@@ -106,8 +113,8 @@ def _build_raw_text(data: dict) -> str:
         if edu_line:
             lines.append(f"Education: {edu_line}")
 
-    # Skills — linkedin-api8 may use "skills_v2" (strings) or "skills" (objects/strings)
-    raw_skills = data.get("skills_v2") or data.get("skills") or []
+    # Skills — may be array of strings or objects with "name"
+    raw_skills = data.get("skills") or data.get("skills_v2") or []
     skill_names = [
         (s.get("name") if isinstance(s, dict) else str(s))
         for s in raw_skills[:25]
@@ -120,13 +127,11 @@ def _build_raw_text(data: dict) -> str:
 
 
 def _normalize(data: dict) -> dict:
-    first = data.get("firstName", "")
-    last  = data.get("lastName", "")
     full_name = (
         data.get("fullName") or data.get("full_name")
-        or f"{first} {last}".strip()
+        or f"{data.get('firstName', '')} {data.get('lastName', '')}".strip()
     )
-    raw_skills = data.get("skills_v2") or data.get("skills") or []
+    raw_skills = data.get("skills") or data.get("skills_v2") or []
     skills = [
         (s.get("name") if isinstance(s, dict) else str(s))
         for s in raw_skills[:25]
@@ -136,19 +141,17 @@ def _normalize(data: dict) -> dict:
         "headline":  data.get("headline") or data.get("occupation") or "",
         "location":  (
             data.get("location") or data.get("addressWithCountry")
-            or data.get("city") or data.get("location_name") or ""
+            or data.get("city") or data.get("geoLocation") or ""
         ),
         "email":     data.get("email") or data.get("personal_email") or "",
-        "summary":   data.get("summary") or data.get("about") or "",
+        "summary":   data.get("about") or data.get("summary") or data.get("description") or "",
         "skills":    [s for s in skills if s],
         "raw_text":  _build_raw_text(data),
     }
 
 
-async def fetch_profile(linkedin_url: str, rapidapi_key: str) -> dict:
-    """Fetch and normalise a LinkedIn profile via the linkedin-api8 RapidAPI endpoint.
-
-    The API takes a username slug (not the full URL), so we extract it first.
+async def fetch_profile(linkedin_url: str, linkdapi_key: str) -> dict:
+    """Fetch and normalise a LinkedIn profile via the LinkdAPI full-profile endpoint.
 
     Raises:
         ValueError: invalid URL format or API returned an error response
@@ -163,25 +166,20 @@ async def fetch_profile(linkedin_url: str, rapidapi_key: str) -> dict:
 
     async with httpx.AsyncClient(timeout=20.0) as client:
         resp = await client.get(
-            f"https://{_RAPIDAPI_HOST}/",
+            f"{_BASE_URL}/api/v1/profile/full",
             params={"username": username},
-            headers={
-                "x-rapidapi-host": _RAPIDAPI_HOST,
-                "x-rapidapi-key": rapidapi_key,
-            },
+            headers={"X-linkdapi-apikey": linkdapi_key},
         )
         resp.raise_for_status()
 
     body = resp.json()
 
-    # Detect API-level error responses (e.g. {"message": "There was an error..."})
-    if isinstance(body, dict):
-        msg = body.get("message") or body.get("error") or ""
-        has_profile = body.get("firstName") or body.get("fullName") or body.get("full_name")
-        if msg and not has_profile:
-            raise ValueError(f"LinkedIn API error: {msg}")
+    # LinkdAPI wraps all responses: {"success": bool, "statusCode": int, "message": str, "data": {...}}
+    if isinstance(body, dict) and not body.get("success", True):
+        # Log internally but never expose third-party error text to the user
+        logger.warning("[linkedin] API returned failure for @%s: %s", username, body.get("message", ""))
+        raise ValueError("linkedin_api_unavailable")
 
-    # linkedin-api8 returns data at root; some variants wrap in "data" key
     data = body.get("data") if isinstance(body.get("data"), dict) else body
     logger.info("[linkedin] Fetched profile for @%s", username)
     return _normalize(data)

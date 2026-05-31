@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # Set to true on localhost to accept dev-free / dev-plus / dev-pro tokens with no JWT check.
     dev_bypass_auth: bool = False
 
+    # ── LinkedIn import ───────────────────────────────────────────────────────
+    linkdapi_key: str = ""
+
     # ── Job search ───────────────────────────────────────────────────────────
     rapidapi_key: str = ""
     # Monthly call budget for JSearch free tier (500). Set higher if on a paid plan.

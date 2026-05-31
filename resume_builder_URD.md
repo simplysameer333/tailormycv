@@ -36,7 +36,7 @@ Users authenticate with email/password or Google OAuth. A persistent **Account P
 | AI — Generator | Anthropic Claude API (`GENERATOR_MODEL` env var) |
 | AI — Evaluators | Anthropic + OpenAI + Google (models via `*_EVALUATOR_MODEL` env vars; active set per tier) |
 | Job Search | JSearch via RapidAPI — Indeed, LinkedIn, Glassdoor aggregator |
-| LinkedIn Profile Import | Rock APIs Real-Time LinkedIn Scraper via RapidAPI (`linkedin-api8.p.rapidapi.com`) |
+| LinkedIn Profile Import | LinkdAPI (`linkdapi.com`) — free tier available |
 | Profession Profiles | MongoDB `professions` collection; managed via admin UI |
 | File Parsing | `pdfplumber` (PDF), `python-docx` (DOCX) |
 | File Generation | `python-docx` (DOCX); `reportlab` (PDF — no LibreOffice required) |
@@ -94,7 +94,7 @@ NextAuth Google provider → `signIn` callback → `POST /api/auth/sync` → bac
 ### Step 1 — Upload Resume or Import LinkedIn
 - User uploads their existing resume as a `.pdf` or `.docx` file (max 5 MB), **OR** pastes a LinkedIn profile URL
 - **Resume upload:** Backend parses the file; session created; raw text stored
-- **LinkedIn import:** Backend calls `POST /api/linkedin/parse` → `linkedin_service.py` extracts the username slug from the URL and calls `linkedin-api8.p.rapidapi.com` GET `/` with `?username=slug` → extracts profile data (name, location, summary, key skills); raw text stored in session
+- **LinkedIn import:** Backend calls `POST /api/linkedin/parse` → `linkedin_service.py` extracts the username slug from the URL and calls `GET https://linkdapi.com/api/v1/profile/full?username=<slug>` → extracts profile data (name, location, summary, key skills); raw text stored in session
 - Optional **Additional Instructions** textarea for prioritisation guidance
 - **One-click tailor banner** shown when arriving from Jobs page
 
@@ -157,8 +157,8 @@ A persistent profile stored in the `user_profiles` MongoDB collection.
 - UI: "Import Profile" button inline with the LinkedIn URL field
 - Backend: `POST /api/linkedin/parse` → `linkedin_service.py`
   - Extracts username slug from URL
-  - Calls `GET https://linkedin-api8.p.rapidapi.com/` with `?username=<slug>`
-  - API: Rock APIs Real-Time LinkedIn Scraper; same `RAPIDAPI_KEY` as JSearch
+  - Calls `GET https://linkdapi.com/api/v1/profile/full?username=<slug>`
+  - API: LinkdAPI (`linkdapi.com`); requires separate `LINKDAPI_KEY` env var
 - Returns: `{full_name, headline, location, email, summary, skills[], raw_text}`
 - Profile fields patched: name, email, location, summary, key_skills (non-empty only)
 - Builder Step 1: also available as "or import from LinkedIn" section — creates session without file upload
@@ -226,7 +226,7 @@ A persistent profile stored in the `user_profiles` MongoDB collection.
 - Accept `.pdf` and `.docx`, max 5 MB
 
 ### 7.2 LinkedIn Profile Import
-- Accept LinkedIn profile URL; extract username slug; call `linkedin-api8.p.rapidapi.com`
+- Accept LinkedIn profile URL; extract username slug; call `linkdapi.com/api/v1/profile/full`
 - Available on Profile page and Builder Step 1
 
 ### 7.3 User Profile Form (builder session)
@@ -528,7 +528,8 @@ MAX_AI_CALLS_PER_SESSION=10
 SKILL_EXTRACTION_COUNT=3        # Fallback only; tier limits override via tier_config_service
 
 # Job search & LinkedIn import
-RAPIDAPI_KEY=                   # Used for JSearch (job search) AND linkedin-api8 (LinkedIn import)
+RAPIDAPI_KEY=                   # Used for JSearch (job search) only
+LINKDAPI_KEY=                   # Used for LinkedIn profile import (linkdapi.com — free tier available)
 JSEARCH_MONTHLY_LIMIT=500
 JSEARCH_QUOTA_WARN_PCT=50
 JSEARCH_CACHE_TTL_S=7200

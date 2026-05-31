@@ -115,7 +115,7 @@ function UploadPageInner() {
       router.push("/builder/profile");
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(msg ?? "Could not import LinkedIn profile. Check the URL and try again.");
+      toast.error(msg ?? "LinkedIn import is temporarily unavailable. Please try again later.");
     } finally {
       setLinkedinImporting(false);
     }
