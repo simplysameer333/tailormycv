@@ -289,7 +289,10 @@ export function Jade(d: PreviewData) {
       <div style="${h2}">Experience</div>
       ${expRows(d, "#0f172a", teal)}
       <div style="${h2}">Skills</div>
-      <div>${d.skills.map(chip).join("")}</div>
+      <div style="margin-bottom:12px;">${d.skills.map(chip).join("")}</div>
+      ${d.education.length ? `<div style="${h2}">Education</div>
+      ${d.education.map(e => `<div style="font-size:11px;color:#475569;margin-bottom:3px;">${esc(e.degree)}  ·  ${esc(e.school)}  ·  ${esc(e.year)}</div>`).join("")}` : ""}
+      ${extraSectionsList(d, h2, `<div style="border-top:1px solid #ccfbf1;margin-bottom:6px;"></div>`, "font-size:11px;color:#475569;margin-bottom:2px;")}
     </div>
   `);
 }
@@ -308,6 +311,11 @@ export function Prism(d: PreviewData) {
       <div style="font-size:9px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 6px;">Education</div>
       <div style="border-top:1px solid #cbd5e1;margin-bottom:6px;"></div>
       ${d.education.map(e => `<div style="font-size:10px;color:#334155;line-height:1.6;"><strong>${esc(e.degree)}</strong><br><span style="color:#64748b;">${esc(e.school)}</span><br><span style="color:#94a3b8;">${esc(e.year)}</span></div>`).join("")}
+      ${(d.extra_sections||[]).filter(s => s.items.length <= 5).map(s => `
+        <div style="font-size:9px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 4px;">${esc(s.title)}</div>
+        <div style="border-top:1px solid #cbd5e1;margin-bottom:4px;"></div>
+        ${s.items.map(i => `<div style="font-size:10px;color:#334155;margin-bottom:2px;">▸ ${esc(i)}</div>`).join("")}
+      `).join("")}
     </div>`;
   const main = `
     <div style="flex:1;padding:32px 26px;">
@@ -323,6 +331,11 @@ export function Prism(d: PreviewData) {
           <span style="font-size:10px;color:#94a3b8;">${esc(e.date)}</span>
         </div>
         <ul style="margin-bottom:12px;">${e.bullets.map(b => `<li style="font-size:11px;color:#475569;">${esc(b)}</li>`).join("")}</ul>
+      `).join("")}
+      ${(d.extra_sections||[]).filter(s => s.items.length > 5).map(s => `
+        <div style="font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 6px;">${esc(s.title)}</div>
+        <div style="border-top:1px solid #e2e8f0;margin-bottom:8px;"></div>
+        ${s.items.map(i => `<div style="font-size:11px;color:#475569;margin-bottom:3px;">▸ ${esc(i)}</div>`).join("")}
       `).join("")}
     </div>`;
   return wrap(`body{font-family:Arial,sans-serif;display:flex;min-height:100vh;}`, sidebar + main);
