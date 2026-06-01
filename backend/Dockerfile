@@ -5,7 +5,12 @@ RUN apt-get update && apt-get install -y \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libharfbuzz-subset0 \
-    && rm -rf /var/lib/apt/lists/*
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
+    fonts-liberation \
+    fontconfig \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -fv
 
 WORKDIR /app
 COPY requirements.txt .

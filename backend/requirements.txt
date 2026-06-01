@@ -27,3 +27,7 @@ passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
 # Job alerts
 apscheduler==3.10.4
+# Template preview (Layer 2 — HTML→PDF→PNG)
+weasyprint==62.3
+PyMuPDF==1.24.3
+Jinja2==3.1.4
