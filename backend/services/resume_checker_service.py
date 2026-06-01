@@ -218,34 +218,47 @@ def extract_full_profile(raw_text: str) -> dict:
         raw_sections.append({"title": cur_title, "items": cur_items})
 
     # ── Parse each section into structured fields ──────────────────────────────
+    _CORE_KW = {
+        "summary":    ["summary", "profile", "objective", "about", "statement"],
+        "experience": ["experience", "employment", "work", "career", "history", "role"],
+        "skills":     ["skill", "competenc", "technolog", "expertise", "tool"],
+        "education":  ["education", "qualification", "degree", "academic", "study"],
+    }
+
     summary    = ""
-    skills:    list[str] = []
-    experience: list[dict] = []
-    education:  list[dict] = []
+    skills:        list[str]  = []
+    experience:    list[dict] = []
+    education:     list[dict] = []
+    extra_sections: list[dict] = []
 
     for sec in raw_sections:
-        t = sec["title"].lower()
+        t     = sec["title"].lower()
         items = sec["items"]
-        if any(kw in t for kw in ["summary", "profile", "objective", "about", "statement"]):
+        if any(kw in t for kw in _CORE_KW["summary"]):
             summary = " ".join(items)
-        elif any(kw in t for kw in ["experience", "employment", "work", "career", "history", "role"]):
+        elif any(kw in t for kw in _CORE_KW["experience"]):
             experience = _parse_experience(items)
-        elif any(kw in t for kw in ["skill", "competenc", "technolog", "expertise", "tool"]):
+        elif any(kw in t for kw in _CORE_KW["skills"]):
             skills = _parse_skills(items)
-        elif any(kw in t for kw in ["education", "qualification", "degree", "academic", "study"]):
+        elif any(kw in t for kw in _CORE_KW["education"]):
             education = _parse_education(items)
+        else:
+            # All other sections (Certifications, Languages, Projects, Awards…)
+            # are preserved verbatim so templates can render them in the best position
+            extra_sections.append({"title": sec["title"], "items": items})
 
     return {
-        "name":       name,
-        "title":      title,
-        "email":      email_m.group(0)    if email_m    else "",
-        "phone":      phone_m.group(0)    if phone_m    else "",
-        "location":   location_m.group(1) if location_m else "",
-        "linkedin":   linkedin_m.group(0) if linkedin_m else "",
-        "summary":    summary,
-        "skills":     skills,
-        "experience": experience,
-        "education":  education,
+        "name":           name,
+        "title":          title,
+        "email":          email_m.group(0)    if email_m    else "",
+        "phone":          phone_m.group(0)    if phone_m    else "",
+        "location":       location_m.group(1) if location_m else "",
+        "linkedin":       linkedin_m.group(0) if linkedin_m else "",
+        "summary":        summary,
+        "skills":         skills,
+        "experience":     experience,
+        "education":      education,
+        "extra_sections": extra_sections,
     }
 
 
@@ -416,6 +429,12 @@ Return this exact JSON structure with ALL 51 checks populated:
         "degree":      "<qualification name exactly as written>",
         "institution": "<university or school name>",
         "dates":       "<graduation year or date range>"
+      }}
+    ],
+    "extra_sections": [
+      {{
+        "title": "<exact section heading from CV e.g. Certifications, Languages, Projects, Awards, Publications, Volunteer Work, Interests>",
+        "items": ["<one entry per item verbatim from the CV>"]
       }}
     ]
   }}

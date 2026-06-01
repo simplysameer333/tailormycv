@@ -18,6 +18,7 @@ export interface PreviewData {
   skills: string[];
   experience: { title: string; company: string; date: string; bullets: string[] }[];
   education: { degree: string; school: string; year: string }[];
+  extra_sections?: { title: string; items: string[] }[];
 }
 
 // SAMPLE / SAMPLE_THUMB removed — previews always use real data.
@@ -932,6 +933,7 @@ export function TemplateSuggestions({ extractedProfile }: {
         school: e.institution,
         year:   e.dates,
       })),
+      extra_sections: extractedProfile!.extra_sections || [],
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasRealProfile, extractedProfile?.name]);

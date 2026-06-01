@@ -202,14 +202,15 @@ async def check_resume_quality(
     """
     parsed, _ = await _validate_and_parse(file, label="CV", require_text=True)
 
-    # ── Cache check — return prior result for identical CV text ──────────────
+    # ── Cache check — DISABLED during active development ──────────────────────
+    # Re-enable by removing the `and False` once template preview quality is stable.
     text_hash = hashlib.sha256(parsed["raw_text"][:8000].encode()).hexdigest()
     db = get_db()
     cached = await db.cv_check_results.find_one(
         {"text_hash": text_hash, "created_at": {"$gt": datetime.utcnow() - timedelta(days=7)}},
         sort=[("created_at", -1)],
     )
-    if cached and cached.get("result"):
+    if cached and cached.get("result") and False:  # noqa: SIM210 — cache disabled
         logger.info("[cv_score] Cache hit for hash %s…", text_hash[:8])
         # Issue a new permalink UUID so the user gets a fresh shareable link
         new_id = str(uuid.uuid4())
@@ -289,10 +290,11 @@ async def check_resume_quality(
         "location": llm_contact.get("location") or regex_profile.get("location", ""),
         "linkedin": llm_contact.get("linkedin") or regex_profile.get("linkedin", ""),
         # Full resume structure — LLM first, regex fallback
-        "summary":    llm_resume.get("summary")    or regex_profile.get("summary", ""),
-        "skills":     llm_resume.get("skills")     or regex_profile.get("skills", []),
-        "experience": llm_resume.get("experience") or regex_profile.get("experience", []),
-        "education":  llm_resume.get("education")  or regex_profile.get("education", []),
+        "summary":        llm_resume.get("summary")        or regex_profile.get("summary", ""),
+        "skills":         llm_resume.get("skills")         or regex_profile.get("skills", []),
+        "experience":     llm_resume.get("experience")     or regex_profile.get("experience", []),
+        "education":      llm_resume.get("education")      or regex_profile.get("education", []),
+        "extra_sections": llm_resume.get("extra_sections") or regex_profile.get("extra_sections", []),
     }
 
     # Persist full profile so GET permalink always has complete data

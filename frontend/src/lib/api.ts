@@ -141,6 +141,7 @@ export interface ExtractedProfile {
   skills?: string[];
   experience?: { role: string; company: string; dates: string; bullets: string[] }[];
   education?: { degree: string; institution: string; dates: string }[];
+  extra_sections?: { title: string; items: string[] }[];
 }
 
 export interface ResumeCheckResult {

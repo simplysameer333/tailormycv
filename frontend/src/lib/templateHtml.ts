@@ -42,6 +42,38 @@ function wrap(css: string, body: string) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${BASE_CSS}${css}</style></head><body>${body}</body></html>`;
 }
 
+/**
+ * Renders all extra_sections (Certifications, Languages, Projects, Awards, …)
+ * that exist in the resume but don't map to a core field.
+ * headingStyle / itemStyle let each template apply its own typography.
+ */
+function extraSections(
+  d: PreviewData,
+  headingStyle: string,
+  rule: string,
+  itemStyle = "font-size:12px;color:#374151;line-height:1.8;",
+) {
+  if (!d.extra_sections?.length) return "";
+  return d.extra_sections.map(sec => `
+    <div style="${headingStyle}">${esc(sec.title)}</div>${rule}
+    <div style="${itemStyle}">${sec.items.map(esc).join("  ·  ")}</div>
+  `).join("");
+}
+
+/** Same but renders items as a bullet list instead of dot-separated inline. */
+function extraSectionsList(
+  d: PreviewData,
+  headingStyle: string,
+  rule: string,
+  itemStyle = "font-size:11px;color:#374151;margin-bottom:2px;",
+) {
+  if (!d.extra_sections?.length) return "";
+  return d.extra_sections.map(sec => `
+    <div style="${headingStyle}">${esc(sec.title)}</div>${rule}
+    ${sec.items.map(item => `<div style="${itemStyle}">▸ ${esc(item)}</div>`).join("")}
+  `).join("");
+}
+
 // ── 1. Cambridge ──────────────────────────────────────────────────────────────
 export function Cambridge(d: PreviewData) {
   const h2 = `font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:#1f2937;margin:18px 0 4px;`;
@@ -59,6 +91,7 @@ export function Cambridge(d: PreviewData) {
     <div style="font-size:12px;color:#374151;">${d.skills.map(esc).join("  ·  ")}</div>
     <div style="${h2}">Education</div>${rule}
     ${d.education.map(e => `<div style="font-size:12px;">${esc(e.degree)}  ·  ${esc(e.school)}  ·  ${esc(e.year)}</div>`).join("")}
+    ${extraSections(d, h2, rule)}
   `);
 }
 
@@ -87,6 +120,7 @@ export function Horizon(d: PreviewData) {
           <div><span style="font-size:12px;font-weight:700;color:#1e293b;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#475569;">${esc(e.school)}</span></div>
           <span style="font-size:11px;color:#64748b;">${esc(e.year)}</span>
         </div>`).join("")}` : ""}
+      ${extraSections(d, h2, rule)}
     </div>
   `);
 }
@@ -140,6 +174,7 @@ export function Catalyst(d: PreviewData) {
         <div><span style="font-size:12px;font-weight:700;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#64748b;">${esc(e.school)}</span></div>
         <span style="font-size:11px;color:#94a3b8;">${esc(e.year)}</span>
       </div>`).join("")) : ""}
+    ${(d.extra_sections||[]).map(s => sec(s.title, `<div style="font-size:11px;color:#334155;line-height:1.8;">${s.items.map(esc).join("  ·  ")}</div>`)).join("")}
   `);
 }
 
@@ -176,6 +211,7 @@ export function Admiral(d: PreviewData) {
         <div><span style="font-size:12px;font-weight:600;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#6b7280;">${esc(e.school)}</span></div>
         <span style="font-size:11px;color:#6b7280;">${esc(e.year)}</span>
       </div>`).join("")}` : ""}
+    ${extraSections(d, h2, rule)}
   `);
 }
 
@@ -205,6 +241,7 @@ export function Canvas(d: PreviewData) {
         <div><span style="font-size:12px;color:#374151;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#9ca3af;">${esc(e.school)}</span></div>
         <span style="font-size:10px;color:#9ca3af;">${esc(e.year)}</span>
       </div>`).join("")) : ""}
+    ${(d.extra_sections||[]).map(s => sec(s.title, `<div style="font-size:11px;color:#6b7280;line-height:1.8;">${s.items.map(esc).join("  ·  ")}</div>`)).join("")}
   `);
 }
 
@@ -228,7 +265,10 @@ export function Swift(d: PreviewData) {
       <ul style="margin-bottom:7px;">${e.bullets.map(b => `<li style="color:#475569;">${esc(b)}</li>`).join("")}</ul>
     `).join("")}
     <div style="${h2}">Skills</div>
-    <div style="color:#4b5563;line-height:1.8;">${d.skills.map(esc).join("  ·  ")}</div>
+    <div style="color:#4b5563;line-height:1.8;margin-bottom:8px;">${d.skills.map(esc).join("  ·  ")}</div>
+    ${d.education.length ? `<div style="${h2}">Education</div>
+    ${d.education.map(e => `<div style="font-size:11px;color:#4b5563;">${esc(e.degree)}  ·  ${esc(e.school)}  ·  ${esc(e.year)}</div>`).join("")}` : ""}
+    ${extraSections(d, h2, "", "font-size:11px;color:#4b5563;line-height:1.8;")}
   `);
 }
 
@@ -307,6 +347,10 @@ export function Vivid(d: PreviewData) {
           <div style="font-size:10px;color:#c4b5fd;">${esc(e.school)}</div>
           <div style="font-size:10px;color:#a78bfa;margin-bottom:10px;">${esc(e.year)}</div>`).join("")}
       ` : ""}
+      ${(d.extra_sections||[]).filter(s => s.items.length <= 5).map(s => `
+        <div style="font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 6px;">${esc(s.title)}</div>
+        ${s.items.map(i => `<div style="font-size:11px;color:#ede9fe;margin-bottom:3px;">▸ ${esc(i)}</div>`).join("")}
+      `).join("")}
     </div>`;
   const main = `
     <div style="flex:1;padding:32px 26px;">
@@ -322,6 +366,11 @@ export function Vivid(d: PreviewData) {
           <span style="font-size:10px;color:#94a3b8;">${esc(e.date)}</span>
         </div>
         <ul style="margin-bottom:12px;">${e.bullets.map(b => `<li style="font-size:11px;color:#475569;">${esc(b)}</li>`).join("")}</ul>
+      `).join("")}
+      ${(d.extra_sections||[]).filter(s => s.items.length > 5).map(s => `
+        <div style="font-size:10px;font-weight:700;color:${purple};text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 6px;">${esc(s.title)}</div>
+        <div style="border-top:1.5px solid #ede9fe;margin-bottom:8px;"></div>
+        ${s.items.map(i => `<div style="font-size:11px;color:#475569;margin-bottom:3px;">▸ ${esc(i)}</div>`).join("")}
       `).join("")}
     </div>`;
   return wrap(`body{font-family:Arial,sans-serif;display:flex;min-height:100vh;}`, sidebar + main);
