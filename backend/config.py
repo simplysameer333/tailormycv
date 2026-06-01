@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     # ── Email (Brevo HTTP API for job alert digests) ─────────────────────────
     # Sign up free at brevo.com — verify tailormycv.alerts@gmail.com as sender,
     # then grab the API key from Settings → SMTP & API → API Keys.
-    support_email: str = "samorsameer@gmail.com"
+    support_email: str = "tailormycv.alerts@gmail.com"
     brevo_api_key: str = ""
     brevo_sender_email: str = "tailormycv.alerts@gmail.com"
 
