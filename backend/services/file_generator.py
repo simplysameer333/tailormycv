@@ -252,10 +252,10 @@ def _generate_clean_docx(r: dict, kw_re=None) -> bytes:
     section = doc.sections[0]
     section.page_width    = Mm(210)
     section.page_height   = Mm(297)
-    section.left_margin   = Mm(10)   # matches HTML preview padding (~36px ≈ 9.5mm)
-    section.right_margin  = Mm(10)
-    section.top_margin    = Mm(10)
-    section.bottom_margin = Mm(10)
+    section.left_margin   = Mm(15)
+    section.right_margin  = Mm(15)
+    section.top_margin    = Mm(14)
+    section.bottom_margin = Mm(12)
     contact = r.get("contact", {})
 
     # ── Name ──────────────────────────────────────────────────────────────────
@@ -400,8 +400,8 @@ def generate_pdf(resume_data: dict, bold_keywords: list[str] | None = None) -> b
     doc = SimpleDocTemplate(
         buf,
         pagesize=A4,
-        leftMargin=10*mm, rightMargin=10*mm,
-        topMargin=10*mm, bottomMargin=10*mm,
+        leftMargin=14*mm, rightMargin=14*mm,
+        topMargin=12*mm, bottomMargin=12*mm,
     )
 
     base = getSampleStyleSheet()
