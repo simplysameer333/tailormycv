@@ -34,6 +34,7 @@ from config import settings
 from dependencies.auth import get_optional_user
 from services.pipeline import pipeline, generator
 from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
+from services.resume_checker_service import validate_resume_layout
 
 # Maps template key → number of A4 pages the template is designed for.
 # Used to give the LLM a hard content-length constraint during generation.
@@ -344,6 +345,33 @@ async def generate(
             {"$set": {"quality_alert_sent": True}},
         )
 
+    # ── Preview validator — dedicated QA pass ─────────────────────────────────
+    # Focused LLM call: confirms the generated resume fits the template's page
+    # budget, is sized to best-practice counts, and keeps every source section.
+    # Best-effort: a failure must never break generation.
+    layout_validation = None
+    if final_state.get("resume_json"):
+        try:
+            layout_validation = await validate_resume_layout(
+                resume=final_state["resume_json"],
+                page_count=template_pages,
+                anthropic_key=settings.anthropic_api_key,
+                source_resume_text=resume_text,
+            )
+            if layout_validation.get("truncated"):
+                logger.warning(
+                    "[generate] TRUNCATION — session %s needs ~%s pages but template is %s. Suggestions: %s",
+                    session_id, layout_validation.get("estimated_pages"),
+                    template_pages, layout_validation.get("suggestions"),
+                )
+            elif not layout_validation.get("optimized") or layout_validation.get("page_fit") != "good":
+                logger.info(
+                    "[generate] Layout validation flagged session %s: fit=%s issues=%s",
+                    session_id, layout_validation.get("page_fit"), layout_validation.get("issues"),
+                )
+        except Exception as val_exc:
+            logger.warning("[generate] Layout validation failed (non-fatal): %s", val_exc)
+
     eval_summary = {
         "cycles": final_state["cycle"],
         "all_passed": final_state["all_passed"],
@@ -352,6 +380,7 @@ async def generate(
         "evaluator_results": final_state["eval_results"],
         "profession": profession_config.get("display_name", "General"),
         "key_skills": key_skills,
+        "layout_validation": layout_validation,
     }
 
     # ── Store successful result in generation cache ───────────────────────────
@@ -375,6 +404,7 @@ async def generate(
         "resume": final_state["resume_json"],
         "mode":   "tailored" if has_jd else "polished",
         "eval_summary": eval_summary,
+        "layout_validation": layout_validation,
     }
 
 

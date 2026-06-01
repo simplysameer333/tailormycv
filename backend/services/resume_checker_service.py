@@ -552,3 +552,125 @@ async def extract_resume_for_preview(resume_text: str, anthropic_key: str) -> di
         "education":      data.get("education") or [],
         "extra_sections": data.get("extra_sections") or [],
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dedicated resume QA validator — checks fit, optimisation, completeness
+# ═══════════════════════════════════════════════════════════════════════════════
+# A SEPARATE focused LLM call (one job: QA a structured resume against the page
+# budget and best-practice counts). Used after generation in the builder and
+# after extraction in the CV-score preview. Best-effort — callers should tolerate
+# failure and treat a missing verdict as "not validated", never a hard error.
+
+_VALIDATE_SYSTEM = (
+    "You are a senior resume QA reviewer. You receive a structured resume and a page "
+    "budget, and you judge three things only: (1) does the content fit the page budget "
+    "without overflowing or leaving the page badly underfilled, (2) is each section sized "
+    "to best practice, (3) are all expected sections present. You return a strict JSON "
+    "verdict and nothing else."
+)
+
+# Best-practice targets the validator scores against — kept in sync with
+# _page_rules() in services/pipeline/prompts/anthropic.py.
+_VALIDATE_TARGETS = {
+    1: "1 A4 page. Targets: summary ≤2 sentences; skills 6–8; show 3 most recent roles; "
+       "bullets per role most-recent 3–4, then 2–3, then 1–2; each bullet ≤18 words.",
+    2: "2 A4 pages. Targets: summary 3 sentences; skills 8–10; show 4–5 roles; "
+       "bullets per role most-recent 4–5, mid 3, oldest 1–2; each bullet ≤22 words.",
+}
+
+_VALIDATE_PROMPT = """\
+Validate this resume against its page budget. Respond with ONLY the JSON object.
+
+PAGE BUDGET: {page_count} A4 page(s).
+BEST-PRACTICE TARGETS: {targets}
+
+{source_block}RESUME (structured JSON):
+{resume_json}
+
+Return EXACTLY this structure:
+{{
+  "estimated_pages": <number — how many A4 pages this content actually needs when rendered, e.g. 1.0, 1.5, 2.3>,
+  "truncated": <true if estimated_pages exceeds the PAGE BUDGET — i.e. content will overflow and be cut off>,
+  "optimized": <true if section sizes follow the best-practice targets, else false>,
+  "page_fit": "<good | overflow_risk | underfilled>",
+  "issues": ["<each concrete problem, e.g. 'Skills list has 14 items (max 8 for 1 page)'>"],
+  "missing_sections": ["<any section heading present in the SOURCE but absent from the resume>"],
+  "suggestions": ["<each concrete fix, e.g. 'Cut oldest role from 5 bullets to 2'>"]
+}}
+
+HOW TO ESTIMATE PAGES (a single A4 page holds roughly 45–50 text lines at this font size):
+- Header + contact ≈ 3 lines. Summary ≈ 1 line per ~14 words. Skills ≈ 1 line per ~8 skills.
+- Each experience role ≈ 2 lines (title/company/dates) + 1 line per bullet (more if a bullet is long).
+- Education ≈ 1 line per entry. Each extra section ≈ 1 line heading + its items.
+- Sum the lines, divide by ~47 lines/page, round to one decimal.
+
+RULES:
+- truncated: TRUE whenever estimated_pages > the page budget. This is the most important field — a truncated resume has content cut off at the bottom and looks broken.
+- page_fit: "overflow_risk" if estimated_pages exceeds the budget; "underfilled" if content fills less than ~70% of the budget (large empty space); otherwise "good".
+- optimized: false if ANY section breaks its best-practice target (too many skills, too many bullets on old roles, summary too long, etc.).
+- missing_sections: ONLY sections present in the SOURCE resume but absent from the structured resume. Empty array if none or no source provided.
+- When truncated, suggestions MUST say exactly what to cut to fit (e.g. 'Reduce to 4 most recent roles', 'Trim role X to 2 bullets', 'Cut skills from 14 to 8').
+- Be specific and quantitative. Empty arrays when there is nothing to report.
+"""
+
+
+async def validate_resume_layout(
+    resume: dict,
+    page_count: int,
+    anthropic_key: str,
+    source_resume_text: str | None = None,
+) -> dict:
+    """QA a structured resume against its page budget via a focused LLM call.
+
+    Returns: {estimated_pages: float, truncated: bool, optimized: bool,
+    page_fit: str, issues: [], missing_sections: [], suggestions: []}.
+    `truncated` is the key signal — True means content overflows the page
+    budget and will be visibly cut off. Raises on LLM/parse failure — callers
+    should catch and treat the result as best-effort.
+    """
+    client = AsyncAnthropic(api_key=anthropic_key)
+
+    targets = _VALIDATE_TARGETS.get(page_count, _VALIDATE_TARGETS[2])
+    source_block = ""
+    if source_resume_text:
+        source_block = f"SOURCE RESUME (the candidate's original — for completeness check):\n{source_resume_text[:6000]}\n\n"
+
+    prompt = _VALIDATE_PROMPT.format(
+        page_count=page_count,
+        targets=targets,
+        source_block=source_block,
+        resume_json=json.dumps(resume, ensure_ascii=False)[:8000],
+    )
+
+    message = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1500,
+        system=_VALIDATE_SYSTEM,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+
+    data = json.loads(raw)
+
+    # Derive truncated deterministically from estimated_pages as a safety net,
+    # in case the model sets the boolean inconsistently with its own estimate.
+    try:
+        est_pages = float(data.get("estimated_pages") or 0)
+    except (TypeError, ValueError):
+        est_pages = 0.0
+    truncated = bool(data.get("truncated", False)) or (est_pages > page_count + 0.05)
+
+    return {
+        "estimated_pages":  round(est_pages, 1),
+        "truncated":        truncated,
+        "optimized":        bool(data.get("optimized", False)),
+        "page_fit":         data.get("page_fit", "good") or "good",
+        "issues":           data.get("issues") or [],
+        "missing_sections": data.get("missing_sections") or [],
+        "suggestions":      data.get("suggestions") or [],
+    }
