@@ -225,10 +225,15 @@ async def generate(
         return result
 
     # ── Generation cache check ────────────────────────────────────────────────
-    # Hash the primary inputs so identical CV+JD combinations reuse a prior result.
-    # Only full-pipeline runs are cached (section regens are intentionally excluded).
+    # Hash all inputs that affect the generated output.
+    # template_id affects content density (1-page vs 2-page) and style hints.
+    # sample_cv_text fingerprint ensures formatting references invalidate the cache.
+    # additional_instructions also affect output so they must be included.
+    template_id  = session.get("selected_template_id") or ""
+    sample_fp    = hashlib.sha256((sample_cv_text or "").encode()).hexdigest()[:16]
+    extra_instr  = body.additional_instructions or ""
     input_hash = hashlib.sha256(
-        f"{resume_text[:8000]}|{job_description[:4000]}|{target_role}|{tone}".encode()
+        f"{resume_text[:8000]}|{job_description[:4000]}|{target_role}|{tone}|{template_id}|{sample_fp}|{extra_instr[:500]}".encode()
     ).hexdigest()
 
     cached_gen = await db.generation_cache.find_one({
