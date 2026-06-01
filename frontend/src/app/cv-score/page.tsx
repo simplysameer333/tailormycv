@@ -5,12 +5,13 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import {
   FiUploadCloud, FiFile, FiCheckCircle, FiXCircle, FiLock,
-  FiChevronDown, FiChevronUp, FiArrowRight, FiUser, FiFileText,
-  FiBriefcase, FiTag, FiAward, FiCpu, FiZap, FiShield, FiTarget, FiStar, FiLayout,
+  FiArrowRight, FiUser, FiFileText, FiChevronDown, FiChevronUp,
+  FiBriefcase, FiTag, FiAward, FiCpu, FiZap, FiShield, FiTarget, FiStar, FiLayout, FiAlertCircle,
 } from "react-icons/fi";
 import { checkResume, type ResumeCheckResult, type CheckCategory } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
+import { TemplateSuggestions } from "@/components/TemplatePreviews";
 
 // ── static content ────────────────────────────────────────────────────────────
 
@@ -103,95 +104,121 @@ function ScoreCircle({ score }: { score: number }) {
   );
 }
 
-// ── category card (results) ───────────────────────────────────────────────────
+// ── category card — collapsed by default, expand on click ────────────────────
 
 function CategoryCard({ cat, canSeeImprovements }: { cat: CheckCategory; canSeeImprovements: boolean }) {
   const [expanded, setExpanded] = useState(false);
-  const c = scoreColor(cat.score);
-  const passed = cat.checks.filter((ch) => ch.passed).length;
-  const info   = CATEGORIES_INFO.find((i) => i.key === cat.key);
-  const Icon   = info?.icon ?? FiFileText;
+  const c       = scoreColor(cat.score);
+  const passed  = cat.checks.filter((ch) => ch.passed).length;
+  const failed  = cat.checks.filter((ch) => !ch.passed);
+  const info    = CATEGORIES_INFO.find((i) => i.key === cat.key);
+  const Icon    = info?.icon ?? FiFileText;
 
   return (
     <div className={`rounded-2xl border ${c.border} bg-white overflow-hidden`}>
+      {/* Header — clickable, always shows score + issue count */}
       <button
-        onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 transition text-left"
+        onClick={() => setExpanded(v => !v)}
+        className="w-full flex items-center gap-3 p-4 hover:bg-slate-50 transition text-left border-b border-slate-100"
       >
         <div className={`shrink-0 w-10 h-10 rounded-xl ${c.bg} flex items-center justify-center`}>
           <Icon className={`w-5 h-5 ${c.text}`} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="font-semibold text-slate-800 text-sm">{cat.name}</p>
-            <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${c.bg} ${c.text}`}>
+            <p className="font-semibold text-slate-800">{cat.name}</p>
+            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>
               {statusLabel(cat.status)}
             </span>
+            {failed.length > 0 && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                <FiAlertCircle className="w-3 h-3" /> {failed.length} issue{failed.length > 1 ? "s" : ""}
+              </span>
+            )}
           </div>
-          <div className="flex items-center gap-1.5 mt-1.5">
+          <div className="flex items-center gap-2 mt-1.5">
             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
               <div className={`h-full rounded-full ${c.bar}`} style={{ width: `${cat.score}%` }} />
             </div>
-            <span className="text-xs text-slate-500 shrink-0 font-medium">{cat.score}/100 · {passed}/{cat.checks.length} checks</span>
+            <span className={`text-sm font-bold ${c.text} shrink-0`}>{cat.score}<span className="text-xs font-normal text-slate-400">/100</span></span>
           </div>
         </div>
-        {expanded ? <FiChevronUp className="w-4 h-4 text-slate-400 shrink-0" /> : <FiChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
+        {expanded
+          ? <FiChevronUp   className="w-4 h-4 text-slate-400 shrink-0" />
+          : <FiChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
       </button>
 
-      {expanded && (
-        <div className="px-4 pb-4 border-t border-slate-100 pt-3 space-y-4">
-          {info && <p className="text-xs text-slate-500 leading-relaxed">{info.desc}</p>}
+      {expanded && <div className="px-4 pb-4 pt-3 space-y-4">
+        {info && <p className="text-xs text-slate-500 leading-relaxed">{info.desc}</p>}
 
+        {/* All checks — always visible */}
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            Checks — {passed}/{cat.checks.length} passed
+          </p>
           <ul className="space-y-2">
             {cat.checks.map((ch, i) => (
-              <li key={i} className="flex items-center gap-2 text-sm">
+              <li key={i} className={`flex items-start gap-2.5 text-sm rounded-lg px-3 py-2 ${
+                ch.passed ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+              }`}>
                 {ch.passed
-                  ? <FiCheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                  : <FiXCircle     className="w-4 h-4 text-red-400 shrink-0" />}
-                <span className={ch.passed ? "text-slate-700" : "text-slate-500"}>{ch.label}</span>
+                  ? <FiCheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
+                  : <FiXCircle     className="w-4 h-4 text-red-400   shrink-0 mt-0.5" />}
+                <span>{ch.label}</span>
               </li>
             ))}
           </ul>
-
-          {cat.improvements.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Improvements</p>
-              {canSeeImprovements ? (
-                <ul className="space-y-1.5">
-                  {cat.improvements.map((imp, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
-                      <span className="text-brand-500 mt-0.5 shrink-0">→</span>{imp}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="relative">
-                  <ul className="space-y-1.5 select-none pointer-events-none">
-                    {cat.improvements.slice(0, 1).map((imp, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-slate-600 blur-sm">
-                        <span className="text-brand-500 mt-0.5 shrink-0">→</span>{imp}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <Link
-                      href="/auth/register"
-                      className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-brand-600 shadow-sm hover:border-brand-300 transition"
-                    >
-                      <FiLock className="w-3 h-3" /> Upgrade to Plus to unlock
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
-      )}
+
+        {/* Improvements */}
+        {cat.improvements.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              How to improve
+            </p>
+            {canSeeImprovements ? (
+              <ul className="space-y-2">
+                {cat.improvements.map((imp, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm text-slate-700 bg-brand-50 rounded-lg px-3 py-2">
+                    <span className="text-brand-500 font-bold mt-0.5 shrink-0">→</span>{imp}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                <FiLock className="w-4 h-4 text-slate-400 mx-auto mb-1.5" />
+                <p className="text-sm font-semibold text-slate-700 mb-1">
+                  {cat.improvements.length} improvement suggestion{cat.improvements.length > 1 ? "s" : ""} available
+                </p>
+                <p className="text-xs text-slate-500 mb-3">
+                  Upgrade to Plus to see exactly how to fix each issue in this category.
+                </p>
+                <Link href="/auth/register"
+                  className="inline-flex items-center gap-1.5 btn-primary text-xs px-4 py-1.5">
+                  Unlock improvements <FiArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Fix with AI CTA */}
+        {failed.length > 0 && (
+          <Link href="/builder/upload"
+            className="flex items-center justify-between rounded-xl border border-brand-200 bg-brand-50 px-3 py-2.5 hover:bg-brand-100 transition group">
+            <div>
+              <p className="text-xs font-semibold text-brand-700">Fix {failed.length} issue{failed.length > 1 ? "s" : ""} with AI</p>
+              <p className="text-[10px] text-brand-500 mt-0.5">Tailor your CV with the AI builder</p>
+            </div>
+            <FiArrowRight className="w-4 h-4 text-brand-500 group-hover:translate-x-0.5 transition-transform shrink-0" />
+          </Link>
+        )}
+      </div>}
     </div>
   );
 }
 
-// ── upload zone (reused in two places) ───────────────────────────────────────
+// ── upload zone ───────────────────────────────────────────────────────────────
 
 function UploadZone({
   file, isDragActive, getRootProps, getInputProps, loading, onCheck,
@@ -409,20 +436,49 @@ export default function CvScorePage() {
             </div>
           </div>
 
+          {/* Issue summary banner */}
+          {(() => {
+            const totalIssues = result.categories.reduce(
+              (sum, cat) => sum + cat.checks.filter(ch => !ch.passed).length, 0
+            );
+            const totalChecks = result.categories.reduce((sum, cat) => sum + cat.checks.length, 0);
+            return totalIssues > 0 ? (
+              <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3.5">
+                <FiAlertCircle className="w-5 h-5 text-amber-500 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800">
+                    {totalIssues} issue{totalIssues > 1 ? "s" : ""} found across {totalChecks} checks
+                  </p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    Use the AI builder to resolve these and tailor your CV for a specific job.
+                  </p>
+                </div>
+                <Link href="/builder/upload" className="btn-primary text-xs px-3 py-1.5 shrink-0 flex items-center gap-1">
+                  Fix with AI <FiArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+            ) : null;
+          })()}
+
           <div>
-            <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wide">Category Breakdown</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wide">
+              Detailed Breakdown — {result.categories.length} categories
+            </h3>
+            <div className="space-y-4">
               {result.categories.map((cat) => (
                 <CategoryCard key={cat.key} cat={cat} canSeeImprovements={canSeeImprovements} />
               ))}
             </div>
           </div>
 
+          {/* Template suggestions */}
+          <TemplateSuggestions />
+
           <div className="card text-center py-6">
-            <p className="font-semibold text-slate-800 mb-1">Ready to tailor this resume for a specific job?</p>
-            <p className="text-sm text-slate-500 mb-4">Use the AI builder to optimise for any job description in minutes.</p>
+            <p className="font-semibold text-slate-800 mb-1">Ready to tailor your CV for a specific job?</p>
+            <p className="text-sm text-slate-500 mb-4">Our AI rewrites your CV to match any job description — pick a template and go.</p>
             <Link href="/builder/upload" className="btn-primary px-6 py-2.5 inline-flex items-center gap-2">
-              Tailor with AI <FiArrowRight className="w-4 h-4" />
+              Start tailoring <FiArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
