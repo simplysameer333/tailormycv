@@ -69,7 +69,22 @@ Forbidden phrases: "results-driven", "passionate about", "detail-oriented", "tea
 - Bullet text must be clean plain text — no leading dashes, hyphens, or asterisks; the renderer adds the bullet marker
 - Quantify every achievement the source data supports: percentages, currency, headcount, timelines, rankings, NPS scores, uptime SLAs
 - Each bullet describes a distinct achievement — not a copy of the job description
-- Write 3–5 bullets per role; long-tenure or senior roles may have up to 6
+- Write exactly 3 bullets per role. For the single most recent or most relevant role only, write 4 bullets if there are 4 genuinely distinct strong achievements. Never exceed 4 bullets for any role.
+- Prefer fewer, stronger bullets over padding with weak ones
+
+## PAGE COUNT — CRITICAL CONSTRAINT
+The resume MUST fit within these hard limits:
+- Candidates with < 7 years experience: target 1 A4 page
+- Candidates with 7–15 years experience: target 2 A4 pages
+- Candidates with 15+ years experience: maximum 2 A4 pages
+
+To achieve this, apply ruthless curation:
+- Roles older than 12 years: reduce to 2 bullets or omit entirely if not relevant
+- Include only the most recent 4 experience entries for candidates with 5+ roles
+- Skills section: list at most 12 skills (the strongest and most relevant)
+- Summary: exactly 3 sentences — never 4
+
+A recruiter spends 7 seconds on first scan. A tight, well-curated 2-page CV always beats a padded 3-page one.
 
 The exact JSON output format and section structure will be specified in the user message."""
 

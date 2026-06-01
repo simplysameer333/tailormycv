@@ -3,7 +3,7 @@ import os
 import re
 import copy
 from docx import Document
-from docx.shared import Pt, RGBColor, Inches
+from docx.shared import Pt, RGBColor, Inches, Mm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
@@ -133,17 +133,23 @@ def _docx_bullet(doc: Document, text: str, font_size_pt: int = 10, kw_re=None):
 def _docx_section_heading(doc: Document, title: str):
     h = doc.add_paragraph()
     h.paragraph_format.space_before = Pt(10)
-    h.paragraph_format.space_after = Pt(1)
+    h.paragraph_format.space_after = Pt(2)
     run = h.add_run(title.upper())
     run.bold = True
-    run.font.size = Pt(11)
-    run.font.color.rgb = RGBColor(0x2B, 0x57, 0x9A)
+    run.font.size = Pt(10.5)
+    run.font.color.rgb = RGBColor(0x1F, 0x29, 0x37)  # slate-800 — consistent across all templates
 
-    rule = doc.add_paragraph()
-    rule.paragraph_format.space_after = Pt(4)
-    rule_run = rule.add_run('─' * 70)
-    rule_run.font.size = Pt(7)
-    rule_run.font.color.rgb = RGBColor(0x2B, 0x57, 0x9A)
+    # Horizontal rule — border via paragraph bottom border (renders as a clean line)
+    p = h._p
+    pPr = p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "4")        # 0.5pt
+    bottom.set(qn("w:space"), "2")
+    bottom.set(qn("w:color"), "374151")  # slate-700, consistent with heading
+    pBdr.append(bottom)
+    pPr.append(pBdr)
 
 
 # ── DOCX generation ────────────────────────────────────────────────────────────
@@ -242,12 +248,14 @@ def _build_replacements(r: dict) -> dict:
 
 def _generate_clean_docx(r: dict, kw_re=None) -> bytes:
     doc = Document()
-    # Narrow margins: 15 mm sides, 14 mm top/bottom — maximises content area
+    # A4 page size + narrow margins — ensures page count matches what templates declare
     section = doc.sections[0]
-    section.left_margin   = Inches(0.59)   # ≈ 15 mm
-    section.right_margin  = Inches(0.59)
-    section.top_margin    = Inches(0.55)   # ≈ 14 mm
-    section.bottom_margin = Inches(0.47)   # ≈ 12 mm
+    section.page_width    = Mm(210)
+    section.page_height   = Mm(297)
+    section.left_margin   = Mm(15)
+    section.right_margin  = Mm(15)
+    section.top_margin    = Mm(14)
+    section.bottom_margin = Mm(12)
     contact = r.get("contact", {})
 
     # ── Name ──────────────────────────────────────────────────────────────────
