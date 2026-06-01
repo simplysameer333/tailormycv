@@ -248,6 +248,7 @@ async def check_resume_quality(
             "overall_score": result.get("overall_score", 0),
             "file_ext":      file_ext,
             "result":        result,      # full JSON result for permalink page
+            "extracted_profile": extract_contact_regex(parsed["raw_text"]),
             "categories": [
                 {"key": c.get("key"), "score": c.get("score", 0), "status": c.get("status")}
                 for c in result.get("categories", [])
@@ -280,4 +281,4 @@ async def get_check_result(result_id: str):
     doc = await db.cv_check_results.find_one({"_id": result_id})
     if not doc:
         raise HTTPException(404, "Result not found or has expired.")
-    return doc["result"] | {"result_id": result_id}
+    return doc["result"] | {"result_id": result_id, "extracted_profile": doc.get("extracted_profile")}

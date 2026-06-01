@@ -331,11 +331,158 @@ export function Luxe(d: PreviewData) {
   `);
 }
 
+// ── 16. TechModern ───────────────────────────────────────────────────────────
+export function TechModern(d: PreviewData) {
+  const green = "#10b981";
+  const h2 = `font-size:11px;font-weight:700;color:${green};text-transform:uppercase;letter-spacing:2px;margin:16px 0 4px;font-family:'Courier New',monospace;`;
+  const rule = `<div style="border-top:1px solid ${green};opacity:0.35;margin-bottom:8px;"></div>`;
+  return wrap(`body{font-family:'Courier New',Courier,monospace;}`, `
+    <div style="background:#0f172a;padding:${PAD_HEADER};">
+      <div style="font-size:30px;font-weight:900;color:#fff;letter-spacing:-0.5px;">${esc(d.name)}</div>
+      <div style="font-size:13px;color:${green};margin-top:5px;font-weight:600;">${esc(d.title)}</div>
+      <div style="font-size:11px;color:#64748b;margin-top:6px;">${contact(d)}</div>
+    </div>
+    <div style="padding:20px 36px;">
+      <div style="${h2}">// About</div>${rule}
+      ${prose(d.summary, "color:#374151;margin-bottom:16px;")}
+      <div style="${h2}">// Experience</div>${rule}
+      ${d.experience.map(e => `
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+          <span style="font-weight:700;color:#111827;font-size:13px;">${esc(e.title)} @ ${esc(e.company)}</span>
+          <span style="font-size:11px;color:#6b7280;">${esc(e.date)}</span>
+        </div>
+        <ul style="margin-bottom:10px;">${e.bullets.map(b => `<li style="font-size:11px;color:#4b5563;list-style:none;padding-left:14px;">→ ${esc(b)}</li>`).join("")}</ul>
+      `).join("")}
+      <div style="${h2}">// Skills</div>${rule}
+      <div style="font-size:12px;line-height:2;color:#374151;">${d.skills.map(esc).join("  ·  ")}</div>
+    </div>
+  `);
+}
+
+// ── 17. Pulse ────────────────────────────────────────────────────────────────
+export function Pulse(d: PreviewData) {
+  const rose = "#e11d48";
+  const h2 = `font-size:11px;font-weight:800;color:${rose};text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 4px;`;
+  const rule = `<div style="border-top:2.5px solid ${rose};margin-bottom:8px;"></div>`;
+  return wrap(`body{font-family:Arial,sans-serif;display:flex;min-height:100vh;}`, `
+    <div style="width:16px;background:${rose};flex-shrink:0;min-height:100vh;"></div>
+    <div style="padding:${PAD};flex:1;">
+      <div style="font-size:32px;font-weight:900;color:#0f172a;letter-spacing:-0.5px;">${esc(d.name)}</div>
+      <div style="font-size:13px;color:${rose};margin-top:4px;font-weight:600;">${esc(d.title)}</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">${contact(d)}</div>
+      <div style="${h2}">Profile</div>${rule}
+      ${prose(d.summary, "margin-bottom:16px;")}
+      <div style="${h2}">Experience</div>${rule}
+      ${d.experience.map(e => `
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+          <span style="font-weight:700;color:#111827;font-size:13px;">${esc(e.title)}</span>
+          <span style="font-size:11px;color:#6b7280;">${esc(e.date)}</span>
+        </div>
+        <div style="font-size:11px;color:${rose};font-weight:600;margin-bottom:4px;">${esc(e.company)}</div>
+        <ul style="margin-bottom:10px;">${e.bullets.map(b => `<li style="font-size:11px;color:#4b5563;">${esc(b)}</li>`).join("")}</ul>
+      `).join("")}
+      <div style="${h2}">Skills</div>${rule}
+      <div style="font-size:12px;line-height:2;color:#374151;">${d.skills.map(esc).join("  ·  ")}</div>
+    </div>
+  `);
+}
+
+// ── 18. HexagonPro ───────────────────────────────────────────────────────────
+export function HexagonPro(d: PreviewData) {
+  const blue = "#0ea5e9";
+  const chip = (s: string) => `<span style="background:#e0f2fe;color:${blue};border-radius:20px;padding:3px 10px;font-size:11px;font-weight:500;margin:2px;display:inline-block;">${esc(s)}</span>`;
+  const secH = (title: string) => `
+    <div style="display:flex;align-items:center;gap:8px;margin:18px 0 4px;">
+      <div style="width:18px;height:18px;border-radius:50%;background:${blue};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <div style="width:6px;height:6px;border-radius:50%;background:#fff;"></div>
+      </div>
+      <div style="font-size:11px;font-weight:800;color:#0f172a;text-transform:uppercase;letter-spacing:1.5px;">${title}</div>
+      <div style="flex:1;height:1.5px;background:#e2e8f0;"></div>
+    </div>`;
+  return wrap(`body{padding:${PAD};font-family:Arial,sans-serif;}`, `
+    <div style="text-align:center;padding-bottom:12px;border-bottom:2px solid #e0f2fe;">
+      <div style="font-size:30px;font-weight:800;color:#0f172a;letter-spacing:-0.5px;">${esc(d.name)}</div>
+      <div style="font-size:13px;color:${blue};margin-top:4px;font-weight:500;">${esc(d.title)}</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:6px;">${contact(d)}</div>
+    </div>
+    ${secH("Professional Summary")}
+    ${prose(d.summary, "margin-bottom:16px;")}
+    ${secH("Experience")}
+    ${d.experience.map(e => `
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+        <span style="font-weight:700;color:#111827;font-size:13px;">${esc(e.title)}</span>
+        <span style="font-size:11px;color:#6b7280;">${esc(e.date)}</span>
+      </div>
+      <div style="font-size:11px;color:${blue};font-weight:500;margin-bottom:4px;">${esc(e.company)}</div>
+      <ul style="margin-bottom:10px;">${e.bullets.map(b => `<li style="font-size:11px;color:#4b5563;">${esc(b)}</li>`).join("")}</ul>
+    `).join("")}
+    ${secH("Skills")}
+    <div style="margin-top:4px;">${d.skills.map(chip).join("")}</div>
+  `);
+}
+
+// ── 19. SalesImpact ──────────────────────────────────────────────────────────
+export function SalesImpact(d: PreviewData) {
+  const red = "#dc2626";
+  const h2 = `font-size:11px;font-weight:800;color:${red};text-transform:uppercase;letter-spacing:1.5px;margin:18px 0 4px;`;
+  const rule = `<div style="border-top:2.5px solid ${red};margin-bottom:8px;"></div>`;
+  return wrap(`body{font-family:Arial,sans-serif;}`, `
+    <div style="background:${red};padding:${PAD_HEADER};">
+      <div style="font-size:34px;font-weight:900;color:#fff;letter-spacing:-0.5px;">${esc(d.name)}</div>
+      <div style="font-size:14px;color:#fecaca;margin-top:4px;font-weight:600;">${esc(d.title)}</div>
+      <div style="font-size:11px;color:#fca5a5;margin-top:6px;">${contact(d)}</div>
+    </div>
+    <div style="padding:20px 36px;">
+      <div style="${h2}">Value Proposition</div>${rule}
+      ${prose(d.summary, "margin-bottom:16px;")}
+      <div style="${h2}">Sales Experience</div>${rule}
+      ${d.experience.map(e => `
+        <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+          <span style="font-weight:700;color:#111827;font-size:13px;">${esc(e.title)}</span>
+          <span style="font-size:11px;color:#6b7280;">${esc(e.date)}</span>
+        </div>
+        <div style="font-size:12px;color:${red};font-weight:700;margin-bottom:4px;">${esc(e.company)}</div>
+        <ul style="margin-bottom:10px;">${e.bullets.map(b => `<li style="font-size:11px;color:#4b5563;">${esc(b)}</li>`).join("")}</ul>
+      `).join("")}
+      <div style="${h2}">Core Competencies</div>${rule}
+      <div style="font-size:12px;line-height:2;color:#374151;">${d.skills.map(esc).join("  ·  ")}</div>
+    </div>
+  `);
+}
+
+// ── 20. Healthcare ───────────────────────────────────────────────────────────
+export function Healthcare(d: PreviewData) {
+  const teal = "#0891b2";
+  const sec = (title: string, content: string) => `
+    <div style="background:#f0f9ff;border-left:3px solid ${teal};padding:5px 12px;margin:16px 0 8px;">
+      <div style="font-size:10px;font-weight:800;color:${teal};text-transform:uppercase;letter-spacing:1.5px;">${title}</div>
+    </div>
+    ${content}`;
+  return wrap(`body{padding:${PAD};font-family:Arial,sans-serif;}`, `
+    <div style="border-top:3px solid ${teal};padding-top:12px;margin-bottom:16px;">
+      <div style="font-size:28px;font-weight:800;color:#0f172a;">${esc(d.name)}</div>
+      <div style="font-size:13px;color:${teal};margin-top:3px;font-weight:600;">${esc(d.title)}</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:4px;">${contact(d)}</div>
+    </div>
+    ${sec("Professional Summary", prose(d.summary, "margin-bottom:8px;"))}
+    ${sec("Experience", d.experience.map(e => `
+      <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+        <span style="font-weight:700;color:#111827;font-size:13px;">${esc(e.title)}</span>
+        <span style="font-size:11px;color:#6b7280;">${esc(e.date)}</span>
+      </div>
+      <div style="font-size:11px;color:${teal};font-weight:600;margin-bottom:4px;">${esc(e.company)}</div>
+      <ul style="margin-bottom:10px;">${e.bullets.map(b => `<li style="font-size:11px;color:#4b5563;">${esc(b)}</li>`).join("")}</ul>
+    `).join(""))}
+    ${sec("Skills & Competencies", `<div style="font-size:12px;color:#374151;line-height:2;">${d.skills.map(esc).join("  ·  ")}</div>`)}
+  `);
+}
+
 // ── Registry ──────────────────────────────────────────────────────────────────
 export const TEMPLATE_HTML_FNS: Record<string, (d: PreviewData) => string> = {
   Cambridge, Horizon, Prestige, Catalyst, Admiral,
   Canvas, Swift, Jade, Prism, Vivid,
   Chronicle, Summit, Symmetry, Scholar, Luxe,
+  TechModern, Pulse, HexagonPro, SalesImpact, Healthcare,
 };
 
 export function getTemplateHtml(key: string, data: PreviewData): string {

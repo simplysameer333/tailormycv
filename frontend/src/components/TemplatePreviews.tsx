@@ -712,6 +712,15 @@ export function Luxe({ data = SAMPLE }: { data?: PreviewData }) {
   );
 }
 
+// 16-20. New templates — previews rendered via getTemplateHtml (iframes)
+// These stubs exist only to satisfy the TemplateInfo type; the component
+// field is unused at runtime (all previews use getTemplateHtml).
+export function TechModern({ data = SAMPLE }: { data?: PreviewData }) { return Cambridge({ data }); }
+export function Pulse({ data = SAMPLE }: { data?: PreviewData })      { return Jade({ data }); }
+export function HexagonPro({ data = SAMPLE }: { data?: PreviewData }) { return Horizon({ data }); }
+export function SalesImpact({ data = SAMPLE }: { data?: PreviewData }) { return Horizon({ data }); }
+export function Healthcare({ data = SAMPLE }: { data?: PreviewData }) { return Jade({ data }); }
+
 // ══════════════════════════════════════════════════════════════════════════════
 // TEMPLATE REGISTRY
 // ══════════════════════════════════════════════════════════════════════════════
@@ -749,6 +758,12 @@ export const ALL_TEMPLATES: TemplateInfo[] = [
   { key: "Symmetry",   name: "Symmetry",     component: Symmetry,   category: "Modern",    traits: ["Two-column","Balanced","Structured"],   bestFor: "PM, strategy, ops",     description: "Balanced equal columns — experience left, skills and education right.",      pages: 2, tier: "plus", accentColor: "#1e3a5f" },
   { key: "Scholar",    name: "Scholar",      component: Scholar,    category: "Classic",   traits: ["Serif","Academic","Formal"],            bestFor: "Academia, research",    description: "Traditional academic formatting for scholarly and research CVs.",            pages: 2, tier: "plus", accentColor: "#374151" },
   { key: "Luxe",       name: "Luxe",         component: Luxe,       category: "Executive", traits: ["Gold","Warm","Distinctive"],            bestFor: "Legal, luxury, arts",   description: "Warm gold decorative accents on cream — memorable and refined.",            pages: 2, tier: "plus", accentColor: "#b45309" },
+  // ── New templates (inspired by catalog concepts, original designs) ────────────
+  { key: "TechModern",  name: "Tech Modern",  component: TechModern,  category: "Modern",    traits: ["Dark header","Monospace","Green"],      bestFor: "Engineering, dev roles",  description: "Dark header with monospace typography and green accent — built for tech.",   pages: 2, tier: "plus", accentColor: "#10b981" },
+  { key: "Pulse",       name: "Pulse",        component: Pulse,       category: "Modern",    traits: ["Red bar","Bold","Energetic"],           bestFor: "Sales, startups, ops",    description: "Bold rose left bar with high-contrast typography — made to stand out.",      pages: 2, tier: "plus", accentColor: "#e11d48" },
+  { key: "HexagonPro",  name: "Hexagon Pro",  component: HexagonPro,  category: "Modern",    traits: ["Circle markers","Sky blue","Clean"],    bestFor: "Product, consulting",     description: "Circle-dot section markers with a sky-blue accent line — modern and crisp.", pages: 2, tier: "plus", accentColor: "#0ea5e9" },
+  { key: "SalesImpact", name: "Sales Impact", component: SalesImpact, category: "Creative",  traits: ["Red banner","Bold","Results-focused"],  bestFor: "Sales, business dev",     description: "Commanding red header — built to highlight metrics and achievements.",       pages: 2, tier: "plus", accentColor: "#dc2626" },
+  { key: "Healthcare",  name: "Healthcare",   component: Healthcare,  category: "Classic",   traits: ["Teal","Structured","Clinical"],         bestFor: "Healthcare, nursing",     description: "Teal-accented section blocks with a clean clinical structure.",              pages: 2, tier: "plus", accentColor: "#0891b2" },
 ];
 
 export const CATEGORY_COLORS: Record<string, string> = {

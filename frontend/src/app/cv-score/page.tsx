@@ -213,7 +213,14 @@ export default function CvScorePage() {
         </p>
       </div>
 
-      {/* ── What we'll analyse — shown BEFORE upload so user knows what's coming ── */}
+      {/* ── Upload ── */}
+      <UploadZone
+        file={file} isDragActive={isDragActive}
+        getRootProps={getRootProps} getInputProps={getInputProps}
+        loading={loading} onCheck={handleCheck}
+      />
+
+      {/* ── What we'll analyse — shown BELOW upload ── */}
       <div>
         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center mb-4">
           What we&apos;ll analyse
@@ -235,13 +242,6 @@ export default function CvScorePage() {
           Analysis takes around 30–60 seconds · Results are shareable via a permanent link
         </p>
       </div>
-
-      {/* ── Upload ── */}
-      <UploadZone
-        file={file} isDragActive={isDragActive}
-        getRootProps={getRootProps} getInputProps={getInputProps}
-        loading={loading} onCheck={handleCheck}
-      />
 
       {/* ── Loading overlay ── */}
       {loading && (

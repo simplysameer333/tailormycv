@@ -128,11 +128,12 @@ class TemplateConfig:
     accent: str           # hex, no '#'
     header: str           # centered | banner | serif-centered | left
     font: str             # font family name
-    heading: str          # rule | colored | left-border | double-rule | gold-rule
+    heading: str          # rule | colored | left-border | double-rule | gold-rule | circle-marker
     compact: bool         # reduced spacing for 1-page dense layouts
-    layout: str           # single | sidebar | two-equal
-    sidebar_color: str    # sidebar background hex (sidebar / two-equal layouts)
+    layout: str           # single | sidebar | two-equal | left-bar
+    sidebar_color: str    # sidebar background hex (sidebar / two-equal / left-bar layouts)
     sidebar_ratio: float  # sidebar share of content width (e.g. 0.32)
+    banner_bg: str = ""   # override banner background colour (defaults to accent)
 
 
 _MM_TO_TWIPS = 56.7
@@ -200,6 +201,28 @@ _CONFIGS: dict[str, TemplateConfig] = {
         accent="b45309", header="serif-centered",font="Georgia",           heading="gold-rule",
         compact=False, layout="single",   sidebar_color="", sidebar_ratio=0.0,
     ),
+    # ── New templates ──────────────────────────────────────────────────────────
+    "TechModern": TemplateConfig(
+        accent="10b981", header="banner",        font="Courier New",       heading="colored",
+        compact=False, layout="single",   sidebar_color="", sidebar_ratio=0.0,
+        banner_bg="0f172a",   # dark banner, green accent headings
+    ),
+    "Pulse": TemplateConfig(
+        accent="e11d48", header="left",          font="Calibri",           heading="rule",
+        compact=False, layout="left-bar", sidebar_color="e11d48", sidebar_ratio=0.035,
+    ),
+    "HexagonPro": TemplateConfig(
+        accent="0ea5e9", header="centered",      font="Calibri",           heading="circle-marker",
+        compact=False, layout="single",   sidebar_color="", sidebar_ratio=0.0,
+    ),
+    "SalesImpact": TemplateConfig(
+        accent="dc2626", header="banner",        font="Calibri",           heading="rule",
+        compact=False, layout="single",   sidebar_color="", sidebar_ratio=0.0,
+    ),
+    "Healthcare": TemplateConfig(
+        accent="0891b2", header="centered",      font="Calibri",           heading="left-border",
+        compact=False, layout="single",   sidebar_color="", sidebar_ratio=0.0,
+    ),
 }
 
 
@@ -259,11 +282,12 @@ def _render_single(r: dict, cfg: TemplateConfig) -> bytes:
 
     # ── Header ────────────────────────────────────────────────────────────────
     if cfg.header == "banner":
+        banner_color = cfg.banner_bg if cfg.banner_bg else ac
         tbl = doc.add_table(rows=1, cols=1)
         _remove_table_borders(tbl)
         _set_table_width_twips(tbl, int(_CONTENT_W_MM * _MM_TO_TWIPS))
         cell = tbl.cell(0, 0)
-        _set_cell_bg(cell, ac)
+        _set_cell_bg(cell, banner_color)
         _set_cell_padding(cell, top=200, left=300, bottom=200, right=300)
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -328,6 +352,10 @@ def _render_single(r: dict, cfg: TemplateConfig) -> bytes:
         elif cfg.heading == "gold-rule":
             _para_border(p, ac, "bottom", 8)
             _add_run(p, title.upper(), size=10, bold=True, color=ac, font=fn)
+        elif cfg.heading == "circle-marker":
+            _add_run(p, "◉  ", size=10, bold=True, color=ac, font=fn)
+            _add_run(p, title.upper(), size=10, bold=True, color="0f172a", font=fn)
+            _para_border(p, "e2e8f0", "bottom", 4)
 
     # ── Bullet ────────────────────────────────────────────────────────────────
     def _bullet(text: str):
@@ -634,6 +662,121 @@ def _render_symmetry(r: dict, cfg: TemplateConfig) -> bytes:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Left-bar renderer  (Pulse)
+# Narrow decorative left bar (no content) + all content in right column
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _render_left_bar(r: dict, cfg: TemplateConfig) -> bytes:
+    doc = Document()
+    sec = doc.sections[0]
+    sec.page_width    = Mm(210)
+    sec.page_height   = Mm(297)
+    sec.left_margin   = Mm(0)
+    sec.right_margin  = Mm(0)
+    sec.top_margin    = Mm(0)
+    sec.bottom_margin = Mm(10)
+
+    contact  = r.get("contact", {})
+    fn       = cfg.font
+    ac       = cfg.accent
+    sc       = cfg.sidebar_color
+
+    BAR_MM     = int(210 * cfg.sidebar_ratio)    # narrow coloured bar
+    CONTENT_MM = 210 - BAR_MM
+    PAGE_TWIPS = int(210 * _MM_TO_TWIPS)
+    BAR_TWIPS  = int(BAR_MM * _MM_TO_TWIPS)
+    CON_TWIPS  = int(CONTENT_MM * _MM_TO_TWIPS)
+
+    tbl = doc.add_table(rows=1, cols=2)
+    _remove_table_borders(tbl)
+    _set_table_width_twips(tbl, PAGE_TWIPS)
+    tbl.allow_autofit = False
+
+    bar_cell  = tbl.cell(0, 0)
+    main_cell = tbl.cell(0, 1)
+    _set_cell_width_twips(bar_cell,  BAR_TWIPS)
+    _set_cell_width_twips(main_cell, CON_TWIPS)
+    _set_cell_bg(bar_cell, sc)
+    _set_cell_padding(bar_cell,  top=0, left=0, bottom=0, right=0)
+    _set_cell_padding(main_cell, top=240, left=300, bottom=200, right=300)
+
+    # Bar: empty — just the background colour stretches to content height
+    bp = bar_cell.paragraphs[0]
+    _sp(bp, after=0)
+
+    # Main column: full resume content
+    def _heading(title: str):
+        p = main_cell.add_paragraph()
+        _sp(p, before=8, after=2)
+        _para_border(p, ac, "bottom", 6)
+        _add_run(p, title.upper(), size=10, bold=True, color=ac, font=fn)
+
+    def _bullet(text: str):
+        p = main_cell.add_paragraph()
+        _sp(p, after=1)
+        run = p.add_run(f"•  {text}")
+        run.font.size = Pt(10)
+        run.font.name = fn
+
+    # Name header in main column
+    p0 = main_cell.paragraphs[0]
+    _sp(p0, before=0, after=2)
+    _add_run(p0, r.get("name", ""), size=22, bold=True, color=ac, font=fn)
+    p1 = main_cell.add_paragraph()
+    _sp(p1, after=2)
+    _add_run(p1, r.get("contact", {}).get("email", "") or "", size=9, color="6b7280", font=fn)
+    p2 = main_cell.add_paragraph()
+    _sp(p2, after=8)
+    _add_run(p2, _contact_str(contact), size=9, color="6b7280", font=fn)
+
+    if r.get("summary"):
+        _heading("Professional Summary")
+        p = main_cell.add_paragraph(r["summary"])
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        _sp(p, after=4)
+        for run in p.runs:
+            run.font.size = Pt(10)
+            run.font.name = fn
+
+    if r.get("experience"):
+        _heading("Experience")
+        for job in r["experience"]:
+            p = main_cell.add_paragraph()
+            _sp(p, after=1)
+            _add_run(p, job.get("role", ""), size=10.5, bold=True, color="111827", font=fn)
+            _add_run(p, f"  ·  {job.get('company', '')}", size=10.5, font=fn)
+            p2 = main_cell.add_paragraph()
+            _sp(p2, after=2)
+            _add_run(p2, job.get("dates", ""), size=9, italic=True, color="6b7280", font=fn)
+            for b in job.get("bullets", []):
+                _bullet(b)
+            main_cell.add_paragraph().paragraph_format.space_after = Pt(2)
+
+    if r.get("education"):
+        _heading("Education")
+        for ed in r["education"]:
+            p = main_cell.add_paragraph()
+            _sp(p, after=1)
+            _add_run(p, ed.get("degree", ""), size=10.5, bold=True, color="111827", font=fn)
+            _add_run(p, f"  ·  {ed.get('institution', '')}", size=10, font=fn)
+            p2 = main_cell.add_paragraph()
+            _sp(p2, after=4)
+            _add_run(p2, ed.get("dates", ""), size=9, italic=True, color="6b7280", font=fn)
+
+    for sec_data in r.get("sections", []):
+        title = sec_data.get("title", "")
+        items = sec_data.get("items", [])
+        if title and items:
+            _heading(title)
+            for item in items:
+                _bullet(item)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Public entry point
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -655,4 +798,6 @@ def generate_docx_from_key(
         return _render_sidebar(resume_data, cfg)
     if cfg.layout == "two-equal":
         return _render_symmetry(resume_data, cfg)
+    if cfg.layout == "left-bar":
+        return _render_left_bar(resume_data, cfg)
     return _render_single(resume_data, cfg)
