@@ -60,11 +60,11 @@ The candidate's existing resume may already contain strong, specific content. Yo
 - Prefer minimal edits over rewrites — change only what genuinely improves the candidate's positioning for this role
 
 ## PROFESSIONAL SUMMARY RULES
-Write exactly 3–4 sentences using this structure:
+Follow the sentence count in the PAGE COUNT rules below (2 for 1-page, 3 for 2-page). Build it from this structure, in order, dropping the later optional points first when the count is tighter:
   1. Who the candidate is: title + years of experience + core domain/specialisation
   2. Their strongest relevant capability for THIS role (use a JD keyword)
   3. A concrete proof point or achievement that validates the fit (with a number if available)
-  4. (Optional) What they bring to this employer specifically, or their next-step ambition
+  4. (Optional, 2-page/15+ years only) What they bring to this employer specifically, or their next-step ambition
 Forbidden phrases: "results-driven", "passionate about", "detail-oriented", "team player", "dynamic", "seasoned professional". Replace with specific facts.
 
 ## BULLET POINT RULES
@@ -77,8 +77,21 @@ Forbidden phrases: "results-driven", "passionate about", "detail-oriented", "tea
 - Bullet text must be clean plain text — no leading dashes, hyphens, or asterisks; the renderer adds the bullet marker
 - Quantify every achievement the source data supports: percentages, currency, headcount, timelines, rankings, NPS scores, uptime SLAs
 - Each bullet describes a distinct achievement — not a copy of the job description
-- Write exactly 3 bullets per role. For the single most recent or most relevant role only, write 4 bullets if there are 4 genuinely distinct strong achievements. Never exceed 4 bullets for any role.
-- Prefer fewer, stronger bullets over padding with weak ones
+- Prefer fewer, stronger bullets over padding with weak ones — a weak filler bullet hurts more than a missing one
+
+## INVERTED-PYRAMID WEIGHTING — how a senior resume writer allocates space
+Recruiters care most about the last 5 years. Concentrate detail on recent, relevant roles and taper older ones:
+- The most recent (or most JD-relevant) role gets the MOST bullets and the strongest achievements.
+- Each older role gets progressively fewer bullets.
+- Roles older than ~12 years get 1–2 bullets, or a single summary line, or are omitted if irrelevant to the target role.
+- Never give an old, junior role the same weight as the current senior one.
+Exact per-role bullet counts are specified in the PAGE COUNT rules below — follow them precisely.
+
+## SKILLS RULES — curate, never dump
+- A long skills list is a red flag: it signals keyword-stuffing and dilutes the candidate's real strengths. A focused list reads as senior and intentional.
+- Select ONLY the most relevant skills for THIS target role — prioritise in this order: (1) skills that appear in the JD and the candidate can credibly claim, (2) key_skills from the candidate profile, (3) the candidate's strongest differentiating technical skills.
+- Drop generic/obvious skills (e.g. "Microsoft Word", "Email", "Teamwork") and anything not relevant to the target role.
+- Exact skill counts are specified in the PAGE COUNT rules below — treat them as a hard cap, not a target to pad toward.
 
 ## PAGE COUNT — HARD TEMPLATE CONSTRAINT
 {page_rules}
@@ -167,35 +180,39 @@ async def _get_anthropic_evaluator_base() -> str:
 
 
 def _page_rules(pages: int) -> str:
-    """Return hard page-count rules for the generator based on the selected template."""
+    """Return hard page-count rules for the generator based on the selected template.
+
+    Counts reflect senior resume-writing best practice: tight skills lists,
+    inverted-pyramid bullet weighting (recent roles get more, older taper),
+    and never dropping a section to fit — compress within sections instead.
+    """
     if pages == 1:
         return (
             "The selected template fits exactly **1 A4 page**. This is a non-negotiable hard limit.\n"
-            "You are a senior CV writer. NEVER remove sections (Education, Certifications, Awards, Languages, etc.) "
-            "to save space — that is never acceptable. Instead, compress content within every section:\n\n"
-            "COMPRESSION STRATEGY (apply in order until it fits):\n"
-            "1. Summary: 2 sentences maximum — strip to the most impactful claim only\n"
-            "2. Experience: most recent 3 roles only; older roles omitted from the list (not their section)\n"
-            "3. Bullets: exactly 2 per role, 3 only for the most recent role — each max 10 words\n"
-            "4. Skills: maximum 8 — strongest and most relevant only\n"
-            "5. Education: include all entries but degree + institution + year on one line each\n"
-            "6. Other sections (Certifications, Awards): 1 line per entry, most relevant only\n\n"
-            "Sections must all appear. Content within them is compressed to fit."
+            "You are a senior CV writer. NEVER remove a section (Education, Certifications, Awards, Languages, etc.) "
+            "to save space — compress content WITHIN sections instead. Apply these exact counts:\n\n"
+            "- Summary: 2 sentences maximum — the single most impactful positioning only.\n"
+            "- Skills: 6–8 maximum. Hard cap. Only the most JD-relevant and differentiating skills. Never pad toward the cap.\n"
+            "- Experience: show the 3 most recent / most relevant roles. Older roles → one summary line each, or omit if irrelevant.\n"
+            "- Bullets (inverted pyramid): most recent role 3–4 bullets · 2nd role 2–3 · 3rd role 1–2.\n"
+            "- Each bullet: 1 line, maximum 18 words. Cut filler words ruthlessly.\n"
+            "- Education: all entries, one line each (degree · institution · year).\n"
+            "- Other sections (Certifications, Awards, Languages): include but keep to 1 line per entry; most relevant only.\n\n"
+            "All sections appear; only the content density changes to fit one page."
         )
     else:
         return (
-            "The selected template fits exactly **2 A4 pages**. This is a non-negotiable hard limit.\n"
-            "You are a senior CV writer. NEVER remove sections (Education, Certifications, Awards, Languages, etc.) "
-            "to save space — a missing section is always worse than a compressed one. Instead:\n\n"
-            "COMPRESSION STRATEGY (apply in order until it fits):\n"
-            "1. Summary: exactly 3 sentences — no more\n"
-            "2. Experience: at most 5 roles; for 6+ role careers, keep the 5 most recent/relevant\n"
-            "3. Bullets: exactly 3 per role; 4 only for the most recent role with distinct achievements\n"
-            "4. Each bullet: maximum 18 words — be concise\n"
-            "5. Skills: maximum 12 — strongest and most relevant\n"
-            "6. Roles older than 12 years: compress to 2 bullets; do not remove the role entirely\n"
-            "7. Education, Certifications, Awards: include all but keep each entry to 1–2 lines\n\n"
-            "Sections must all appear. A tight, well-curated 2-page CV always beats a padded 3-page one."
+            "The selected template fits exactly **2 A4 pages**. This is a non-negotiable hard limit — fill 2 pages well, never spill to a 3rd.\n"
+            "You are a senior CV writer. NEVER remove a section to save space — a missing section is always worse than a compressed one. "
+            "Apply these exact counts:\n\n"
+            "- Summary: 3 sentences (4 only if the candidate has 15+ years and each sentence earns its place).\n"
+            "- Skills: 8–10 maximum. Hard cap. Prioritise JD-relevant + key_skills + strongest differentiators. A long dump signals keyword-stuffing — keep it tight.\n"
+            "- Experience: show the 4–5 most recent / most relevant roles; for 6+ role careers keep the best 5.\n"
+            "- Bullets (inverted pyramid): most recent role 4–5 bullets · mid roles 3 · oldest shown roles 2 · roles >12 years 1–2 (never remove the role).\n"
+            "- Each bullet: maximum 22 words — concise and impactful.\n"
+            "- Education: all entries, 1–2 lines each.\n"
+            "- Other sections (Certifications, Awards, Languages, Projects): include all; keep each entry concise (1–2 lines).\n\n"
+            "All sections appear. A tight, well-curated 2-page CV always beats a padded 3-page one."
         )
 
 
