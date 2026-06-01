@@ -208,20 +208,40 @@ export default function CvScoreResultPage() {
       </div>
 
       {/* Overall score */}
-      <div className={`card ${c.border} ${c.bg} flex flex-col sm:flex-row items-center sm:items-start gap-5 p-6`}>
-        <ScoreCircle score={result.overall_score} />
-        <div className="text-center sm:text-left">
+      <div className={`card ${c.border} ${c.bg} flex flex-col sm:flex-row items-center sm:items-stretch gap-5 p-5 sm:p-6`}>
+        {/* Score circle */}
+        <div className="flex flex-col items-center justify-center shrink-0">
+          <ScoreCircle score={result.overall_score} />
+        </div>
+        {/* Summary */}
+        <div className="flex-1 min-w-0 text-center sm:text-left flex flex-col justify-center">
           <h2 className="text-xl font-bold text-slate-900">
             {result.overall_score >= 80 ? "Strong CV" :
              result.overall_score >= 60 ? "Good CV — room to improve" :
              result.overall_score >= 40 ? "Needs some work" : "Significant improvements needed"}
           </h2>
-          <p className="text-slate-600 text-sm mt-1 max-w-md">{result.summary}</p>
+          <p className="text-slate-600 text-sm mt-1">{result.summary}</p>
           {!canSeeImprovements && (
-            <Link href="/auth/register" className="inline-flex items-center gap-1.5 mt-3 text-sm font-semibold text-brand-600 hover:text-brand-700">
+            <Link href="/auth/register" className="inline-flex items-center gap-1.5 mt-3 text-sm font-semibold text-brand-600 hover:text-brand-700 self-center sm:self-start">
               Upgrade to Plus for detailed fixes <FiArrowRight className="w-4 h-4" />
             </Link>
           )}
+        </div>
+        {/* Category mini scores */}
+        <div className="hidden sm:flex flex-col justify-center gap-1.5 shrink-0 border-l border-slate-200/60 pl-5 min-w-[160px]">
+          {result.categories.map(cat => {
+            const cc = scoreColor(cat.score);
+            const label = cat.key === "ats" ? "ATS" : cat.name.split(" ")[0];
+            return (
+              <div key={cat.key} className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-500 w-[72px] shrink-0">{label}</span>
+                <div className="flex-1 h-1.5 bg-white/70 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${cc.bar}`} style={{ width: `${cat.score}%` }} />
+                </div>
+                <span className={`text-[11px] font-bold ${cc.text} w-6 text-right shrink-0`}>{cat.score}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 

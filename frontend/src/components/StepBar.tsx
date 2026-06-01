@@ -6,9 +6,8 @@ const STEPS = [
   { label: "Upload",   href: "/builder/upload" },
   { label: "Profile",  href: "/builder/profile" },
   { label: "Job",      href: "/builder/job" },
-  { label: "Template", href: "/builder/template" },
   { label: "Preview",  href: "/builder/preview" },
-  { label: "Download", href: "/builder/download" },
+  { label: "Template", href: "/builder/template" },
 ];
 
 export default function StepBar() {

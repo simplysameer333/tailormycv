@@ -660,12 +660,26 @@ export default function PreviewPage() {
         </div>
       </div>
 
+      {/* Additional Instructions */}
+      <div className="card p-4">
+        <label className="text-sm font-semibold text-slate-800">
+          Additional Instructions <span className="text-xs font-normal text-slate-400">(optional)</span>
+        </label>
+        <p className="text-xs text-slate-500 mt-0.5 mb-2">Used when regenerating — e.g. &ldquo;Focus on leadership experience&rdquo; or &ldquo;I&apos;m switching to product management&rdquo;.</p>
+        <textarea
+          className="input resize-none text-sm h-20"
+          placeholder={`e.g. "Emphasise open-source work", "I'm switching to product management"`}
+          defaultValue={typeof window !== "undefined" ? (localStorage.getItem("tailormycv_instructions") ?? "") : ""}
+          onChange={(e) => localStorage.setItem("tailormycv_instructions", e.target.value)}
+        />
+      </div>
+
       <div className="flex justify-between pt-2">
         <button onClick={() => router.back()} className="btn-secondary">
           ← Back
         </button>
-        <button onClick={() => router.push("/builder/download")} className="btn-primary">
-          Generate Files →
+        <button onClick={() => router.push("/builder/template")} className="btn-primary">
+          Choose Template →
         </button>
       </div>
     </div>
