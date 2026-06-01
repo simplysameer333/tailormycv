@@ -128,16 +128,15 @@ function GalleryCard({
 function TemplateModal({
   info, previewData, isSelected, onSelect, onClose,
 }: {
-  info: TemplateWithId; previewData: PreviewData;
+  info: TemplateWithId; previewData: PreviewData | null;
   isSelected: boolean; onSelect: () => void; onClose: () => void;
 }) {
-  // Larger scale so text is actually readable in the preview
   const SCALE    = 0.62;
   const IFRAME_W = 794;
-  const PREVIEW_W = Math.round(IFRAME_W * SCALE);        // ≈ 492px
-  const PREVIEW_H = Math.round(IFRAME_W * 1.414 * SCALE); // ≈ 696px
-  const html = getTemplateHtml(info.key, previewData);
-  const isPersonalised = previewData.name !== SAMPLE_THUMB.name;
+  const PREVIEW_W = Math.round(IFRAME_W * SCALE);
+  const PREVIEW_H = Math.round(IFRAME_W * 1.414 * SCALE);
+  const html = previewData ? getTemplateHtml(info.key, previewData) : "";
+  const isPersonalised = !!(previewData?.name);
   const hdr = CATEGORY_HEADER[info.category] ?? CATEGORY_HEADER["Classic"];
 
   return (
@@ -293,7 +292,7 @@ export default function TemplatePage() {
   const [detailId, setDetailId]               = useState<string | null>(null); // which template is previewed
   const [generatedResume, setGeneratedResume] = useState<GeneratedResume | null>(null);
   const [evalSummary, setEvalSummary]         = useState<EvalSummary | null>(null);
-  const [previewData, setPreviewData]         = useState<PreviewData>(SAMPLE_THUMB);
+  const [previewData, setPreviewData]         = useState<PreviewData | null>(null);
 
   const [exporting, setExporting] = useState(false);
   const [files, setFiles]         = useState<ExportResult | null>(null);

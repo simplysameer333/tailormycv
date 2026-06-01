@@ -256,6 +256,7 @@ async def check_resume_quality(
             "overall_score": result.get("overall_score", 0),
             "file_ext":      file_ext,
             "result":        result,      # full JSON result for permalink page
+            "raw_text":      parsed["raw_text"],   # stored so profile can be re-extracted later
             "extracted_profile": extract_contact_regex(parsed["raw_text"]),
             "categories": [
                 {"key": c.get("key"), "score": c.get("score", 0), "status": c.get("status")}
@@ -298,4 +299,13 @@ async def get_check_result(result_id: str):
     doc = await db.cv_check_results.find_one({"_id": result_id})
     if not doc:
         raise HTTPException(404, "Result not found or has expired.")
-    return doc["result"] | {"result_id": result_id, "extracted_profile": doc.get("extracted_profile")}
+
+    # Always return a computed extracted_profile.
+    # If the stored profile lacks sections (old result) and we have raw_text,
+    # re-extract the full profile now so the template preview shows real CV data.
+    extracted = doc.get("extracted_profile") or {}
+    raw_text  = doc.get("raw_text", "")
+    if raw_text and not extracted.get("sections"):
+        extracted = extract_contact_regex(raw_text)
+
+    return doc["result"] | {"result_id": result_id, "extracted_profile": extracted}

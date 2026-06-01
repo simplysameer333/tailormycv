@@ -783,10 +783,8 @@ export function TemplateThumbnail({
   info: TemplateInfo; isSelected: boolean; onClick: () => void;
   locked?: boolean; data?: PreviewData;
 }) {
-  // Thumbnails use condensed data so structure shows clearly at small scale
-  const thumbData = data ? { ...SAMPLE_THUMB, name: data.name, title: data.title, email: data.email, skills: data.skills } : SAMPLE_THUMB;
   const html = useMemo(
-    () => getTemplateHtml(info.key, thumbData),
+    () => data ? getTemplateHtml(info.key, data) : "",
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [info.key, data?.name, data?.title]
   );
@@ -869,11 +867,11 @@ const LARGE_W     = a4W(LARGE_SCALE);
 export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?: PreviewData }) {
   // Large preview uses full data so it looks like a real complete document
   const html = useMemo(
-    () => getTemplateHtml(info.key, data ?? SAMPLE_THUMB),
+    () => data ? getTemplateHtml(info.key, data) : "",
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [info.key, data?.name, data?.title]
   );
-  const isPersonalised = !!(data?.name && data.name !== SAMPLE_THUMB.name);
+  const isPersonalised = !!(data?.name);
 
   return (
     <div className="flex flex-col sm:flex-row gap-5 items-start card border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4 shadow-sm">
@@ -959,43 +957,38 @@ export function TemplateSuggestions({ extractedProfile }: {
     ALL_TEMPLATES.find(t => t.key === "Swift")!,     // 1-page: dark header, ultra-dense
   ];
 
-  // Build PreviewData from extracted sections — whatever the resume contains.
-  // matchSection finds sections by keyword so we don't assume fixed names.
+  // Build full PreviewData from the extracted profile — no demo data fallback.
+  // matchSection finds whichever sections the resume actually contains.
   const hasRealProfile = !!(extractedProfile?.name && extractedProfile.name.trim());
 
-  const previewData: PreviewData = (() => {
-    if (!hasRealProfile) return SAMPLE_THUMB;
+  const previewData: PreviewData | null = (() => {
+    if (!hasRealProfile) return null;
 
     const secs = extractedProfile!.sections ?? [];
 
-    // Summary — match any section that looks like a profile/summary
     const summarySection = matchSection(secs, ["summary", "profile", "about", "objective", "statement"]);
-    const summary = summarySection?.items.join(" ") || SAMPLE_THUMB.summary;
+    const summary = summarySection?.items.join(" ") || extractedProfile!.title || "";
 
-    // Skills — match any skills/competencies section; each item is a skill
     const skillsSection = matchSection(secs, ["skill", "competenc", "technolog", "expertise", "tool"]);
-    const skills = skillsSection?.items.length ? skillsSection.items : SAMPLE_THUMB.skills;
+    const skills = skillsSection?.items.length ? skillsSection.items : [];
 
-    // Experience — match work/career/employment sections
     const expSection = matchSection(secs, ["experience", "employment", "work", "career", "history", "role"]);
-    // Each item in the experience section is a flat string — group them into bullets
     const experience = expSection?.items.length
-      ? [{ title: extractedProfile!.title || "Role", company: "", date: "", bullets: expSection.items }]
-      : SAMPLE_THUMB.experience;
+      ? [{ title: extractedProfile!.title || "", company: "", date: "", bullets: expSection.items }]
+      : [];
 
-    // Education — match education/qualification/degree sections
     const eduSection = matchSection(secs, ["education", "qualification", "degree", "academic", "study"]);
     const education = eduSection?.items.length
       ? eduSection.items.map(item => ({ degree: item, school: "", year: "" }))
-      : SAMPLE_THUMB.education;
+      : [];
 
     return {
-      name:     extractedProfile!.name     || SAMPLE_THUMB.name,
-      title:    extractedProfile!.title    || SAMPLE_THUMB.title,
-      email:    extractedProfile!.email    || SAMPLE_THUMB.email,
-      phone:    extractedProfile!.phone    || SAMPLE_THUMB.phone,
-      location: SAMPLE_THUMB.location,
-      linkedin: extractedProfile!.linkedin || SAMPLE_THUMB.linkedin,
+      name:     extractedProfile!.name     || "",
+      title:    extractedProfile!.title    || "",
+      email:    extractedProfile!.email    || "",
+      phone:    extractedProfile!.phone    || "",
+      location: "",
+      linkedin: extractedProfile!.linkedin || "",
       summary,
       skills,
       experience,
@@ -1011,7 +1004,7 @@ export function TemplateSuggestions({ extractedProfile }: {
   const LARGE_H = a4H(LARGE_SCALE);
 
   const largeHtml = useMemo(
-    () => getTemplateHtml(selected.key, previewData),
+    () => previewData ? getTemplateHtml(selected.key, previewData) : "",
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [selected.key, extractedProfile?.name, extractedProfile?.title]
   );
@@ -1085,7 +1078,7 @@ export function TemplateSuggestions({ extractedProfile }: {
         {/* Thumbnail selector row */}
         <div className="grid grid-cols-4 gap-0 divide-x divide-slate-100">
           {shown.map((info, i) => {
-            const thumbHtml = getTemplateHtml(info.key, previewData);
+            const thumbHtml = previewData ? getTemplateHtml(info.key, previewData) : "";
             const isActive = i === selectedIdx;
             return (
               <button
