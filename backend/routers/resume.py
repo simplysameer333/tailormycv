@@ -17,6 +17,7 @@ Storage keys follow the convention:
     samples/<session_id>/<original_filename>
 """
 import logging
+import traceback
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from bson import ObjectId
 from datetime import datetime
@@ -25,6 +26,7 @@ from dependencies.auth import get_optional_user
 from services.resume_parser import parse_resume
 from services.storage import get_storage
 from services.resume_checker_service import check_resume as _check_resume
+from services.email_service import send_error_alert
 from config import settings
 
 router = APIRouter()
@@ -214,9 +216,11 @@ async def check_resume_quality(
     try:
         result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
     except ValueError as exc:
+        await send_error_alert("POST", "/api/resume/check", exc, traceback.format_exc())
         raise HTTPException(502, str(exc))
-    except Exception:
+    except Exception as exc:
         logger.exception("[cv_score] Unexpected error")
+        await send_error_alert("POST", "/api/resume/check", exc, traceback.format_exc())
         raise HTTPException(502, "CV analysis failed. Please try again.")
 
     # ── Track usage in MongoDB (fire-and-forget, never fails the request) ──
