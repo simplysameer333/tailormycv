@@ -246,23 +246,21 @@ function UploadPageInner() {
         </div>
       </div>
 
-      {/* ── Upload button ── */}
-      {file && (
-        <div className="flex justify-center">
-          <button
-            onClick={handleUpload}
-            disabled={uploading}
-            className="btn-primary text-base px-10 py-3 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {uploading
-              ? <span className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Analysing…
-                </span>
-              : "Upload & Continue →"}
-          </button>
-        </div>
-      )}
+      {/* ── Upload button — always visible, disabled until file selected ── */}
+      <div className="flex justify-center">
+        <button
+          onClick={handleUpload}
+          disabled={!file || uploading}
+          className="btn-primary text-base px-10 py-3 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {uploading
+            ? <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Analysing…
+              </span>
+            : "Upload & Continue →"}
+        </button>
+      </div>
 
       {/* ── What happens next ── */}
       <div className="space-y-4 pt-2">

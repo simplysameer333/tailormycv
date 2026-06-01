@@ -75,21 +75,25 @@ async def _resolve_profession(db, target_role: str) -> dict:
     return config
 
 
-async def _check_cost_limit(db, session_id: str, expected_calls: int) -> int:
-    """Return current ai_call_count. Raise 429 if adding expected_calls would exceed limit."""
+async def _check_cost_limit(db, session_id: str) -> int:
+    """Raise 429 if this session has already reached its AI call limit.
+
+    Checks current usage, not projected usage — allows the first generation
+    to always complete regardless of tier/evaluator count.
+    """
     if settings.max_ai_calls_per_session <= 0:
         return 0
     session = await db.sessions.find_one({"_id": ObjectId(session_id)}, {"ai_call_count": 1})
     current = (session or {}).get("ai_call_count", 0)
-    if current + expected_calls > settings.max_ai_calls_per_session:
+    if current >= settings.max_ai_calls_per_session:
         logger.warning(
-            "[generate] Session %s hit AI call limit: used=%d expected=%d limit=%d",
-            session_id, current, expected_calls, settings.max_ai_calls_per_session,
+            "[generate] Session %s at AI call limit: used=%d limit=%d",
+            session_id, current, settings.max_ai_calls_per_session,
         )
         import traceback
         await send_error_alert(
             "POST", "/api/generate",
-            Exception(f"Session {session_id} hit AI call limit: used={current} expected={expected_calls} limit={settings.max_ai_calls_per_session}"),
+            Exception(f"Session {session_id} at AI call limit: used={current} limit={settings.max_ai_calls_per_session}"),
             traceback.format_stack()[-1],
         )
         raise HTTPException(
@@ -189,7 +193,7 @@ async def generate(
                 403,
                 "Section-level regeneration is not available on your plan. Visit /settings/plan to upgrade.",
             )
-        await _check_cost_limit(db, session_id, 1)
+        await _check_cost_limit(db, session_id)
         try:
             result = await generator.run_section(
                 resume_text=resume_text,
@@ -216,10 +220,7 @@ async def generate(
     # Evaluator selection is tier-aware: Free=1, Plus=2, Pro=3 (subject to API key config).
     enabled_evaluators = _enabled_evaluators_for_tier(user_tier)
     active_evaluator_count = sum(enabled_evaluators.values())
-    calls_per_cycle = 1 + max(active_evaluator_count, 1)
-    job_analyzer_calls = 1 if has_jd else 0
-    estimated_calls = job_analyzer_calls + calls_per_cycle * settings.max_eval_cycles
-    await _check_cost_limit(db, session_id, estimated_calls)
+    await _check_cost_limit(db, session_id)
 
     initial_state = {
         "resume_text": resume_text,
