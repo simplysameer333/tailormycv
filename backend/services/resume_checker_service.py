@@ -7,6 +7,23 @@ import re
 
 from anthropic import AsyncAnthropic
 
+
+def extract_contact_regex(raw_text: str) -> dict:
+    """Extract basic contact fields from CV text without an LLM call."""
+    lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
+
+    email_m    = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", raw_text)
+    phone_m    = re.search(r"(?:\+\d{1,3}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,5}", raw_text)
+    linkedin_m = re.search(r"linkedin\.com/in/[\w\-]+", raw_text, re.IGNORECASE)
+
+    return {
+        "name":     lines[0] if lines else "",
+        "title":    lines[1] if len(lines) > 1 else "",
+        "email":    email_m.group(0)    if email_m    else "",
+        "phone":    phone_m.group(0)    if phone_m    else "",
+        "linkedin": linkedin_m.group(0) if linkedin_m else "",
+    }
+
 logger = logging.getLogger("tailormycv")
 
 _SYSTEM = (
@@ -25,31 +42,6 @@ Return this exact JSON structure with ALL 51 checks populated:
 {{
   "overall_score": <integer 0-100>,
   "summary": "<2-sentence overall assessment mentioning the strongest and weakest area>",
-  "extracted_profile": {{
-    "name": "<full name from CV, or empty string>",
-    "title": "<current or most recent job title, or empty string>",
-    "email": "<email address from CV, or empty string>",
-    "phone": "<phone number from CV, or empty string>",
-    "location": "<city/country from CV, or empty string>",
-    "linkedin": "<linkedin.com/in/slug URL, or empty string>",
-    "summary": "<professional summary text from CV, or empty string>",
-    "skills": ["<up to 12 skills listed in the CV>"],
-    "experience": [
-      {{
-        "title": "<job title>",
-        "company": "<company name>",
-        "date": "<date range e.g. Jan 2020 – Present>",
-        "bullets": ["<bullet 1>", "<bullet 2>", "<up to 4 bullets per role>"]
-      }}
-    ],
-    "education": [
-      {{
-        "degree": "<degree or qualification name>",
-        "school": "<institution name>",
-        "year": "<graduation year>"
-      }}
-    ]
-  }},
   "categories": [
     {{
       "key": "contact",
@@ -188,7 +180,7 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
 
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=7500,  # 51 checks + improvements + extracted_profile with experience
+        max_tokens=6000,  # 51 checks + improvements across 7 categories
         system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )

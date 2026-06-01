@@ -933,10 +933,7 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
 // CV Score — 4 template suggestions with large preview + clickable thumbnails
 export function TemplateSuggestions({ extractedProfile }: {
   extractedProfile?: {
-    name?: string; title?: string; email?: string; phone?: string;
-    location?: string; linkedin?: string; summary?: string; skills?: string[];
-    experience?: { title: string; company: string; date: string; bullets: string[] }[];
-    education?: { degree: string; school: string; year: string }[];
+    name?: string; title?: string; email?: string; phone?: string; linkedin?: string;
   };
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -948,19 +945,15 @@ export function TemplateSuggestions({ extractedProfile }: {
     ALL_TEMPLATES.find(t => t.key === "Swift")!,
   ];
 
-  // Use real CV fields where available, fall back to SAMPLE per-field
+  // Overlay real contact fields on top of SAMPLE — experience/skills stay as sample
   const previewData: PreviewData = extractedProfile ? {
-    name:       extractedProfile.name       || SAMPLE.name,
-    title:      extractedProfile.title      || SAMPLE.title,
-    email:      extractedProfile.email      || SAMPLE.email,
-    phone:      extractedProfile.phone      || SAMPLE.phone,
-    location:   extractedProfile.location   || SAMPLE.location,
-    linkedin:   extractedProfile.linkedin   || SAMPLE.linkedin,
-    summary:    extractedProfile.summary    || SAMPLE.summary,
-    skills:     extractedProfile.skills?.length     ? extractedProfile.skills     : SAMPLE.skills,
-    experience: extractedProfile.experience?.length ? extractedProfile.experience : SAMPLE.experience,
-    education:  extractedProfile.education?.length  ? extractedProfile.education  : SAMPLE.education,
-  } : SAMPLE;
+    ...SAMPLE_THUMB,
+    name:    extractedProfile.name     || SAMPLE_THUMB.name,
+    title:   extractedProfile.title    || SAMPLE_THUMB.title,
+    email:   extractedProfile.email    || SAMPLE_THUMB.email,
+    phone:   extractedProfile.phone    || SAMPLE_THUMB.phone,
+    linkedin: extractedProfile.linkedin || SAMPLE_THUMB.linkedin,
+  } : SAMPLE_THUMB;
 
   const isPersonalised = !!(extractedProfile?.name && extractedProfile.name !== SAMPLE.name);
   const selected = shown[selectedIdx];

@@ -9,6 +9,7 @@ import {
   FiAlertCircle, FiArrowRight, FiChevronDown, FiChevronUp,
   FiUser, FiFileText, FiBriefcase, FiTag, FiAward, FiCpu, FiLayout,
 } from "react-icons/fi";
+import { useEffect, useRef } from "react";
 import { checkResume, type ResumeCheckResult } from "@/lib/api";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
@@ -64,15 +65,26 @@ const CATEGORIES_INFO = [
 
 const HOW_IT_WORKS = [
   { step: "1", title: "Upload your CV", desc: "PDF or DOCX, up to 5 MB. No account needed." },
-  { step: "2", title: "AI analyses instantly", desc: "Our AI reviews 7 quality categories in under 20 seconds." },
+  { step: "2", title: "AI analyses your CV", desc: "Our AI reviews 7 quality categories across 51 checks. Takes around 30–60 seconds." },
   { step: "3", title: "Review your score", desc: "Get a full breakdown with specific, actionable improvements." },
 ];
 
 const WHY_CHECK = [
   { icon: FiShield, stat: "98%", label: "of employers use ATS",    desc: "Most CVs are filtered out before a human ever reads them." },
   { icon: FiTarget, stat: "3×",  label: "more interview callbacks", desc: "Tailored, well-structured CVs get significantly more responses." },
-  { icon: FiZap,    stat: "20s", label: "instant analysis",         desc: "Get the feedback a professional writer charges £100+ for — free." },
+  { icon: FiZap,    stat: "~45s", label: "thorough AI analysis",    desc: "A deep AI review across 51 checks — worth the wait." },
   { icon: FiStar,   stat: "51",  label: "individual checks",        desc: "7 categories · 51 checks across contact, summary, experience, skills, ATS, design." },
+];
+
+const LOADING_MESSAGES = [
+  { title: "Reading your CV…",               sub: "Extracting text and structure" },
+  { title: "Checking contact information…",  sub: "Name, email, phone, LinkedIn and location" },
+  { title: "Reviewing professional summary…", sub: "Clarity, length and impact" },
+  { title: "Evaluating work experience…",    sub: "Structure, quantification and action verbs" },
+  { title: "Scoring ATS compatibility…",     sub: "Section headings, keywords and formatting" },
+  { title: "Reviewing skills section…",      sub: "Technical depth and relevance to your role" },
+  { title: "Checking design and format…",    sub: "Length, visual hierarchy and consistency" },
+  { title: "Finalising your score…",         sub: "Compiling results across all 51 checks" },
 ];
 
 // ── upload zone ───────────────────────────────────────────────────────────────
@@ -120,7 +132,7 @@ function UploadZone({
           ? <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Analysing…</>
           : <>Score My CV — It&apos;s Free</>}
       </button>
-      <p className="text-center text-xs text-slate-400 mt-2">No sign-in required · Results in under 20 seconds</p>
+      <p className="text-center text-xs text-slate-400 mt-2">No sign-in required · Results in around 30–60 seconds</p>
     </div>
   );
 }
@@ -164,7 +176,7 @@ const FAQS = [
   },
   {
     q: "How long does the analysis take?",
-    a: "Typically 10–20 seconds. The AI reads your full CV and evaluates it across all 6 quality categories in a single pass using Claude AI.",
+    a: "Typically 30–60 seconds. The AI reads your full CV and runs 51 individual checks across 7 quality categories in a single pass using Claude AI. It's thorough — worth the wait.",
   },
   {
     q: "Does the CV Score need a job description?",
@@ -200,9 +212,25 @@ export default function CvScorePage() {
   const tier = session?.user?.tier ?? "free";
   const canSeeImprovements = hasFeature(tier, "pdf_export"); // Plus+
 
-  const [file, setFile]       = useState<File | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult]   = useState<ResumeCheckResult | null>(null);
+  const [file, setFile]         = useState<File | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState(0);
+  const [result, setResult]     = useState<ResumeCheckResult | null>(null);
+
+  // Rotate loading message every 7 s while analysing
+  const msgTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (loading) {
+      setLoadingMsg(0);
+      msgTimerRef.current = setInterval(
+        () => setLoadingMsg(n => (n + 1) % LOADING_MESSAGES.length),
+        7000,
+      );
+    } else {
+      if (msgTimerRef.current) clearInterval(msgTimerRef.current);
+    }
+    return () => { if (msgTimerRef.current) clearInterval(msgTimerRef.current); };
+  }, [loading]);
 
   const onDrop = useCallback((accepted: File[]) => {
     if (accepted[0]) { setFile(accepted[0]); setResult(null); }
@@ -251,7 +279,7 @@ export default function CvScorePage() {
         </div>
         <h1 className="text-4xl font-bold text-slate-900 mb-3">Free CV Score</h1>
         <p className="text-slate-500 text-base max-w-xl mx-auto">
-          Get an instant AI-powered quality score across 7 categories and 51 checks — ATS compatibility,
+          Get an AI-powered quality score across 7 categories and 51 checks — ATS compatibility,
           content quality, design, skills, experience and more. No sign-in required.
         </p>
 
@@ -276,6 +304,32 @@ export default function CvScorePage() {
         getRootProps={getRootProps} getInputProps={getInputProps}
         loading={loading} onCheck={handleCheck}
       />
+
+      {/* ── Loading overlay ── */}
+      {loading && (
+        <div className="card flex flex-col items-center justify-center py-12 gap-5">
+          <div className="relative w-14 h-14">
+            <div className="absolute inset-0 rounded-full border-4 border-brand-100" />
+            <div className="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
+          </div>
+          <div className="text-center max-w-xs">
+            <p className="font-semibold text-slate-800 text-base leading-snug">
+              {LOADING_MESSAGES[loadingMsg].title}
+            </p>
+            <p className="text-sm text-slate-500 mt-1">
+              {LOADING_MESSAGES[loadingMsg].sub}
+            </p>
+          </div>
+          <div className="flex gap-1.5">
+            {LOADING_MESSAGES.map((_, i) => (
+              <div key={i} className={`h-1 rounded-full transition-all duration-500 ${
+                i === loadingMsg ? "w-5 bg-brand-600" : "w-2 bg-slate-200"
+              }`} />
+            ))}
+          </div>
+          <p className="text-xs text-slate-400">Usually takes 30–60 seconds</p>
+        </div>
+      )}
 
       {/* ── Results ── */}
       {result && (

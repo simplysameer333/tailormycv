@@ -135,12 +135,7 @@ export interface ExtractedProfile {
   title: string;
   email: string;
   phone: string;
-  location: string;
   linkedin: string;
-  summary: string;
-  skills: string[];
-  experience: { title: string; company: string; date: string; bullets: string[] }[];
-  education: { degree: string; school: string; year: string }[];
 }
 
 export interface ResumeCheckResult {

@@ -26,7 +26,7 @@ from database import get_db
 from dependencies.auth import get_optional_user
 from services.resume_parser import parse_resume
 from services.storage import get_storage
-from services.resume_checker_service import check_resume as _check_resume
+from services.resume_checker_service import check_resume as _check_resume, extract_contact_regex
 from services.email_service import send_error_alert
 from config import settings
 
@@ -244,7 +244,8 @@ async def check_resume_quality(
         logger.warning("[cv_score] Failed to persist result: %s", exc)
         result_id = None
 
-    return {**result, "result_id": result_id}
+    extracted_contact = extract_contact_regex(parsed["raw_text"])
+    return {**result, "result_id": result_id, "extracted_profile": extracted_contact}
 
 
 @router.get("/resume/check/{result_id}")
