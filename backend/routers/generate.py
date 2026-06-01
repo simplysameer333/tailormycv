@@ -284,11 +284,11 @@ async def generate(
     try:
         final_state = await asyncio.wait_for(
             pipeline.ainvoke(initial_state),
-            timeout=150.0,  # 2.5 min hard ceiling — Railway HTTP timeout is 5 min
+            timeout=240.0,  # 4 min — Plus/Pro with 3 evaluators × 3 cycles can need ~200s
         )
     except asyncio.TimeoutError:
         logger.error("[generate] Pipeline timed out for session %s", session_id)
-        raise HTTPException(504, "Resume generation timed out. Please try again — it usually completes in 30–90 seconds.")
+        raise HTTPException(504, "Resume generation timed out. Please try again — it usually completes in 60–120 seconds.")
     except Exception as exc:
         logger.exception("[generate] Pipeline failed for session %s: %s", session_id, exc)
         raise HTTPException(500, f"Resume generation failed: {exc}")
