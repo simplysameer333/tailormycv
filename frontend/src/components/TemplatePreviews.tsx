@@ -947,11 +947,13 @@ export function TemplateSuggestions({ extractedProfile }: {
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
 
+  // Best 4 templates for showcasing: 2 × 2-page + 2 × 1-page
+  // Selected for maximum visual variety and impact with fully populated data
   const shown = [
-    ALL_TEMPLATES.find(t => t.key === "Cambridge")!,
-    ALL_TEMPLATES.find(t => t.key === "Horizon")!,
-    ALL_TEMPLATES.find(t => t.key === "Prism")!,
-    ALL_TEMPLATES.find(t => t.key === "Swift")!,
+    ALL_TEMPLATES.find(t => t.key === "Horizon")!,   // 2-page: bold blue banner
+    ALL_TEMPLATES.find(t => t.key === "Vivid")!,     // 2-page: purple sidebar + monogram
+    ALL_TEMPLATES.find(t => t.key === "Catalyst")!,  // 1-page: orange accent, bold
+    ALL_TEMPLATES.find(t => t.key === "Swift")!,     // 1-page: dark header, ultra-dense
   ];
 
   // Only show a real preview when we have an actual name from the uploaded CV.
@@ -1091,7 +1093,7 @@ export function TemplateSuggestions({ extractedProfile }: {
 
       <div className="flex items-center justify-between bg-brand-50 border border-brand-200 rounded-2xl px-5 py-4">
         <div>
-          <p className="font-semibold text-slate-800 text-sm">Tailor your CV and choose from 15 templates</p>
+          <p className="font-semibold text-slate-800 text-sm">Tailor your CV and choose from 20 professional templates</p>
           <p className="text-xs text-slate-500 mt-0.5">Upload your CV, add a job description, pick a style — done in minutes.</p>
         </div>
         <Link href="/builder/upload" className="btn-primary text-sm px-4 py-2 shrink-0 ml-4 flex items-center gap-1.5">
