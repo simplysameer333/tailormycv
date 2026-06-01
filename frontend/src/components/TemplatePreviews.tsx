@@ -928,7 +928,14 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
 }
 
 // CV Score — 4 template suggestions (2 one-page + 2 two-page)
-export function TemplateSuggestions() {
+export function TemplateSuggestions({ extractedProfile }: {
+  extractedProfile?: {
+    name?: string; title?: string; email?: string; phone?: string;
+    location?: string; linkedin?: string; summary?: string; skills?: string[];
+    experience?: { title: string; company: string; date: string; bullets: string[] }[];
+    education?: { degree: string; school: string; year: string }[];
+  };
+}) {
   const shown = [
     ALL_TEMPLATES.find(t => t.key === "Cambridge")!,
     ALL_TEMPLATES.find(t => t.key === "Swift")!,
@@ -936,19 +943,39 @@ export function TemplateSuggestions() {
     ALL_TEMPLATES.find(t => t.key === "Prism")!,
   ];
 
+  // Use real CV fields where available, fall back to SAMPLE_THUMB per-field
+  const previewData: PreviewData = extractedProfile ? {
+    name:       extractedProfile.name       || SAMPLE_THUMB.name,
+    title:      extractedProfile.title      || SAMPLE_THUMB.title,
+    email:      extractedProfile.email      || SAMPLE_THUMB.email,
+    phone:      extractedProfile.phone      || SAMPLE_THUMB.phone,
+    location:   extractedProfile.location   || SAMPLE_THUMB.location,
+    linkedin:   extractedProfile.linkedin   || SAMPLE_THUMB.linkedin,
+    summary:    extractedProfile.summary    || SAMPLE_THUMB.summary,
+    skills:     extractedProfile.skills?.length     ? extractedProfile.skills     : SAMPLE_THUMB.skills,
+    experience: extractedProfile.experience?.length ? extractedProfile.experience : SAMPLE_THUMB.experience,
+    education:  extractedProfile.education?.length  ? extractedProfile.education  : SAMPLE_THUMB.education,
+  } : SAMPLE_THUMB;
+
+  const isPersonalised = !!(extractedProfile?.name && extractedProfile.name !== SAMPLE_THUMB.name);
+
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="font-bold text-slate-900 text-lg">See your CV in our templates</h3>
+        <h3 className="font-bold text-slate-900 text-lg">
+          {isPersonalised ? "See your CV in our templates" : "See how your CV could look"}
+        </h3>
         <p className="text-sm text-slate-500 mt-1">
-          Choose from 1-page or 2-page layouts. Our AI builder applies your chosen template when tailoring for a job.
+          {isPersonalised
+            ? "Your name, title and skills have been applied to each template below."
+            : "Choose from 1-page or 2-page layouts. Our AI builder applies your chosen template when tailoring for a job."}
         </p>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {shown.map((info) => {
           const SUGG_SCALE = 0.25;
           const thumbH = Math.round(794 * 1.414 * SUGG_SCALE * 0.68); // top 68%
-          const html = getTemplateHtml(info.key, SAMPLE_THUMB);
+          const html = getTemplateHtml(info.key, previewData);
           return (
             <div key={info.key} className="card p-0 overflow-hidden hover:shadow-lg hover:border-brand-300 transition cursor-pointer rounded-2xl">
               <div style={{ height: thumbH, overflow: "hidden", position: "relative", background: "#fff" }}>

@@ -252,7 +252,7 @@ export default function CvScoreResultPage() {
       </div>
 
       {/* Template suggestions */}
-      <TemplateSuggestions />
+      <TemplateSuggestions extractedProfile={result.extracted_profile} />
 
       {/* CTA */}
       <div className="card text-center py-6">

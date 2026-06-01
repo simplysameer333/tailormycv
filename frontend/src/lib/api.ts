@@ -130,11 +130,25 @@ export interface CheckCategory {
   improvements: string[];
 }
 
+export interface ExtractedProfile {
+  name: string;
+  title: string;
+  email: string;
+  phone: string;
+  location: string;
+  linkedin: string;
+  summary: string;
+  skills: string[];
+  experience: { title: string; company: string; date: string; bullets: string[] }[];
+  education: { degree: string; school: string; year: string }[];
+}
+
 export interface ResumeCheckResult {
   overall_score: number;
   summary: string;
   categories: CheckCategory[];
   result_id?: string;  // UUID returned by the backend for permalink
+  extracted_profile?: ExtractedProfile;
 }
 
 export async function checkResume(file: File): Promise<ResumeCheckResult> {

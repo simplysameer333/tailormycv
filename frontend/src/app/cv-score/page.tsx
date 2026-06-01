@@ -478,7 +478,7 @@ export default function CvScorePage() {
           </div>
 
           {/* Template suggestions */}
-          <TemplateSuggestions />
+          <TemplateSuggestions extractedProfile={result.extracted_profile} />
 
           <div className="card text-center py-6">
             <p className="font-semibold text-slate-800 mb-1">Ready to tailor your CV for a specific job?</p>
