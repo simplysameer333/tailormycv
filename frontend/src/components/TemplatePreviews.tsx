@@ -20,6 +20,32 @@ export interface PreviewData {
   education: { degree: string; school: string; year: string }[];
 }
 
+// Condensed sample for thumbnails — shows template STYLE, not full content
+// Fewer bullets + fewer roles = clear structure at small scale
+export const SAMPLE_THUMB: PreviewData = {
+  name:     "Alex Johnson",
+  title:    "Senior Software Engineer",
+  email:    "alex.johnson@email.com",
+  phone:    "+44 7700 900 123",
+  location: "London, UK",
+  linkedin: "linkedin.com/in/alexjohnson",
+  summary:  "Software Engineer with 10+ years building scalable distributed systems. Led teams reducing infrastructure costs by $500K annually.",
+  skills:   ["Python", "TypeScript", "AWS", "Kubernetes", "PostgreSQL", "React", "Docker", "System Design"],
+  experience: [
+    { title: "Senior Software Engineer", company: "Google DeepMind", date: "2021 – Present",
+      bullets: ["Re-architected ML pipeline, reducing latency by 40%", "Built feature store serving 50M predictions/day"] },
+    { title: "Software Engineer", company: "Stripe", date: "2018 – 2021",
+      bullets: ["Built payment service processing $2B+ annually", "Improved test coverage from 45% to 92%"] },
+    { title: "Software Developer", company: "Genpact", date: "2015 – 2018",
+      bullets: ["Developed trading gateway for 15+ institutional clients"] },
+  ],
+  education: [
+    { degree: "BSc Computer Science (First Class)", school: "University College London", year: "2013" },
+    { degree: "AWS Solutions Architect", school: "Amazon Web Services", year: "2022" },
+  ],
+};
+
+// Full sample for large preview — dense, realistic, fills the page
 export const SAMPLE: PreviewData = {
   name:     "Alex Johnson",
   title:    "Senior Software Engineer",
@@ -732,10 +758,11 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 // ── Iframe-based preview (crisp, pixel-perfect rendering) ─────────────────────
 
-// Thumbnail: full A4 page at scale that fits card width (~196px)
+// Thumbnail: top 65% of A4 at scale that fits card width (~196px)
+// Showing top 65% focuses on header + 2-3 experience entries — the key differentiator
 const THUMB_IFRAME_W = 794;
 const THUMB_SCALE    = 0.247;
-const THUMB_H        = Math.round(THUMB_IFRAME_W * 1.414 * THUMB_SCALE); // full A4 height
+const THUMB_H        = Math.round(THUMB_IFRAME_W * 1.414 * THUMB_SCALE * 0.68);
 
 export function TemplateThumbnail({
   info, isSelected, onClick, locked = false, data,
@@ -743,8 +770,10 @@ export function TemplateThumbnail({
   info: TemplateInfo; isSelected: boolean; onClick: () => void;
   locked?: boolean; data?: PreviewData;
 }) {
+  // Thumbnails use condensed data so structure shows clearly at small scale
+  const thumbData = data ? { ...SAMPLE_THUMB, name: data.name, title: data.title, email: data.email, skills: data.skills } : SAMPLE_THUMB;
   const html = useMemo(
-    () => getTemplateHtml(info.key, data ?? SAMPLE),
+    () => getTemplateHtml(info.key, thumbData),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [info.key, data?.name, data?.title]
   );
@@ -826,10 +855,11 @@ const LARGE_H        = Math.round(LARGE_IFRAME_W * 1.414 * LARGE_SCALE);
 const LARGE_W        = Math.round(LARGE_IFRAME_W * LARGE_SCALE);
 
 export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?: PreviewData }) {
+  // Large preview uses full data so it looks like a real complete document
   const html = useMemo(
     () => getTemplateHtml(info.key, data ?? SAMPLE),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [info.key, data?.name, data?.title, data?.summary]
+    [info.key, data?.name, data?.title]
   );
   const isPersonalised = !!(data?.name && data.name !== SAMPLE.name);
 
@@ -917,8 +947,8 @@ export function TemplateSuggestions() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {shown.map((info) => {
           const SUGG_SCALE = 0.25;
-          const thumbH = Math.round(794 * 1.414 * SUGG_SCALE); // full A4 height
-          const html = getTemplateHtml(info.key, SAMPLE);
+          const thumbH = Math.round(794 * 1.414 * SUGG_SCALE * 0.68); // top 68%
+          const html = getTemplateHtml(info.key, SAMPLE_THUMB);
           return (
             <div key={info.key} className="card p-0 overflow-hidden hover:shadow-lg hover:border-brand-300 transition cursor-pointer rounded-2xl">
               <div style={{ height: thumbH, overflow: "hidden", position: "relative", background: "#fff" }}>
