@@ -155,23 +155,26 @@ async def generate(
 
     if not resume_text:
         raise HTTPException(422, "No parsed resume found in session.")
-    if not job_description:
-        raise HTTPException(422, "No job description found in session.")
+
+    has_jd = bool(job_description.strip())
 
     profession_config = await _resolve_profession(db, target_role)
 
     # ── Resolve user tier for per-tier feature enforcement ────────────────────
     user_tier = (user or {}).get("tier", "free")
 
-    # ── Job analysis — runs once, outside the eval loop ──────────────────────
+    # ── Job analysis — only runs when a job description is provided ───────────
     from services.tier_config_service import get_limit as _get_limit
-    n_skills = _get_limit(user_tier, "key_skills") or settings.skill_extraction_count
-    key_skills: list = await _job_analyzer.run(
-        resume_text=resume_text,
-        user_profile=user_profile,
-        job_description=job_description,
-        n=n_skills,
-    )
+    if has_jd:
+        n_skills = _get_limit(user_tier, "key_skills") or settings.skill_extraction_count
+        key_skills: list = await _job_analyzer.run(
+            resume_text=resume_text,
+            user_profile=user_profile,
+            job_description=job_description,
+            n=n_skills,
+        )
+    else:
+        key_skills = []
     # Persist key_skills on the session so export can bold them
     await db.sessions.update_one(
         {"_id": ObjectId(session_id)},
@@ -214,7 +217,8 @@ async def generate(
     enabled_evaluators = _enabled_evaluators_for_tier(user_tier)
     active_evaluator_count = sum(enabled_evaluators.values())
     calls_per_cycle = 1 + max(active_evaluator_count, 1)
-    estimated_calls = 1 + calls_per_cycle * settings.max_eval_cycles  # +1 for job analyzer
+    job_analyzer_calls = 1 if has_jd else 0
+    estimated_calls = job_analyzer_calls + calls_per_cycle * settings.max_eval_cycles
     await _check_cost_limit(db, session_id, estimated_calls)
 
     initial_state = {
@@ -242,7 +246,7 @@ async def generate(
         raise HTTPException(500, f"Pipeline failed: {exc}")
 
     # Actual calls used: 1 job-analyzer + (generator + evaluators) * completed cycles
-    actual_calls = 1 + (1 + active_evaluator_count) * final_state["cycle"]
+    actual_calls = job_analyzer_calls + (1 + active_evaluator_count) * final_state["cycle"]
     await _increment_call_count(db, session_id, actual_calls)
 
     await db.sessions.update_one(
@@ -275,6 +279,7 @@ async def generate(
 
     return {
         "resume": final_state["resume_json"],
+        "mode": "tailored" if has_jd else "polished",
         "eval_summary": {
             "cycles": final_state["cycle"],
             "all_passed": final_state["all_passed"],

@@ -27,9 +27,9 @@ const PROCESS_STEPS = [
   {
     step: 3,
     icon: FiBriefcase,
-    title: "Add the job description",
-    desc: "Paste the full job posting. Our AI extracts the skills that matter most to this employer.",
-    time: "~1 min",
+    title: "Add a job description (optional)",
+    desc: "Paste the job posting for role-specific tailoring, or skip to polish your CV without targeting a specific role.",
+    time: "optional",
     highlight: false,
   },
   {
