@@ -728,26 +728,27 @@ export interface TemplateInfo {
   description: string;
   pages: PageCount;
   tier: "free" | "plus";
+  accentColor: string;  // hex — used in gallery cards and modal header
 }
 
 export const ALL_TEMPLATES: TemplateInfo[] = [
   // ── Free (first 5) ──────────────────────────────────────────────────────────
-  { key: "Cambridge",  name: "Cambridge",    component: Cambridge,  category: "Classic",   traits: ["ATS-safe","Monochrome","Timeless"],     bestFor: "All industries",        description: "Clean single-column layout trusted by recruiters at any firm.",         pages: 1, tier: "free" },
-  { key: "Horizon",    name: "Horizon",      component: Horizon,    category: "Modern",    traits: ["Blue header","Bold","Tech-ready"],      bestFor: "Tech, product, design", description: "Bold blue header with strong visual hierarchy and skill chips.",        pages: 2, tier: "free" },
-  { key: "Prestige",   name: "Prestige",     component: Prestige,   category: "Executive", traits: ["Serif","Centred","Formal"],             bestFor: "Finance, law, C-suite", description: "Authoritative serif typeface with formal centred header.",              pages: 2, tier: "free" },
-  { key: "Admiral",    name: "Admiral",      component: Admiral,    category: "Classic",   traits: ["Navy","Professional","Two-tone"],       bestFor: "Banking, consulting",   description: "Navy blue accents with name and contact in a refined two-tone layout.", pages: 2, tier: "free" },
-  { key: "Swift",      name: "Swift",        component: Swift,      category: "ATS",       traits: ["Compact","1-page","Content-rich"],      bestFor: "Senior / 1-page CVs",   description: "Ultra-dense layout fitting maximum experience on a single page.",       pages: 1, tier: "free" },
+  { key: "Cambridge",  name: "Cambridge",    component: Cambridge,  category: "Classic",   traits: ["ATS-safe","Monochrome","Timeless"],     bestFor: "All industries",        description: "Clean single-column layout trusted by recruiters at any firm.",              pages: 1, tier: "free", accentColor: "#1f2937" },
+  { key: "Horizon",    name: "Horizon",      component: Horizon,    category: "Modern",    traits: ["Blue header","Bold","Tech-ready"],      bestFor: "Tech, product, design", description: "Bold blue header with strong visual hierarchy and skill chips.",             pages: 2, tier: "free", accentColor: "#1d4ed8" },
+  { key: "Prestige",   name: "Prestige",     component: Prestige,   category: "Executive", traits: ["Serif","Centred","Formal"],             bestFor: "Finance, law, C-suite", description: "Authoritative serif typeface with formal centred header and double rules.",  pages: 2, tier: "free", accentColor: "#374151" },
+  { key: "Admiral",    name: "Admiral",      component: Admiral,    category: "Classic",   traits: ["Navy","Professional","Two-tone"],       bestFor: "Banking, consulting",   description: "Navy blue accents with name and contact in a refined two-tone layout.",      pages: 2, tier: "free", accentColor: "#1e3a5f" },
+  { key: "Swift",      name: "Swift",        component: Swift,      category: "ATS",       traits: ["Compact","1-page","Content-rich"],      bestFor: "Senior / 1-page CVs",   description: "Ultra-dense layout fitting maximum experience on a single page.",            pages: 1, tier: "free", accentColor: "#1e293b" },
   // ── Plus / Pro ──────────────────────────────────────────────────────────────
-  { key: "Catalyst",   name: "Catalyst",     component: Catalyst,   category: "Modern",    traits: ["Orange accent","Bold","Standout"],      bestFor: "Sales, startups",       description: "High-contrast orange accents that demand attention on a recruiter's desk.", pages: 1, tier: "plus" },
-  { key: "Canvas",     name: "Canvas",       component: Canvas,     category: "Classic",   traits: ["Minimal","Whitespace","Refined"],       bestFor: "UX, design, research",  description: "Abundant whitespace and restrained typography — lets content lead.",    pages: 1, tier: "plus" },
-  { key: "Jade",       name: "Jade",         component: Jade,       category: "Modern",    traits: ["Teal","Left accent","Fresh"],           bestFor: "Healthcare, education", description: "Teal left accent bar and section headers with skill chip badges.",      pages: 2, tier: "plus" },
-  { key: "Prism",      name: "Prism",        component: Prism,      category: "Modern",    traits: ["Two-column","Sidebar","Structured"],    bestFor: "Tech, data science",    description: "Gray sidebar organises contact and skills; main column for experience.", pages: 2, tier: "plus" },
-  { key: "Vivid",      name: "Vivid",        component: Vivid,      category: "Creative",  traits: ["Purple","Sidebar","Distinctive"],       bestFor: "Design, marketing",     description: "Rich purple sidebar with monogram initial — makes an instant impression.", pages: 2, tier: "plus" },
-  { key: "Chronicle",  name: "Chronicle",    component: Chronicle,  category: "Modern",    traits: ["Timeline","Dots","Narrative"],          bestFor: "Product, operations",   description: "Timeline dots make your career progression immediately legible.",       pages: 2, tier: "plus" },
-  { key: "Summit",     name: "Summit",       component: Summit,     category: "Executive", traits: ["Dark header","Contrast","Impact"],      bestFor: "Engineering, fintech",  description: "Full-width charcoal header block creates commanding first impression.", pages: 2, tier: "plus" },
-  { key: "Symmetry",   name: "Symmetry",     component: Symmetry,   category: "Modern",    traits: ["Two-column","Balanced","Structured"],   bestFor: "PM, strategy, ops",     description: "Balanced equal columns — experience left, skills and education right.", pages: 2, tier: "plus" },
-  { key: "Scholar",    name: "Scholar",      component: Scholar,    category: "Classic",   traits: ["Serif","Academic","Formal"],            bestFor: "Academia, research",    description: "Traditional academic formatting for scholarly and research roles.",     pages: 2, tier: "plus" },
-  { key: "Luxe",       name: "Luxe",         component: Luxe,       category: "Executive", traits: ["Gold","Warm","Distinctive"],            bestFor: "Legal, luxury, arts",   description: "Warm gold decorative accents on cream — memorable and refined.",       pages: 2, tier: "plus" },
+  { key: "Catalyst",   name: "Catalyst",     component: Catalyst,   category: "Modern",    traits: ["Orange accent","Bold","Standout"],      bestFor: "Sales, startups",       description: "High-contrast orange accents that demand attention on a recruiter's desk.",  pages: 1, tier: "plus", accentColor: "#ea580c" },
+  { key: "Canvas",     name: "Canvas",       component: Canvas,     category: "Classic",   traits: ["Minimal","Whitespace","Refined"],       bestFor: "UX, design, research",  description: "Abundant whitespace and restrained typography — lets content breathe.",      pages: 1, tier: "plus", accentColor: "#6b7280" },
+  { key: "Jade",       name: "Jade",         component: Jade,       category: "Modern",    traits: ["Teal","Left accent","Fresh"],           bestFor: "Healthcare, education", description: "Teal left accent bar and section headers with skill chip badges.",           pages: 2, tier: "plus", accentColor: "#0d9488" },
+  { key: "Prism",      name: "Prism",        component: Prism,      category: "Modern",    traits: ["Two-column","Sidebar","Structured"],    bestFor: "Tech, data science",    description: "Blue sidebar organises contact and skills; wide main column for experience.", pages: 2, tier: "plus", accentColor: "#2563eb" },
+  { key: "Vivid",      name: "Vivid",        component: Vivid,      category: "Creative",  traits: ["Purple","Sidebar","Distinctive"],       bestFor: "Design, marketing",     description: "Rich purple sidebar with monogram initial — makes an instant impression.",   pages: 2, tier: "plus", accentColor: "#7c3aed" },
+  { key: "Chronicle",  name: "Chronicle",    component: Chronicle,  category: "Modern",    traits: ["Timeline","Dots","Narrative"],          bestFor: "Product, operations",   description: "Timeline dots make your career progression immediately legible.",            pages: 2, tier: "plus", accentColor: "#1d4ed8" },
+  { key: "Summit",     name: "Summit",       component: Summit,     category: "Executive", traits: ["Dark header","Contrast","Impact"],      bestFor: "Engineering, fintech",  description: "Full-width charcoal header block creates a commanding first impression.",   pages: 2, tier: "plus", accentColor: "#0f172a" },
+  { key: "Symmetry",   name: "Symmetry",     component: Symmetry,   category: "Modern",    traits: ["Two-column","Balanced","Structured"],   bestFor: "PM, strategy, ops",     description: "Balanced equal columns — experience left, skills and education right.",      pages: 2, tier: "plus", accentColor: "#1e3a5f" },
+  { key: "Scholar",    name: "Scholar",      component: Scholar,    category: "Classic",   traits: ["Serif","Academic","Formal"],            bestFor: "Academia, research",    description: "Traditional academic formatting for scholarly and research CVs.",            pages: 2, tier: "plus", accentColor: "#374151" },
+  { key: "Luxe",       name: "Luxe",         component: Luxe,       category: "Executive", traits: ["Gold","Warm","Distinctive"],            bestFor: "Legal, luxury, arts",   description: "Warm gold decorative accents on cream — memorable and refined.",            pages: 2, tier: "plus", accentColor: "#b45309" },
 ];
 
 export const CATEGORY_COLORS: Record<string, string> = {
@@ -756,6 +757,15 @@ export const CATEGORY_COLORS: Record<string, string> = {
   Creative:  "bg-purple-50 text-purple-700",
   Executive: "bg-amber-50 text-amber-700",
   ATS:       "bg-green-50 text-green-700",
+};
+
+// Richer modal header colours — one per category
+export const CATEGORY_HEADER: Record<string, { bg: string; text: string; badge: string }> = {
+  Classic:   { bg: "bg-slate-700",   text: "text-white",       badge: "bg-slate-500 text-white"   },
+  Modern:    { bg: "bg-blue-700",    text: "text-white",       badge: "bg-blue-500 text-white"    },
+  Creative:  { bg: "bg-purple-700",  text: "text-white",       badge: "bg-purple-500 text-white"  },
+  Executive: { bg: "bg-amber-700",   text: "text-white",       badge: "bg-amber-500 text-white"   },
+  ATS:       { bg: "bg-emerald-700", text: "text-white",       badge: "bg-emerald-500 text-white" },
 };
 
 // ══════════════════════════════════════════════════════════════════════════════

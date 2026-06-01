@@ -16,10 +16,10 @@ import Link from "next/link";
 import clsx from "clsx";
 import {
   FiUploadCloud, FiCheckCircle, FiFile, FiLock, FiZap,
-  FiDownload, FiRefreshCw, FiBookmark, FiAward, FiArrowLeft,
+  FiDownload, FiRefreshCw, FiBookmark, FiX,
 } from "react-icons/fi";
 import {
-  ALL_TEMPLATES, SAMPLE, CATEGORY_COLORS,
+  ALL_TEMPLATES, SAMPLE, CATEGORY_COLORS, CATEGORY_HEADER,
   type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 import { getTemplateHtml } from "@/lib/templateHtml";
@@ -58,7 +58,7 @@ function getFilename(resume: GeneratedResume | null): string {
 type ExportResult = { docx_file_id?: string; pdf_file_id?: string; pdf_error?: string };
 type TemplateWithId = TemplateInfo & { _id: string };
 
-// ── Gallery card — bigger, shows name + category + description ───────────────
+// ── Gallery card — accent-colour header strip, text visible at a glance ─────
 
 function GalleryCard({
   info, isSelected, locked, onPreview,
@@ -70,140 +70,159 @@ function GalleryCard({
       onClick={onPreview}
       disabled={locked}
       className={clsx(
-        "relative flex flex-col text-left rounded-2xl border-2 p-4 transition group",
+        "relative flex flex-col text-left rounded-2xl overflow-hidden border-2 transition group",
         locked
           ? "opacity-50 cursor-not-allowed border-slate-200 bg-white"
           : isSelected
-          ? "border-brand-500 bg-brand-50 shadow-md"
-          : "border-slate-200 bg-white hover:border-brand-300 hover:shadow-lg hover:-translate-y-0.5",
+          ? "border-brand-500 shadow-lg scale-[1.02]"
+          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-lg hover:-translate-y-0.5",
       )}
     >
-      {isSelected && !locked && (
-        <div className="absolute top-3 right-3">
-          <FiCheckCircle className="w-4 h-4 text-brand-500" />
+      {/* Coloured header strip — shows template accent colour */}
+      <div
+        className="h-14 w-full flex items-end pb-2.5 px-3 shrink-0"
+        style={{ background: info.accentColor }}
+      >
+        <div className="space-y-1 w-full">
+          <div className="bg-white/80 h-2 w-28 rounded-full" />
+          <div className="bg-white/40 h-1 w-16 rounded-full" />
         </div>
-      )}
-      {locked && (
-        <div className="absolute top-3 right-3">
-          <FiLock className="w-3.5 h-3.5 text-slate-400" />
-        </div>
-      )}
-
-      {/* Category + pages row */}
-      <div className="flex items-center gap-1.5 mb-2.5 pr-5 flex-wrap">
-        <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0", CATEGORY_COLORS[info.category])}>
-          {info.category}
-        </span>
-        <span className={clsx("text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0",
-          info.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500")}>
-          {info.pages}-page
-        </span>
+        {isSelected && !locked && (
+          <FiCheckCircle className="w-4 h-4 text-white absolute top-2.5 right-2.5 shrink-0" />
+        )}
+        {locked && (
+          <FiLock className="w-3.5 h-3.5 text-white/70 absolute top-2.5 right-2.5 shrink-0" />
+        )}
       </div>
 
-      {/* Name */}
-      <p className="text-sm font-bold text-slate-900 mb-1 leading-tight pr-4">{info.name}</p>
-
-      {/* Description */}
-      <p className="text-xs text-slate-500 leading-relaxed line-clamp-2 mb-2">{info.description}</p>
-
-      {/* Best for */}
-      <p className="text-[10px] text-slate-400 leading-snug mt-auto">{info.bestFor}</p>
-
-      {!locked ? (
-        <p className={clsx("text-[10px] font-semibold mt-2 transition",
-          isSelected ? "text-brand-500" : "text-slate-300 group-hover:text-brand-400")}>
-          {isSelected ? "✓ Selected — click to change" : "Click to preview →"}
-        </p>
-      ) : (
-        <Link href="/settings/plan" onClick={e => e.stopPropagation()}
-          className="text-[10px] font-semibold text-brand-500 hover:underline mt-2 flex items-center gap-1">
-          <FiLock className="w-2.5 h-2.5" /> Plus / Pro
-        </Link>
-      )}
+      {/* Card body */}
+      <div className="p-3 flex flex-col flex-1">
+        <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+          <span className={clsx("text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0", CATEGORY_COLORS[info.category])}>
+            {info.category}
+          </span>
+          <span className="text-[9px] font-medium text-slate-400">{info.pages}p</span>
+        </div>
+        <p className="text-xs font-bold text-slate-900 leading-tight mb-1">{info.name}</p>
+        <p className="text-[10px] text-slate-500 leading-relaxed line-clamp-2 flex-1">{info.description}</p>
+        {!locked ? (
+          <p className={clsx("text-[9px] font-semibold mt-2 transition",
+            isSelected ? "text-brand-600" : "text-slate-300 group-hover:text-brand-400")}>
+            {isSelected ? "✓ Selected" : "Click to preview"}
+          </p>
+        ) : (
+          <Link href="/settings/plan" onClick={e => e.stopPropagation()}
+            className="text-[9px] font-semibold text-brand-500 hover:underline mt-2">
+            Plus / Pro
+          </Link>
+        )}
+      </div>
     </button>
   );
 }
 
 // ── Template detail view — large preview + all info ───────────────────────────
 
-function TemplateDetail({
-  info, previewData, isSelected, onSelect, onBack,
+// ── Template modal — full-screen overlay matching competitor design ───────────
+
+function TemplateModal({
+  info, previewData, isSelected, onSelect, onClose,
 }: {
-  info: TemplateWithId;
-  previewData: PreviewData;
-  isSelected: boolean;
-  onSelect: () => void;
-  onBack: () => void;
+  info: TemplateWithId; previewData: PreviewData;
+  isSelected: boolean; onSelect: () => void; onClose: () => void;
 }) {
-  const SCALE = 0.52;
+  // Larger scale so text is actually readable in the preview
+  const SCALE    = 0.62;
   const IFRAME_W = 794;
-  const PREVIEW_W = Math.round(IFRAME_W * SCALE);   // ≈ 413px
-  const PREVIEW_H = Math.round(IFRAME_W * 1.414 * SCALE); // ≈ 584px
+  const PREVIEW_W = Math.round(IFRAME_W * SCALE);        // ≈ 492px
+  const PREVIEW_H = Math.round(IFRAME_W * 1.414 * SCALE); // ≈ 696px
   const html = getTemplateHtml(info.key, previewData);
   const isPersonalised = previewData.name !== SAMPLE.name;
+  const hdr = CATEGORY_HEADER[info.category] ?? CATEGORY_HEADER["Classic"];
 
   return (
-    <div className="space-y-5">
-      {/* Back */}
-      <button onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 transition">
-        <FiArrowLeft className="w-4 h-4" /> Back to gallery
-      </button>
-
-      {/* Main detail panel */}
-      <div className="card p-0 overflow-hidden">
-        <div className="flex flex-col sm:flex-row">
-
-          {/* Left — live preview */}
-          <div className="bg-slate-50 flex items-center justify-center p-5 sm:p-6 border-b sm:border-b-0 sm:border-r border-slate-100 shrink-0">
-            <div className="rounded-lg shadow-lg overflow-hidden border border-slate-200"
-                 style={{ width: PREVIEW_W, height: PREVIEW_H, position: "relative", background: "#fff" }}>
-              <iframe
-                srcDoc={html}
-                sandbox="allow-same-origin"
-                scrolling="no"
-                title={`${info.name} preview`}
-                style={{
-                  position: "absolute", top: 0, left: 0,
-                  width: IFRAME_W,
-                  height: Math.round(IFRAME_W * 1.414),
-                  border: "none",
-                  transform: `scale(${SCALE})`,
-                  transformOrigin: "top left",
-                  pointerEvents: "none",
-                }}
-              />
-            </div>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl overflow-hidden flex max-w-5xl w-full max-h-[92vh]"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* ── Left: live preview ── */}
+        <div className="bg-slate-100 flex items-start justify-center p-6 shrink-0 overflow-y-auto">
+          <div
+            className="rounded-lg shadow-xl overflow-hidden border border-slate-200"
+            style={{ width: PREVIEW_W, height: PREVIEW_H, position: "relative", background: "#fff" }}
+          >
+            <iframe
+              srcDoc={html}
+              sandbox="allow-same-origin"
+              scrolling="no"
+              title={`${info.name} preview`}
+              style={{
+                position: "absolute", top: 0, left: 0,
+                width: IFRAME_W,
+                height: Math.round(IFRAME_W * 1.414),
+                border: "none",
+                transform: `scale(${SCALE})`,
+                transformOrigin: "top left",
+                pointerEvents: "none",
+              }}
+            />
           </div>
+        </div>
 
-          {/* Right — template info */}
-          <div className="flex-1 p-5 sm:p-6 flex flex-col gap-4">
+        {/* ── Right: info panel ── */}
+        <div className="flex-1 flex flex-col overflow-y-auto">
 
-            {/* Header */}
-            <div>
-              <div className="flex items-center gap-2 flex-wrap mb-2">
-                <span className={clsx("text-xs font-bold px-2 py-0.5 rounded-full", CATEGORY_COLORS[info.category])}>
+          {/* Coloured header — category colour matches gallery card */}
+          <div className={clsx("px-6 pt-5 pb-4 shrink-0", hdr.bg)}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={clsx("text-[10px] font-bold px-2.5 py-0.5 rounded-full", hdr.badge)}>
                   {info.category}
                 </span>
-                <span className={clsx("text-xs font-semibold px-2 py-0.5 rounded-full",
-                  info.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500")}>
+                <span className="text-[10px] font-medium text-white/70">
                   {info.pages}-page
                 </span>
                 {info.tier === "plus" && (
-                  <span className="text-[10px] font-semibold bg-brand-100 text-brand-700 px-1.5 py-0.5 rounded">Plus+</span>
+                  <span className="text-[10px] font-bold bg-white/20 text-white px-2 py-0.5 rounded-full">Plus+</span>
                 )}
               </div>
-              <h2 className="text-2xl font-bold text-slate-900">{info.name}</h2>
-              <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">{info.description}</p>
+              <button
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition shrink-0"
+              >
+                <FiX className="w-4 h-4 text-white" />
+              </button>
+            </div>
+            <h2 className={clsx("text-2xl font-bold mt-2 leading-tight", hdr.text)}>{info.name}</h2>
+            <p className="text-sm text-white/80 mt-1 leading-relaxed">{info.description}</p>
+          </div>
+
+          {/* Content */}
+          <div className="px-6 py-4 space-y-5 flex-1">
+
+            {/* Colour */}
+            <div>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Template Colour</p>
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-7 h-7 rounded-full border-2 border-white shadow-sm"
+                  style={{ background: info.accentColor, outline: `2px solid ${info.accentColor}`, outlineOffset: 1 }}
+                />
+                <span className="text-xs text-slate-500 font-medium">Primary accent</span>
+              </div>
             </div>
 
-            {/* Features / traits */}
+            {/* Features */}
             <div>
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Features</p>
-              <ul className="space-y-1.5">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2.5">Features</p>
+              <ul className="space-y-2">
                 {info.traits.map(trait => (
-                  <li key={trait} className="flex items-center gap-2 text-sm text-slate-700">
-                    <FiCheckCircle className="w-4 h-4 text-brand-500 shrink-0" />
+                  <li key={trait} className="flex items-center gap-2.5 text-sm text-slate-700">
+                    <FiCheckCircle className="w-4 h-4 shrink-0" style={{ color: info.accentColor }} />
                     {trait}
                   </li>
                 ))}
@@ -212,10 +231,13 @@ function TemplateDetail({
 
             {/* Best for */}
             <div>
-              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Best for</p>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2.5">Best For</p>
               <div className="flex flex-wrap gap-1.5">
                 {info.bestFor.split(",").map(s => (
-                  <span key={s} className="text-xs bg-slate-100 text-slate-600 rounded-full px-2.5 py-1 font-medium">
+                  <span key={s}
+                    className="text-xs font-medium px-3 py-1 rounded-full border"
+                    style={{ color: info.accentColor, borderColor: info.accentColor, background: `${info.accentColor}12` }}
+                  >
                     {s.trim()}
                   </span>
                 ))}
@@ -223,35 +245,30 @@ function TemplateDetail({
             </div>
 
             {/* Preview note */}
-            <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-auto">
-              <span className={clsx("w-1.5 h-1.5 rounded-full inline-block shrink-0",
+            <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+              <span className={clsx("w-1.5 h-1.5 rounded-full shrink-0",
                 isPersonalised ? "bg-brand-500" : "bg-slate-300")} />
-              {isPersonalised
-                ? "Live preview — showing your tailored CV content"
-                : "Sample preview — your CV will replace this content"}
+              {isPersonalised ? "Showing your tailored CV content" : "Sample content — replaced with your CV on export"}
             </p>
+          </div>
 
-            {/* CTAs */}
-            <div className="flex flex-col gap-2 pt-1">
-              <button
-                onClick={onSelect}
-                className={clsx(
-                  "w-full py-3 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-2",
-                  isSelected
-                    ? "bg-brand-600 text-white hover:bg-brand-700"
-                    : "bg-brand-600 text-white hover:bg-brand-700",
-                )}
-              >
-                {isSelected
-                  ? <><FiCheckCircle className="w-4 h-4" /> Template selected — continue below</>
-                  : <>Use this template →</>}
-              </button>
-              <button onClick={onBack}
-                className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-600 border border-slate-200 hover:border-brand-300 hover:text-brand-600 transition">
-                Back to gallery
-              </button>
-            </div>
-
+          {/* CTAs */}
+          <div className="px-6 pb-6 pt-2 space-y-2 shrink-0 border-t border-slate-100">
+            <button
+              onClick={onSelect}
+              className="w-full py-3.5 rounded-xl text-sm font-bold text-white transition flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98]"
+              style={{ background: info.accentColor }}
+            >
+              {isSelected
+                ? <><FiCheckCircle className="w-4 h-4" /> Selected — click Generate &amp; Download below</>
+                : <>Use this template →</>}
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition"
+            >
+              Back to gallery
+            </button>
           </div>
         </div>
       </div>
@@ -422,7 +439,7 @@ export default function TemplatePage() {
             onClick={() => { setFiles(null); setSaved(false); setDetailId(null); }}
             className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 transition"
           >
-            <FiArrowLeft className="w-4 h-4" /> Different template
+← Different template
           </button>
           <Link href="/builder/upload"
             className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-600 hover:border-brand-300 hover:text-brand-600 transition">
@@ -433,51 +450,21 @@ export default function TemplatePage() {
     );
   }
 
-  // ── Detail view — shown when user clicks a template card ─────────────────
-
-  if (detailInfo) {
-    return (
-      <div className="max-w-3xl mx-auto space-y-5">
-        <TemplateDetail
-          info={detailInfo}
-          previewData={previewData}
-          isSelected={selected === detailInfo._id}
-          onSelect={() => {
-            setSelected(detailInfo._id);
-            setDetailId(null); // back to gallery with this template selected
-          }}
-          onBack={() => setDetailId(null)}
-        />
-
-        {/* Sample CV + Generate — accessible from detail view after selecting */}
-        {selected === detailInfo._id && (
-          <div className="space-y-4">
-            {isPro && <SampleCvCard
-              sampleFile={sampleFile} setSampleFile={setSampleFile}
-              uploadingSample={uploadingSample} sampleUploaded={sampleUploaded}
-              onUpload={handleUploadSample}
-              getRootProps={getRootProps} getInputProps={getInputProps} isDragActive={isDragActive}
-            />}
-            {evalSummary && <EvalQualityPanel evalSummary={evalSummary} />}
-            <button
-              onClick={handleGenerate}
-              disabled={exporting}
-              className="w-full btn-primary py-4 text-base flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              {exporting
-                ? <><FiRefreshCw className="w-5 h-5 animate-spin" /> Generating files…</>
-                : <><FiDownload className="w-5 h-5" /> Generate &amp; Download</>}
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Gallery view ──────────────────────────────────────────────────────────
+  // ── Gallery + modal overlay ───────────────────────────────────────────────
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+
+      {/* Modal overlay — renders over the gallery */}
+      {detailInfo && (
+        <TemplateModal
+          info={detailInfo}
+          previewData={previewData}
+          isSelected={selected === detailInfo._id}
+          onSelect={() => { setSelected(detailInfo._id); setDetailId(null); }}
+          onClose={() => setDetailId(null)}
+        />
+      )}
 
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Choose a Template</h1>
