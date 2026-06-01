@@ -39,34 +39,53 @@ def extract_full_profile(raw_text: str) -> dict:
         title = lines[1] if len(lines) > 1 else ""
         name_line_idx = 0
 
-    # ── Section parser: detect headers then collect items beneath them ──────────
-    # A section header is an ALL-CAPS or Title-Case short line (not contact data).
-    _hdr_re = re.compile(
-        r"^(?:[A-Z][A-Z\s&/\(\)\-]{2,35}|[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*)\s*:?$"
-    )
-    _contact_skip = {"gmail", "yahoo", "hotmail", "linkedin", "http", "@", "phone", "email", "tel"}
-    _hdr_skip = {"cv", "resume", "curriculum vitae", "page", "references available"}
+    # ── Section parser ──────────────────────────────────────────────────────────
+    # Headers must be ALL-CAPS (e.g. EXPERIENCE, SKILLS) or match a known
+    # Title-Case section name whitelist. This avoids misclassifying job titles
+    # like "Vice President, Global Lead" as section headers.
+    _ALLCAPS_HDR = re.compile(r"^[A-Z][A-Z\s&/\-]{2,34}$")
+    _KNOWN_TITLE_CASE = {
+        "professional summary", "work experience", "career history",
+        "employment history", "education", "qualifications", "skills",
+        "technical skills", "core competencies", "key skills",
+        "certifications", "licences", "awards", "achievements",
+        "projects", "publications", "languages", "interests",
+        "references", "personal profile", "career objective", "objective",
+        "profile", "summary", "experience", "training", "volunteer",
+    }
+    _contact_kw = {"@", "http", "linkedin", "phone", "email", "tel:"}
+
+    def _is_section_header(line: str) -> bool:
+        stripped = line.rstrip(":").strip()
+        if not stripped or len(stripped) > 40:
+            return False
+        if any(kw in line.lower() for kw in _contact_kw):
+            return False
+        if _ALLCAPS_HDR.match(stripped):
+            return True
+        if stripped.lower() in _KNOWN_TITLE_CASE:
+            return True
+        return False
 
     sections: list[dict] = []
     cur_title: str | None = None
     cur_items: list[str] = []
 
-    # Skip lines that belong to the contact header block (first ~6 lines after name)
-    body_start = name_line_idx + 4
+    # Find where body starts: the first ALL-CAPS/known section header after the
+    # contact block. Fall back to name_line_idx+2 so we don't skip summary headers
+    # that appear right after the name/contact block.
+    body_start = name_line_idx + 2
+    for i, line in enumerate(lines[name_line_idx + 1:], start=name_line_idx + 1):
+        if _is_section_header(line):
+            body_start = i
+            break
 
     for line in lines[body_start:]:
         clean_line = line.lstrip("•·▪▸►-–—○●*").strip()
         if not clean_line:
             continue
 
-        is_header = (
-            _hdr_re.match(line)
-            and len(line) <= 40
-            and not any(kw in line.lower() for kw in _contact_skip)
-            and line.lower().rstrip(":") not in _hdr_skip
-        )
-
-        if is_header:
+        if _is_section_header(line):
             if cur_title and cur_items:
                 sections.append({"title": cur_title, "items": cur_items})
             cur_title = line.rstrip(":").strip()
