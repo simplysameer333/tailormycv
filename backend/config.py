@@ -34,9 +34,13 @@ class Settings(BaseSettings):
 
     # ── Per-session cost controls ─────────────────────────────────────────────
     # Hard cap on total AI API calls per session across all generate invocations.
-    # 1 pipeline run with 1 evaluator = 2 calls/cycle (generator + evaluator).
-    # Set to 0 to disable the cap.
-    max_ai_calls_per_session: int = 10
+    # Minimum per full run: 1 job-analyzer + (1 gen + N evaluators) × max_eval_cycles
+    #   Free  (1 eval, 3 cycles): 1 + 2×3  =  7
+    #   Plus  (2 eval, 3 cycles): 1 + 3×3  = 10
+    #   Pro   (3 eval, 3 cycles): 1 + 4×3  = 13  ← was hitting 10 limit
+    # Set to 30 to allow 1 full run + multiple section regens per session.
+    # Set to 0 to disable the cap entirely.
+    max_ai_calls_per_session: int = 30
 
     # ── Skill extraction (JobAnalyzerAgent) ──────────────────────────────────
     # Number of key skills the job analyzer picks and passes to the generator.

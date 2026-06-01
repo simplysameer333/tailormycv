@@ -6,7 +6,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import {
   FiUploadCloud, FiFile, FiZap, FiShield, FiTarget, FiStar,
-  FiAlertCircle, FiArrowRight, FiChevronDown, FiChevronUp,
+  FiAlertCircle, FiArrowRight,
   FiUser, FiFileText, FiBriefcase, FiTag, FiAward, FiCpu, FiLayout,
 } from "react-icons/fi";
 import { useEffect, useRef } from "react";
@@ -63,11 +63,6 @@ const CATEGORIES_INFO = [
   },
 ];
 
-const HOW_IT_WORKS = [
-  { step: "1", title: "Upload your CV", desc: "PDF or DOCX, up to 5 MB. No account needed." },
-  { step: "2", title: "AI analyses your CV", desc: "Our AI reviews 7 quality categories across 51 checks. Takes around 30–60 seconds." },
-  { step: "3", title: "Review your score", desc: "Get a full breakdown with specific, actionable improvements." },
-];
 
 const WHY_CHECK = [
   { icon: FiShield, stat: "98%", label: "of employers use ATS",    desc: "Most CVs are filtered out before a human ever reads them." },
@@ -137,72 +132,6 @@ function UploadZone({
   );
 }
 
-// ── FAQ accordion item ────────────────────────────────────────────────────────
-
-function FaqItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3.5 text-left hover:bg-slate-50 transition"
-      >
-        <span className="font-medium text-slate-800 text-sm pr-4">{q}</span>
-        {open
-          ? <FiChevronUp   className="w-4 h-4 text-slate-400 shrink-0" />
-          : <FiChevronDown className="w-4 h-4 text-slate-400 shrink-0" />}
-      </button>
-      {open && (
-        <div className="px-4 pb-4 pt-3 text-sm text-slate-600 leading-relaxed border-t border-slate-100">
-          {a}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const FAQS = [
-  {
-    q: "Is the CV Score really free?",
-    a: "Yes — the full analysis across all 6 categories, with scores and pass/fail checks, is completely free with no account required. Detailed improvement suggestions per category are unlocked for Plus and Pro subscribers.",
-  },
-  {
-    q: "Do I need to create an account?",
-    a: "No account is needed to use the CV Score. Simply upload your CV and get your results instantly. An account is only required if you want to save results or access improvement suggestions.",
-  },
-  {
-    q: "What file formats are supported?",
-    a: "We accept PDF and DOCX files up to 5 MB. For best results, use a plain text-based PDF rather than a heavily designed or image-based one — design-heavy CVs can confuse text extraction.",
-  },
-  {
-    q: "How long does the analysis take?",
-    a: "Typically 30–60 seconds. The AI reads your full CV and runs 51 individual checks across 7 quality categories in a single pass using Claude AI. It's thorough — worth the wait.",
-  },
-  {
-    q: "Does the CV Score need a job description?",
-    a: "No — the CV Score analyses your CV on its own merits (completeness, structure, ATS compatibility, content quality) without needing a job description. If you want to tailor your CV to a specific role, use the CV Builder instead.",
-  },
-  {
-    q: "How is this different from the CV Builder?",
-    a: "The CV Score analyses your existing CV and tells you what's strong and what needs improving. The CV Builder takes your CV plus a job description and rewrites it using multi-model AI to maximise your match for that specific role. Use the Checker first, then the Builder to act on the findings.",
-  },
-  {
-    q: "What is ATS and why does it matter?",
-    a: "ATS (Applicant Tracking System) is software used by 98% of large employers to automatically filter CVs before a human sees them. CVs with poor formatting, missing keywords, or non-standard sections are often rejected automatically. Our ATS check ensures your CV can be parsed and ranked correctly.",
-  },
-  {
-    q: "What do the improvement suggestions include?",
-    a: "Specific, actionable recommendations per category — for example: 'Add a GitHub profile URL to your contact section' or 'Start your summary with your job title and years of experience rather than a generic phrase'. These are unlocked for Plus and Pro subscribers.",
-  },
-  {
-    q: "Can I check my CV multiple times?",
-    a: "Yes, as many times as you like. Each upload is a fresh analysis — there are no limits on how many times you can use the CV Score.",
-  },
-  {
-    q: "Is my CV data stored or shared?",
-    a: "Your CV is parsed for analysis only and is not stored beyond the current session. We do not retain your personal data, share it with third parties, or use it to train AI models.",
-  },
-];
 
 // ── main page ─────────────────────────────────────────────────────────────────
 
@@ -270,7 +199,7 @@ export default function CvScorePage() {
   const c = result ? scoreColor(result.overall_score) : null;
 
   return (
-    <div className="max-w-4xl mx-auto px-5 sm:px-6 py-10 space-y-16">
+    <div className="max-w-4xl mx-auto px-5 sm:px-6 py-10 space-y-10">
 
       {/* ── Hero ── */}
       <div className="text-center">
@@ -279,23 +208,32 @@ export default function CvScorePage() {
         </div>
         <h1 className="text-4xl font-bold text-slate-900 mb-3">Free CV Score</h1>
         <p className="text-slate-500 text-base max-w-xl mx-auto">
-          Get an AI-powered quality score across 7 categories and 51 checks — ATS compatibility,
-          content quality, design, skills, experience and more. No sign-in required.
+          Upload your CV and get a full AI-powered breakdown across 7 categories and 51 checks —
+          no account needed.
         </p>
+      </div>
 
-        {/* Stats row */}
-        <div className="flex items-center justify-center gap-8 mt-6 flex-wrap">
-          {[
-            { val: "51",   label: "checks run"      },
-            { val: "7",    label: "categories"      },
-            { val: "Free", label: "no credit card"  },
-          ].map(({ val, label }) => (
-            <div key={label} className="text-center">
-              <div className="text-2xl font-bold text-brand-600">{val}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{label}</div>
+      {/* ── What we'll analyse — shown BEFORE upload so user knows what's coming ── */}
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-center mb-4">
+          What we&apos;ll analyse
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {CATEGORIES_INFO.map(({ key, icon: Icon, name, desc }) => (
+            <div key={key} className="flex items-start gap-3 card p-4 hover:border-brand-200 transition">
+              <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center shrink-0 mt-0.5">
+                <Icon className="w-4.5 h-4.5 text-brand-600" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-800 text-sm">{name}</p>
+                <p className="text-xs text-slate-500 leading-relaxed mt-0.5">{desc}</p>
+              </div>
             </div>
           ))}
         </div>
+        <p className="text-center text-xs text-slate-400 mt-3">
+          Analysis takes around 30–60 seconds · Results are shareable via a permanent link
+        </p>
       </div>
 
       {/* ── Upload ── */}
@@ -405,75 +343,23 @@ export default function CvScorePage() {
         </div>
       )}
 
-      {/* ── What we check ── */}
-      <div>
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">What we analyse</h2>
-          <p className="text-slate-500 mt-2 text-sm max-w-lg mx-auto">
-            Every resume is scored across 6 categories that recruiters and ATS systems care about most.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {CATEGORIES_INFO.map(({ key, icon: Icon, name, desc }) => (
-            <div key={key} className="card hover:border-brand-200 transition">
-              <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center mb-3">
-                <Icon className="w-5 h-5 text-brand-600" />
-              </div>
-              <h3 className="font-semibold text-slate-800 mb-1">{name}</h3>
-              <p className="text-sm text-slate-500 leading-relaxed">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── How it works ── */}
-      <div>
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">How it works</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          {HOW_IT_WORKS.map(({ step, title, desc }) => (
-            <div key={step} className="text-center">
-              <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center text-lg font-bold mx-auto mb-3">
-                {step}
-              </div>
-              <h3 className="font-semibold text-slate-800 mb-1">{title}</h3>
-              <p className="text-sm text-slate-500">{desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* ── Why it matters ── */}
-      <div className="bg-slate-50 rounded-3xl p-8">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">Why check your CV?</h2>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {WHY_CHECK.map(({ icon: Icon, stat, label, desc }) => (
-            <div key={label} className="text-center">
-              <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center mx-auto mb-3 shadow-sm">
-                <Icon className="w-5 h-5 text-brand-600" />
+      {!result && !loading && (
+        <div className="bg-slate-50 rounded-3xl p-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {WHY_CHECK.map(({ icon: Icon, stat, label, desc }) => (
+              <div key={label} className="text-center">
+                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center mx-auto mb-3 shadow-sm">
+                  <Icon className="w-5 h-5 text-brand-600" />
+                </div>
+                <div className="text-2xl font-bold text-brand-600 mb-0.5">{stat}</div>
+                <div className="text-sm font-semibold text-slate-700 mb-1">{label}</div>
+                <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
               </div>
-              <div className="text-2xl font-bold text-brand-600 mb-0.5">{stat}</div>
-              <div className="text-sm font-semibold text-slate-700 mb-1">{label}</div>
-              <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* ── FAQ ── */}
-      <div>
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-slate-900">Frequently asked questions</h2>
-        </div>
-        <div className="space-y-3 max-w-2xl mx-auto">
-          {FAQS.map(({ q, a }) => (
-            <FaqItem key={q} q={q} a={a} />
-          ))}
-        </div>
-      </div>
+      )}
 
     </div>
   );

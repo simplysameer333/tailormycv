@@ -21,6 +21,7 @@ Job analysis
 - N is driven by SKILL_EXTRACTION_COUNT in .env (maps to subscription tier).
 - The extracted skills are passed to every generator cycle as prioritisation hints.
 """
+import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from bson import ObjectId
 from pydantic import BaseModel
@@ -31,9 +32,10 @@ from dependencies.auth import get_optional_user
 from services.pipeline import pipeline, generator
 from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
 from services.profession_service import resolve_profession_for_role
-from services.email_service import send_quality_alert
+from services.email_service import send_quality_alert, send_error_alert
 
 router = APIRouter()
+logger = logging.getLogger("tailormycv")
 _job_analyzer = JobAnalyzerAgent()
 
 # Evaluators each tier is entitled to — must still have API keys configured.
@@ -80,10 +82,20 @@ async def _check_cost_limit(db, session_id: str, expected_calls: int) -> int:
     session = await db.sessions.find_one({"_id": ObjectId(session_id)}, {"ai_call_count": 1})
     current = (session or {}).get("ai_call_count", 0)
     if current + expected_calls > settings.max_ai_calls_per_session:
+        logger.warning(
+            "[generate] Session %s hit AI call limit: used=%d expected=%d limit=%d",
+            session_id, current, expected_calls, settings.max_ai_calls_per_session,
+        )
+        import traceback
+        await send_error_alert(
+            "POST", "/api/generate",
+            Exception(f"Session {session_id} hit AI call limit: used={current} expected={expected_calls} limit={settings.max_ai_calls_per_session}"),
+            traceback.format_stack()[-1],
+        )
         raise HTTPException(
             429,
-            f"Session AI call limit reached ({current}/{settings.max_ai_calls_per_session}). "
-            "Start a new session to continue."
+            "Resume generation limit reached for this session. "
+            "Please start a new session to continue."
         )
     return current
 
