@@ -4,7 +4,8 @@ import { useDropzone } from "react-dropzone";
 import { useRouter, useSearchParams } from "next/navigation";
 import toast from "react-hot-toast";
 import {
-  FiUploadCloud, FiFile, FiZap, FiTarget, FiAward, FiX, FiBriefcase, FiLoader,
+  FiUploadCloud, FiFile, FiZap, FiX, FiBriefcase, FiLoader,
+  FiUser, FiCpu, FiLayout, FiCheckCircle, FiClock,
 } from "react-icons/fi";
 import {
   uploadResume, listSavedResumes,
@@ -12,35 +13,67 @@ import {
 } from "@/lib/api";
 import { setSessionId } from "@/lib/session";
 
+// ── What happens after upload ─────────────────────────────────────────────────
+
+const PROCESS_STEPS = [
+  {
+    step: 2,
+    icon: FiUser,
+    title: "Review your profile",
+    desc: "Confirm your name, target role, tone and key skills. The AI uses this to personalise your CV.",
+    time: "~1 min",
+    highlight: false,
+  },
+  {
+    step: 3,
+    icon: FiBriefcase,
+    title: "Add the job description",
+    desc: "Paste the full job posting. Our AI extracts the skills that matter most to this employer.",
+    time: "~1 min",
+    highlight: false,
+  },
+  {
+    step: 4,
+    icon: FiCpu,
+    title: "AI tailors your CV",
+    desc: "Claude, GPT-4o and Gemini each score and refine your CV across up to 3 cycles — until it scores best for this specific role.",
+    time: "30–90 sec",
+    highlight: true,
+  },
+  {
+    step: 5,
+    icon: FiLayout,
+    title: "Choose a template & download",
+    desc: "Pick from 15 professional designs. Preview with your real CV content, then download DOCX and PDF.",
+    time: "instant",
+    highlight: false,
+  },
+];
+
+// ── localStorage keys to clear on new session ─────────────────────────────────
+
 const STALE_KEYS = [
   "tailormycv_generated", "tailormycv_eval_summary", "tailormycv_template_id",
   "tailormycv_output_format", "tailormycv_instructions",
   "tailormycv_locked_facts", "tailormycv_custom_sections",
 ];
 
-const BENEFITS = [
-  { icon: FiZap,    title: "AI-powered tailoring",     desc: "Matches your resume to every job posting" },
-  { icon: FiTarget, title: "ATS optimised",             desc: "Keywords that pass automated screening" },
-  { icon: FiAward,  title: "Multi-model quality check", desc: "Three AI evaluators until it scores best" },
-];
+// ── Page inner (needs Suspense for useSearchParams) ───────────────────────────
 
 function UploadPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Tailor context — read from URL params only, never from localStorage
   const jobTitle = searchParams.get("tailor_title") ?? "";
   const employer = searchParams.get("tailor_employer") ?? "";
 
-  const [file, setFile]                     = useState<File | null>(null);
-  const [uploading, setUploading]           = useState(false);
-  const [library, setLibrary]               = useState<SavedResume[]>([]);
-  const [libraryLoaded, setLibraryLoaded]   = useState(false);
+  const [file, setFile]                         = useState<File | null>(null);
+  const [uploading, setUploading]               = useState(false);
+  const [library, setLibrary]                   = useState<SavedResume[]>([]);
+  const [libraryLoaded, setLibraryLoaded]       = useState(false);
   const [libraryLoadingId, setLibraryLoadingId] = useState<string | null>(null);
 
-
   useEffect(() => {
-    // Clear legacy localStorage keys and any stale tailor context
     localStorage.removeItem("tailormycv_tailor_job_title");
     localStorage.removeItem("tailormycv_tailor_employer");
     if (!searchParams.get("tailor_title")) {
@@ -104,16 +137,25 @@ function UploadPageInner() {
   const hasLibrary  = libraryLoaded && library.length > 0;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-8">
 
-      {/* Step badge + hero */}
+      {/* ── Step badge + hero ── */}
       <div className="text-center space-y-2 pt-2">
         <div className="inline-flex items-center gap-2 bg-teal-50 text-teal-700 text-xs font-semibold px-3 py-1.5 rounded-full border border-teal-200">
-          <FiZap className="w-3.5 h-3.5" /> Step 1 of 6
+          <FiZap className="w-3.5 h-3.5" /> Step 1 of 5
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-          {hasLibrary ? "Choose your resume" : "Upload your resume"}
+          {isTailoring
+            ? "Tailor your resume"
+            : hasLibrary
+            ? "Choose your resume"
+            : "Upload your resume"}
         </h1>
+        <p className="text-slate-500 text-sm max-w-md mx-auto">
+          {isTailoring
+            ? "We'll tailor your CV specifically for this role using multi-model AI."
+            : "Upload your existing CV — our AI will tailor it to any job description in minutes."}
+        </p>
         {isTailoring && (
           <div className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 text-brand-700 text-xs font-medium px-3 py-1.5 rounded-full">
             <FiBriefcase className="w-3.5 h-3.5 shrink-0" />
@@ -122,7 +164,7 @@ function UploadPageInner() {
         )}
       </div>
 
-      {/* Resume Library */}
+      {/* ── Resume Library ── */}
       {hasLibrary && (
         <div className="space-y-2">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide px-1">Your Resume Library</p>
@@ -147,8 +189,7 @@ function UploadPageInner() {
               >
                 {libraryLoadingId === r.id
                   ? <><FiLoader className="w-3.5 h-3.5 animate-spin" /> Loading…</>
-                  : isTailoring ? "Tailor with this" : "Use this resume"
-                }
+                  : isTailoring ? "Tailor with this" : "Use this resume"}
               </button>
             </div>
           ))}
@@ -160,7 +201,7 @@ function UploadPageInner() {
         </div>
       )}
 
-      {/* Drop zone */}
+      {/* ── Drop zone ── */}
       <div
         {...getRootProps()}
         className={`rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-200 ${
@@ -205,7 +246,7 @@ function UploadPageInner() {
         </div>
       </div>
 
-      {/* Upload button */}
+      {/* ── Upload button ── */}
       {file && (
         <div className="flex justify-center">
           <button
@@ -218,26 +259,80 @@ function UploadPageInner() {
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Analysing…
                 </span>
-              : "Upload & Continue →"
-            }
+              : "Upload & Continue →"}
           </button>
         </div>
       )}
 
-      {/* Benefits */}
-      {!hasLibrary && !isTailoring && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-          {BENEFITS.map(({ icon: Icon, title, desc }) => (
-            <div key={title} className="flex flex-col items-start gap-2 p-4 rounded-xl bg-white border border-slate-100 shadow-sm">
-              <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
-                <Icon className="w-4 h-4 text-brand-600" />
-              </div>
-              <p className="font-semibold text-sm text-slate-800">{title}</p>
-              <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
-            </div>
-          ))}
+      {/* ── What happens next ── */}
+      <div className="space-y-4 pt-2">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">What happens next</p>
+          <p className="text-sm text-slate-400">Here&apos;s the full process — you&apos;ll be done in minutes.</p>
         </div>
-      )}
+
+        <div className="space-y-3">
+          {PROCESS_STEPS.map((s, i) => {
+            const Icon = s.icon;
+            return (
+              <div key={s.step}
+                className={`flex items-start gap-4 rounded-2xl border p-4 transition ${
+                  s.highlight
+                    ? "border-teal-200 bg-teal-50"
+                    : "border-slate-100 bg-white"
+                }`}
+              >
+                {/* Step connector */}
+                <div className="flex flex-col items-center shrink-0 pt-0.5">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    s.highlight
+                      ? "bg-teal-600 text-white"
+                      : "bg-brand-600 text-white"
+                  }`}>
+                    {s.step}
+                  </div>
+                  {i < PROCESS_STEPS.length - 1 && (
+                    <div className="w-px h-3 bg-slate-200 mt-1" />
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <Icon className={`w-4 h-4 shrink-0 ${s.highlight ? "text-teal-600" : "text-brand-500"}`} />
+                    <p className={`font-semibold text-sm ${s.highlight ? "text-teal-900" : "text-slate-800"}`}>
+                      {s.title}
+                    </p>
+                    {s.highlight && (
+                      <span className="text-[10px] font-bold bg-teal-200 text-teal-800 px-1.5 py-0.5 rounded-full">
+                        AI ✦ Multi-model
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-xs leading-relaxed ${s.highlight ? "text-teal-700" : "text-slate-500"}`}>
+                    {s.desc}
+                  </p>
+                </div>
+
+                {/* Time badge */}
+                <div className="shrink-0 flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                  <FiClock className="w-3 h-3" />
+                  {s.time}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Final outcome */}
+        <div className="flex items-center gap-3 bg-slate-50 rounded-2xl border border-slate-200 px-4 py-3">
+          <FiCheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+          <p className="text-sm text-slate-600">
+            <span className="font-semibold text-slate-800">Result:</span>{" "}
+            A tailored CV matched to the job, scored by three AI models, in a professional template — ready to apply.
+          </p>
+        </div>
+      </div>
 
     </div>
   );
