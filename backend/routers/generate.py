@@ -166,6 +166,10 @@ async def generate(
     has_jd = bool(job_description.strip())
     job_analyzer_calls = 1 if has_jd else 0
 
+    # Tier-aware pass threshold — higher tiers demand more refinement cycles
+    _TIER_THRESHOLDS = {"free": 75, "plus": 83, "pro": 92}
+    pass_threshold = _TIER_THRESHOLDS.get((user or {}).get("tier", "free"), settings.pass_threshold)
+
     profession_config = await _resolve_profession(db, target_role)
 
     # ── Resolve user tier for per-tier feature enforcement ────────────────────
@@ -265,6 +269,7 @@ async def generate(
         "key_skills": key_skills,
         "sample_cv_text": sample_cv_text,
         "enabled_evaluators": enabled_evaluators,
+        "pass_threshold": pass_threshold,
         "cycle": 0,
         "feedback": None,
         "resume_json": None,
@@ -322,7 +327,7 @@ async def generate(
         "cycles": final_state["cycle"],
         "all_passed": final_state["all_passed"],
         "min_score": final_state["min_score"],
-        "pass_threshold": settings.pass_threshold,
+        "pass_threshold": pass_threshold,
         "evaluator_results": final_state["eval_results"],
         "profession": profession_config.get("display_name", "General"),
         "key_skills": key_skills,

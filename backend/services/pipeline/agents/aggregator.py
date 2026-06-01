@@ -21,10 +21,16 @@ class AggregatorAgent(BaseAgent):
 
     name = "aggregator"
 
-    def run(self, evaluator_results: list[dict], profession_config: dict) -> dict:
+    def run(
+        self,
+        evaluator_results: list[dict],
+        profession_config: dict,
+        pass_threshold: int | None = None,
+    ) -> dict:
+        threshold = pass_threshold if pass_threshold is not None else settings.pass_threshold
         scores = [r["score"] for r in evaluator_results]
         min_score = min(scores) if scores else 0
-        all_passed = all(s >= settings.pass_threshold for s in scores)
+        all_passed = all(s >= threshold for s in scores)
 
         lines = []
 

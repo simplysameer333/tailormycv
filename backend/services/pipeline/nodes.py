@@ -79,7 +79,11 @@ async def evaluate_node(state: PipelineState) -> dict:
 
 async def aggregate_node(state: PipelineState) -> dict:
     """Consolidate evaluator results and decide pass/fail for this cycle."""
-    aggregated = _aggregator.run(state["eval_results"], state["profession_config"])
+    aggregated = _aggregator.run(
+        state["eval_results"],
+        state["profession_config"],
+        pass_threshold=state.get("pass_threshold"),
+    )
     cycle_record = {
         "cycle": state["cycle"] + 1,
         "profession": state["profession_config"].get("slug", "generic"),

@@ -45,3 +45,7 @@ class PipelineState(TypedDict):
     # Keys are evaluator names ("anthropic", "openai", "google"); value is bool.
     # Falls back to the global _EVALUATOR_ENABLED dict in nodes.py when absent.
     enabled_evaluators: dict
+    # ── tier-aware pass threshold ─────────────────────────────────────────────
+    # Minimum score all evaluators must reach before exiting the loop.
+    # Free=75, Plus=83, Pro=92 — higher tiers run more refinement cycles.
+    pass_threshold: int
