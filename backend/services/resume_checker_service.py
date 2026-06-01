@@ -188,7 +188,7 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
 
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
-        max_tokens=6000,  # 51 checks + improvements needs ~4500 tokens
+        max_tokens=7500,  # 51 checks + improvements + extracted_profile with experience
         system=_SYSTEM,
         messages=[{"role": "user", "content": prompt}],
     )

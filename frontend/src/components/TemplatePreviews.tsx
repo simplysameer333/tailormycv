@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { FiCheckCircle, FiArrowRight, FiLock } from "react-icons/fi";
 import clsx from "clsx";
@@ -927,7 +927,7 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
   );
 }
 
-// CV Score — 4 template suggestions (2 one-page + 2 two-page)
+// CV Score — 4 template suggestions with large preview + clickable thumbnails
 export function TemplateSuggestions({ extractedProfile }: {
   extractedProfile?: {
     name?: string; title?: string; email?: string; phone?: string;
@@ -936,78 +936,142 @@ export function TemplateSuggestions({ extractedProfile }: {
     education?: { degree: string; school: string; year: string }[];
   };
 }) {
+  const [selectedIdx, setSelectedIdx] = useState(0);
+
   const shown = [
     ALL_TEMPLATES.find(t => t.key === "Cambridge")!,
-    ALL_TEMPLATES.find(t => t.key === "Swift")!,
     ALL_TEMPLATES.find(t => t.key === "Horizon")!,
     ALL_TEMPLATES.find(t => t.key === "Prism")!,
+    ALL_TEMPLATES.find(t => t.key === "Swift")!,
   ];
 
-  // Use real CV fields where available, fall back to SAMPLE_THUMB per-field
+  // Use real CV fields where available, fall back to SAMPLE per-field
   const previewData: PreviewData = extractedProfile ? {
-    name:       extractedProfile.name       || SAMPLE_THUMB.name,
-    title:      extractedProfile.title      || SAMPLE_THUMB.title,
-    email:      extractedProfile.email      || SAMPLE_THUMB.email,
-    phone:      extractedProfile.phone      || SAMPLE_THUMB.phone,
-    location:   extractedProfile.location   || SAMPLE_THUMB.location,
-    linkedin:   extractedProfile.linkedin   || SAMPLE_THUMB.linkedin,
-    summary:    extractedProfile.summary    || SAMPLE_THUMB.summary,
-    skills:     extractedProfile.skills?.length     ? extractedProfile.skills     : SAMPLE_THUMB.skills,
-    experience: extractedProfile.experience?.length ? extractedProfile.experience : SAMPLE_THUMB.experience,
-    education:  extractedProfile.education?.length  ? extractedProfile.education  : SAMPLE_THUMB.education,
-  } : SAMPLE_THUMB;
+    name:       extractedProfile.name       || SAMPLE.name,
+    title:      extractedProfile.title      || SAMPLE.title,
+    email:      extractedProfile.email      || SAMPLE.email,
+    phone:      extractedProfile.phone      || SAMPLE.phone,
+    location:   extractedProfile.location   || SAMPLE.location,
+    linkedin:   extractedProfile.linkedin   || SAMPLE.linkedin,
+    summary:    extractedProfile.summary    || SAMPLE.summary,
+    skills:     extractedProfile.skills?.length     ? extractedProfile.skills     : SAMPLE.skills,
+    experience: extractedProfile.experience?.length ? extractedProfile.experience : SAMPLE.experience,
+    education:  extractedProfile.education?.length  ? extractedProfile.education  : SAMPLE.education,
+  } : SAMPLE;
 
-  const isPersonalised = !!(extractedProfile?.name && extractedProfile.name !== SAMPLE_THUMB.name);
+  const isPersonalised = !!(extractedProfile?.name && extractedProfile.name !== SAMPLE.name);
+  const selected = shown[selectedIdx];
+
+  // Large preview dimensions — scale so the full A4 page is visible
+  const LARGE_SCALE = 0.62;
+  const LARGE_W = Math.round(794 * LARGE_SCALE);       // ≈ 492px
+  const LARGE_H = Math.round(794 * 1.414 * LARGE_SCALE); // ≈ 696px
+
+  const largeHtml = useMemo(
+    () => getTemplateHtml(selected.key, previewData),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selected.key, extractedProfile?.name, extractedProfile?.title]
+  );
+
+  // Thumbnail dimensions
+  const THUMB_SCALE = 0.22;
+  const THUMB_H = Math.round(794 * 1.414 * THUMB_SCALE * 0.62);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div>
         <h3 className="font-bold text-slate-900 text-lg">
-          {isPersonalised ? "See your CV in our templates" : "See how your CV could look"}
+          {isPersonalised ? "Your Resume in Professional Templates" : "See how your CV could look"}
         </h3>
         <p className="text-sm text-slate-500 mt-1">
           {isPersonalised
-            ? "Your name, title and skills have been applied to each template below."
+            ? "See how your resume looks with different professional formatting."
             : "Choose from 1-page or 2-page layouts. Our AI builder applies your chosen template when tailoring for a job."}
         </p>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {shown.map((info) => {
-          const SUGG_SCALE = 0.25;
-          const thumbH = Math.round(794 * 1.414 * SUGG_SCALE * 0.68); // top 68%
-          const html = getTemplateHtml(info.key, previewData);
-          return (
-            <div key={info.key} className="card p-0 overflow-hidden hover:shadow-lg hover:border-brand-300 transition cursor-pointer rounded-2xl">
-              <div style={{ height: thumbH, overflow: "hidden", position: "relative", background: "#fff" }}>
-                <iframe
-                  srcDoc={html}
-                  sandbox="allow-same-origin"
-                  scrolling="no"
-                  style={{
-                    position: "absolute", top: 0, left: 0,
-                    width: 794,
-                    height: Math.round(794 * 1.414),
-                    border: "none",
-                    transform: `scale(${SUGG_SCALE})`,
-                    transformOrigin: "top left",
-                    pointerEvents: "none",
-                  }}
-                />
-                <div className={clsx(
-                  "absolute top-2 left-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full z-10",
-                  info.pages === 1 ? "bg-blue-500 text-white" : "bg-slate-700 text-white"
-                )}>
-                  {info.pages === 1 ? "1-Page" : "2-Page"}
+
+      {/* Large preview + template switcher */}
+      <div className="card p-0 overflow-hidden border-slate-200">
+        {/* Large preview centred */}
+        <div className="flex justify-center bg-slate-50 py-6 border-b border-slate-100">
+          <div className="rounded-lg shadow-lg overflow-hidden border border-slate-200"
+               style={{ width: LARGE_W, height: LARGE_H, position: "relative", background: "#fff" }}>
+            <iframe
+              srcDoc={largeHtml}
+              sandbox="allow-same-origin"
+              scrolling="no"
+              title={`${selected.name} preview`}
+              style={{
+                position: "absolute", top: 0, left: 0,
+                width: 794,
+                height: Math.round(794 * 1.414),
+                border: "none",
+                transform: `scale(${LARGE_SCALE})`,
+                transformOrigin: "top left",
+                pointerEvents: "none",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Selected template info bar */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-900 text-sm">{selected.name}</span>
+            <span className={clsx("text-[10px] font-semibold px-1.5 py-0.5 rounded-full", CATEGORY_COLORS[selected.category])}>
+              {selected.category}
+            </span>
+            <span className={clsx("text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+              selected.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500")}>
+              {selected.pages}-page
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 hidden sm:block">{selected.bestFor}</p>
+        </div>
+
+        {/* Thumbnail selector row */}
+        <div className="grid grid-cols-4 gap-0 divide-x divide-slate-100">
+          {shown.map((info, i) => {
+            const thumbHtml = getTemplateHtml(info.key, previewData);
+            const isActive = i === selectedIdx;
+            return (
+              <button
+                key={info.key}
+                onClick={() => setSelectedIdx(i)}
+                className={clsx(
+                  "flex flex-col items-center gap-2 p-3 transition text-left",
+                  isActive
+                    ? "bg-brand-50 border-t-2 border-t-brand-500"
+                    : "hover:bg-slate-50 border-t-2 border-t-transparent"
+                )}
+              >
+                <div style={{ height: THUMB_H, width: "100%", overflow: "hidden", position: "relative", background: "#fff",
+                              border: isActive ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0", borderRadius: 6 }}>
+                  <iframe
+                    srcDoc={thumbHtml}
+                    sandbox="allow-same-origin"
+                    scrolling="no"
+                    style={{
+                      position: "absolute", top: 0, left: 0,
+                      width: 794,
+                      height: Math.round(794 * 1.414),
+                      border: "none",
+                      transform: `scale(${THUMB_SCALE})`,
+                      transformOrigin: "top left",
+                      pointerEvents: "none",
+                    }}
+                  />
                 </div>
-              </div>
-              <div className="px-3 py-2.5 border-t border-slate-100">
-                <p className="font-semibold text-xs text-slate-900">{info.name}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">{info.bestFor}</p>
-              </div>
-            </div>
-          );
-        })}
+                <p className={clsx("text-[10px] font-semibold text-center leading-tight",
+                  isActive ? "text-brand-700" : "text-slate-600")}>
+                  {info.name}
+                </p>
+              </button>
+            );
+          })}
+        </div>
       </div>
+
       <div className="flex items-center justify-between bg-brand-50 border border-brand-200 rounded-2xl px-5 py-4">
         <div>
           <p className="font-semibold text-slate-800 text-sm">Tailor your CV and choose from 15 templates</p>
