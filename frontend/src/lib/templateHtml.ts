@@ -8,7 +8,7 @@ import type { PreviewData } from "@/components/TemplatePreviews";
 
 const BASE_CSS = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { width: 794px; font-size: 12px; line-height: 1.5; color: #1f2937; }
+body { width: 794px; font-size: 12px; line-height: 1.5; color: #111827; background: #fff; }
 ul { list-style: none; }
 li { padding-left: 14px; margin-top: 3px; position: relative; }
 li::before { content: "•"; position: absolute; left: 2px; }
@@ -35,15 +35,15 @@ function wrap(css: string, body: string) {
 
 // ── 1. Cambridge ──────────────────────────────────────────────────────────────
 export function Cambridge(d: PreviewData) {
-  const h2 = `font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#374151;margin:18px 0 3px;`;
-  const rule = `<div style="border-top:1px solid #d1d5db;margin-bottom:7px;"></div>`;
-  return wrap(`body{padding:48px 52px;font-family:Calibri,Arial,sans-serif;}`, `
-    <div style="font-size:26px;font-weight:700;color:#111827;">${esc(d.name)}</div>
-    <div style="font-size:13px;color:#4b5563;margin-top:4px;">${esc(d.title)}</div>
-    <div style="font-size:11px;color:#6b7280;margin-top:4px;">${contact(d)}</div>
-    <div style="border-top:1.5px solid #d1d5db;margin:14px 0;"></div>
+  const h2 = `font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:#1f2937;margin:20px 0 4px;`;
+  const rule = `<div style="border-top:2px solid #374151;margin-bottom:8px;"></div>`;
+  return wrap(`body{padding:44px 50px;font-family:Calibri,Arial,sans-serif;}`, `
+    <div style="font-size:32px;font-weight:800;color:#0f172a;letter-spacing:-0.5px;">${esc(d.name)}</div>
+    <div style="font-size:14px;color:#374151;margin-top:5px;font-weight:500;">${esc(d.title)}</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:5px;">${contact(d)}</div>
+    <div style="border-top:2px solid #0f172a;margin:14px 0 4px;"></div>
     <div style="${h2}">Professional Summary</div>${rule}
-    <div style="font-size:12px;color:#374151;">${esc(d.summary)}</div>
+    <div style="font-size:12px;color:#374151;line-height:1.6;">${esc(d.summary)}</div>
     <div style="${h2}">Work Experience</div>${rule}
     ${expRows(d)}
     <div style="${h2}">Skills</div>${rule}
@@ -56,14 +56,14 @@ export function Cambridge(d: PreviewData) {
 // ── 2. Horizon ────────────────────────────────────────────────────────────────
 export function Horizon(d: PreviewData) {
   const blue = "#1d4ed8";
-  const h2 = `font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:${blue};margin:18px 0 3px;`;
-  const rule = `<div style="border-top:2px solid ${blue};margin-bottom:8px;"></div>`;
+  const h2 = `font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:${blue};margin:18px 0 4px;`;
+  const rule = `<div style="border-top:2.5px solid ${blue};margin-bottom:8px;"></div>`;
   const chip = (s: string) => `<span style="background:#eff6ff;color:${blue};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:500;margin:2px;display:inline-block;">${esc(s)}</span>`;
   return wrap(`body{font-family:Arial,sans-serif;}`, `
     <div style="background:${blue};padding:36px 48px 28px;">
-      <div style="font-size:28px;font-weight:800;color:#fff;">${esc(d.name)}</div>
-      <div style="font-size:14px;color:#bfdbfe;margin-top:4px;">${esc(d.title)}</div>
-      <div style="font-size:11px;color:#93c5fd;margin-top:6px;">${contact(d)}</div>
+      <div style="font-size:34px;font-weight:900;color:#fff;letter-spacing:-0.5px;">${esc(d.name)}</div>
+      <div style="font-size:15px;color:#bfdbfe;margin-top:5px;font-weight:500;">${esc(d.title)}</div>
+      <div style="font-size:11px;color:#93c5fd;margin-top:7px;">${contact(d)}</div>
     </div>
     <div style="padding:24px 48px;">
       <div style="${h2}">Profile</div>${rule}
@@ -84,8 +84,8 @@ export function Prestige(d: PreviewData) {
   return wrap(`body{padding:48px 52px;font-family:Georgia,serif;}`, `
     <div style="border-top:2.5px solid #111827;margin-bottom:10px;"></div>
     <div style="text-align:center;">
-      <div style="font-size:22px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">${esc(d.name)}</div>
-      <div style="font-size:12px;color:#555;margin-top:4px;">${esc(d.title)}</div>
+      <div style="font-size:28px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#0f172a;">${esc(d.name)}</div>
+      <div style="font-size:13px;color:#555;margin-top:5px;">${esc(d.title)}</div>
       <div style="font-size:11px;color:#777;margin-top:4px;">${contact(d)}</div>
     </div>
     <div style="border-top:2.5px solid #111827;border-bottom:1px solid #111827;margin:10px 0 16px;height:6px;"></div>
@@ -103,12 +103,12 @@ export function Prestige(d: PreviewData) {
 export function Catalyst(d: PreviewData) {
   const orange = "#ea580c";
   const sec = (title: string, content: string) => `
-    <div style="font-size:10px;font-weight:800;color:${orange};text-transform:uppercase;letter-spacing:2px;margin:18px 0 3px;">${title}</div>
-    <div style="border-top:1px solid #fed7aa;margin-bottom:8px;"></div>${content}`;
+    <div style="font-size:11px;font-weight:900;color:${orange};text-transform:uppercase;letter-spacing:2px;margin:18px 0 3px;">${title}</div>
+    <div style="border-top:2px solid #fed7aa;margin-bottom:8px;"></div>${content}`;
   const chip = (s: string) => `<span style="background:#fff7ed;border:1px solid #fed7aa;color:${orange};border-radius:4px;padding:2px 8px;font-size:11px;font-weight:600;margin:2px;display:inline-block;">${esc(s)}</span>`;
   return wrap(`body{padding:44px 52px;font-family:Arial,sans-serif;}`, `
-    <div style="font-size:30px;font-weight:900;color:#0f172a;text-transform:uppercase;">${esc(d.name)}</div>
-    <div style="height:4px;width:56px;background:${orange};margin:10px 0;"></div>
+    <div style="font-size:34px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:-0.5px;">${esc(d.name)}</div>
+    <div style="height:5px;width:60px;background:${orange};margin:10px 0;"></div>
     <div style="font-size:13px;color:#475569;">${esc(d.title)}  ·  ${esc(d.location)}</div>
     <div style="font-size:11px;color:#64748b;margin-top:3px;">${esc(d.email)}  ·  ${esc(d.phone)}</div>
     ${sec("About", `<div style="font-size:12px;line-height:1.6;">${esc(d.summary)}</div>`)}
@@ -126,12 +126,12 @@ export function Catalyst(d: PreviewData) {
 // ── 5. Admiral ────────────────────────────────────────────────────────────────
 export function Admiral(d: PreviewData) {
   const navy = "#1e3a5f";
-  const h2 = `font-size:9px;font-weight:700;color:${navy};text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 3px;`;
-  const rule = `<div style="border-top:1px solid ${navy};margin-bottom:7px;"></div>`;
+  const h2 = `font-size:11px;font-weight:800;color:${navy};text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 4px;`;
+  const rule = `<div style="border-top:2px solid ${navy};margin-bottom:8px;"></div>`;
   return wrap(`body{padding:44px 52px;font-family:Arial,sans-serif;}`, `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
-        <div style="font-size:24px;font-weight:700;color:${navy};">${esc(d.name)}</div>
+        <div style="font-size:30px;font-weight:800;color:${navy};letter-spacing:-0.5px;">${esc(d.name)}</div>
         <div style="font-size:13px;color:#3b5998;margin-top:3px;">${esc(d.title)}</div>
       </div>
       <div style="text-align:right;font-size:11px;color:#6b7280;line-height:1.8;">${esc(d.email)}<br>${esc(d.phone)}<br>${esc(d.location)}</div>
@@ -179,12 +179,13 @@ export function Canvas(d: PreviewData) {
 
 // ── 7. Swift ──────────────────────────────────────────────────────────────────
 export function Swift(d: PreviewData) {
-  const h2 = `font-size:9px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:1.5px;margin:10px 0 4px;`;
-  return wrap(`body{padding:32px 44px;font-family:Arial,sans-serif;font-size:11px;}`, `
-    <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:1.5px solid #374151;padding-bottom:8px;margin-bottom:8px;">
-      <div style="font-size:20px;font-weight:700;color:#0f172a;">${esc(d.name)}</div>
-      <div style="font-size:10px;color:#64748b;text-align:right;">${esc(d.email)}  ·  ${esc(d.phone)}<br>${esc(d.location)}</div>
+  const h2 = `font-size:10px;font-weight:800;color:#1e293b;text-transform:uppercase;letter-spacing:1.5px;margin:12px 0 4px;`;
+  return wrap(`body{padding:28px 42px;font-family:Arial,sans-serif;font-size:11px;}`, `
+    <div style="background:#1e293b;margin:-28px -42px 16px;padding:22px 42px 18px;">
+      <div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-0.5px;">${esc(d.name)}</div>
+      <div style="font-size:13px;color:#94a3b8;margin-top:4px;">${esc(d.title)}</div>
     </div>
+    <div style="font-size:10px;color:#64748b;border-bottom:1px solid #334155;padding-bottom:8px;margin-bottom:8px;">${esc(d.email)}  ·  ${esc(d.phone)}  ·  ${esc(d.location)}</div>
     <div style="${h2}">Summary</div>
     <div style="color:#4b5563;line-height:1.5;margin-bottom:8px;">${esc(d.summary)}</div>
     <div style="${h2}">Experience</div>
@@ -225,9 +226,9 @@ export function Jade(d: PreviewData) {
 // ── 9. Prism (sidebar) ────────────────────────────────────────────────────────
 export function Prism(d: PreviewData) {
   const sidebar = `
-    <div style="width:200px;background:#f1f5f9;padding:40px 22px;flex-shrink:0;min-height:100vh;">
-      <div style="font-size:15px;font-weight:700;color:#1e293b;">${esc(d.name)}</div>
-      <div style="font-size:11px;color:#2563eb;margin-top:4px;">${esc(d.title)}</div>
+    <div style="width:210px;background:#e8f0fe;padding:40px 22px;flex-shrink:0;min-height:100vh;border-right:3px solid #2563eb;">
+      <div style="font-size:18px;font-weight:800;color:#1e293b;line-height:1.2;">${esc(d.name)}</div>
+      <div style="font-size:12px;color:#2563eb;margin-top:5px;font-weight:600;">${esc(d.title)}</div>
       <div style="height:2px;width:32px;background:#2563eb;margin:10px 0;"></div>
       <div style="font-size:10px;color:#475569;line-height:1.9;">${esc(d.email)}<br>${esc(d.phone)}<br>${esc(d.location)}</div>
       <div style="font-size:9px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:1.5px;margin:18px 0 6px;">Skills</div>
@@ -260,9 +261,9 @@ export function Prism(d: PreviewData) {
 export function Vivid(d: PreviewData) {
   const purple = "#7c3aed";
   const sidebar = `
-    <div style="width:190px;background:${purple};padding:40px 20px;flex-shrink:0;min-height:100vh;">
-      <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;margin-bottom:12px;font-size:20px;font-weight:700;color:#fff;">${esc(d.name.charAt(0))}</div>
-      <div style="font-size:14px;font-weight:700;color:#fff;">${esc(d.name)}</div>
+    <div style="width:200px;background:${purple};padding:36px 20px;flex-shrink:0;min-height:100vh;">
+      <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:24px;font-weight:900;color:#fff;">${esc(d.name.charAt(0))}</div>
+      <div style="font-size:17px;font-weight:800;color:#fff;line-height:1.2;">${esc(d.name)}</div>
       <div style="font-size:11px;color:#c4b5fd;margin-top:3px;">${esc(d.title)}</div>
       <div style="border-top:1px solid rgba(255,255,255,0.2);margin:12px 0;"></div>
       <div style="font-size:10px;color:#ddd6fe;line-height:1.9;">${esc(d.email)}<br>${esc(d.phone)}<br>${esc(d.location)}</div>
@@ -300,7 +301,7 @@ export function Luxe(d: PreviewData) {
     <div style="border-top:1px solid ${gold};opacity:0.4;margin-bottom:8px;"></div>${content}`;
   return wrap(`body{padding:52px 56px;font-family:Georgia,serif;background:#fffdf5;}`, `
     <div style="text-align:center;">
-      <div style="font-size:24px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">${esc(d.name)}</div>
+      <div style="font-size:28px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#1c1917;">${esc(d.name)}</div>
       <div style="font-size:12px;color:${gold};letter-spacing:1.5px;margin-top:4px;">${esc(d.title)}</div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin:14px 0;">

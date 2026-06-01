@@ -707,10 +707,12 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 // ── Iframe-based preview (crisp, pixel-perfect rendering) ─────────────────────
 
-// Thumbnail: iframe 794px wide scaled to fit card (~196px → scale 0.247)
-const THUMB_IFRAME_W = 794;
-const THUMB_SCALE    = 0.247;
-const THUMB_H        = Math.round(THUMB_IFRAME_W * 1.414 * THUMB_SCALE); // A4 ratio
+// Thumbnail: show top 55% of page at scale that fills card width (~196px)
+// Only render the top portion — name/header/first section is all that matters
+const THUMB_IFRAME_W  = 794;
+const THUMB_SCALE     = 0.247;
+const THUMB_SHOW_FRAC = 0.52;   // show top 52% of A4 height
+const THUMB_H         = Math.round(THUMB_IFRAME_W * 1.414 * THUMB_SCALE * THUMB_SHOW_FRAC);
 
 export function TemplateThumbnail({
   info, isSelected, onClick, locked = false, data,
@@ -891,8 +893,8 @@ export function TemplateSuggestions() {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {shown.map((info) => {
-          const SUGG_SCALE = 0.23;
-          const thumbH = Math.round(794 * 1.414 * SUGG_SCALE);
+          const SUGG_SCALE = 0.27;
+          const thumbH = Math.round(794 * 1.414 * SUGG_SCALE * 0.52); // top 52%
           const html = getTemplateHtml(info.key, SAMPLE);
           return (
             <div key={info.key} className="card p-0 overflow-hidden hover:shadow-lg hover:border-brand-300 transition cursor-pointer rounded-2xl">
