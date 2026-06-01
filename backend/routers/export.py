@@ -43,7 +43,15 @@ async def export_resume(
     template_id = session.get("selected_template_id")
     template_path = ""
     if template_id:
-        tmpl = await db.templates.find_one({"_id": ObjectId(template_id)})
+        # template_id may be a MongoDB ObjectId string OR a plain key/name string
+        # (the frontend falls back to info.key when the DB lookup misses)
+        tmpl = None
+        try:
+            tmpl = await db.templates.find_one({"_id": ObjectId(template_id)})
+        except Exception:
+            pass
+        if tmpl is None:
+            tmpl = await db.templates.find_one({"name": template_id})
         if tmpl:
             template_path = get_template_path(tmpl["file_path"])
 
