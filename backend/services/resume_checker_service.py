@@ -397,7 +397,27 @@ Return this exact JSON structure with ALL 51 checks populated:
     "title":    "<current or most recent job title from the CV>",
     "email":    "<email address if present, else empty string>",
     "phone":    "<phone number if present, else empty string>",
+    "location": "<city and country e.g. London, UK — or empty string>",
     "linkedin": "<LinkedIn URL if present, else empty string>"
+  }},
+  "extracted_resume": {{
+    "summary": "<professional summary or objective verbatim from the CV — empty string if none>",
+    "skills": ["<skill>", "<skill>"],
+    "experience": [
+      {{
+        "role":    "<exact job title from CV>",
+        "company": "<exact company name from CV>",
+        "dates":   "<date range exactly as written e.g. Jan 2020 – Present>",
+        "bullets": ["<achievement or responsibility verbatim>", "<achievement or responsibility verbatim>"]
+      }}
+    ],
+    "education": [
+      {{
+        "degree":      "<qualification name exactly as written>",
+        "institution": "<university or school name>",
+        "dates":       "<graduation year or date range>"
+      }}
+    ]
   }}
 }}
 

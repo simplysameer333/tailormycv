@@ -273,18 +273,38 @@ async def check_resume_quality(
         logger.warning("[cv_score] Failed to persist result: %s", exc)
         result_id = None
 
-    # Merge LLM contact (accurate name/title) with full regex profile (sections)
-    llm_contact   = result.pop("extracted_contact", None) or {}
-    full_profile  = extract_contact_regex(parsed["raw_text"])  # extract_full_profile alias
-    extracted_contact = {
-        "name":     llm_contact.get("name")     or full_profile.get("name", ""),
-        "title":    llm_contact.get("title")    or full_profile.get("title", ""),
-        "email":    llm_contact.get("email")    or full_profile.get("email", ""),
-        "phone":    llm_contact.get("phone")    or full_profile.get("phone", ""),
-        "linkedin": llm_contact.get("linkedin") or full_profile.get("linkedin", ""),
-        "sections": full_profile.get("sections", []),   # always from regex parser
+    # LLM returns both extracted_contact (name/contact) and extracted_resume (full structure).
+    # LLM is primary — it correctly separates job entries, parses bullets, etc.
+    # Regex profile is fallback for any fields the LLM left empty.
+    llm_contact = result.pop("extracted_contact", None) or {}
+    llm_resume  = result.pop("extracted_resume",  None) or {}
+    regex_profile = extract_contact_regex(parsed["raw_text"])
+
+    extracted_profile = {
+        # Contact — LLM first, regex fallback
+        "name":     llm_contact.get("name")     or regex_profile.get("name", ""),
+        "title":    llm_contact.get("title")    or regex_profile.get("title", ""),
+        "email":    llm_contact.get("email")    or regex_profile.get("email", ""),
+        "phone":    llm_contact.get("phone")    or regex_profile.get("phone", ""),
+        "location": llm_contact.get("location") or regex_profile.get("location", ""),
+        "linkedin": llm_contact.get("linkedin") or regex_profile.get("linkedin", ""),
+        # Full resume structure — LLM first, regex fallback
+        "summary":    llm_resume.get("summary")    or regex_profile.get("summary", ""),
+        "skills":     llm_resume.get("skills")     or regex_profile.get("skills", []),
+        "experience": llm_resume.get("experience") or regex_profile.get("experience", []),
+        "education":  llm_resume.get("education")  or regex_profile.get("education", []),
     }
-    return {**result, "result_id": result_id, "extracted_profile": extracted_contact}
+
+    # Persist full profile so GET permalink always has complete data
+    try:
+        await db.cv_check_results.update_one(
+            {"_id": result_id},
+            {"$set": {"extracted_profile": extracted_profile}},
+        )
+    except Exception:
+        pass
+
+    return {**result, "result_id": result_id, "extracted_profile": extracted_profile}
 
 
 @router.get("/resume/check/{result_id}")
@@ -295,12 +315,11 @@ async def get_check_result(result_id: str):
     if not doc:
         raise HTTPException(404, "Result not found or has expired.")
 
-    # Always return a computed extracted_profile.
-    # If the stored profile lacks sections (old result) and we have raw_text,
-    # re-extract the full profile now so the template preview shows real CV data.
+    # Always return a fully structured extracted_profile.
+    # Old results lack experience/skills/education — re-extract from raw_text when available.
     extracted = doc.get("extracted_profile") or {}
     raw_text  = doc.get("raw_text", "")
-    if raw_text and not extracted.get("sections"):
-        extracted = extract_contact_regex(raw_text)
+    if raw_text and not extracted.get("experience"):
+        extracted = extract_contact_regex(raw_text)  # extract_full_profile alias
 
     return doc["result"] | {"result_id": result_id, "extracted_profile": extracted}
