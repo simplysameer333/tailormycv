@@ -80,7 +80,13 @@ export function Horizon(d: PreviewData) {
       <div style="${h2}">Experience</div>${rule}
       ${expRows(d, "#1e293b", blue)}
       <div style="${h2}">Skills</div>${rule}
-      <div>${d.skills.map(chip).join("")}</div>
+      <div style="margin-bottom:18px;">${d.skills.map(chip).join("")}</div>
+      ${d.education.length ? `<div style="${h2}">Education</div>${rule}
+      ${d.education.map(e => `
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
+          <div><span style="font-size:12px;font-weight:700;color:#1e293b;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#475569;">${esc(e.school)}</span></div>
+          <span style="font-size:11px;color:#64748b;">${esc(e.year)}</span>
+        </div>`).join("")}` : ""}
     </div>
   `);
 }
@@ -129,6 +135,11 @@ export function Catalyst(d: PreviewData) {
       <ul style="margin-bottom:10px;">${e.bullets.map(b => `<li style="font-size:11px;color:#334155;padding-left:14px;" data-arrow>→ ${esc(b)}</li>`).join("")}</ul>
     `).join(""))}
     ${sec("Skills", `<div>${d.skills.map(chip).join("")}</div>`)}
+    ${d.education.length ? sec("Education", d.education.map(e => `
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <div><span style="font-size:12px;font-weight:700;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#64748b;">${esc(e.school)}</span></div>
+        <span style="font-size:11px;color:#94a3b8;">${esc(e.year)}</span>
+      </div>`).join("")) : ""}
   `);
 }
 
@@ -158,7 +169,13 @@ export function Admiral(d: PreviewData) {
       <ul style="margin-bottom:10px;">${e.bullets.map(b => `<li style="font-size:11px;color:#4b5563;">${esc(b)}</li>`).join("")}</ul>
     `).join("")}
     <div style="${h2}">Core Skills</div>${rule}
-    <div style="font-size:12px;line-height:1.9;">${d.skills.map(esc).join("  ·  ")}</div>
+    <div style="font-size:12px;line-height:1.9;margin-bottom:14px;">${d.skills.map(esc).join("  ·  ")}</div>
+    ${d.education.length ? `<div style="${h2}">Education</div>${rule}
+    ${d.education.map(e => `
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <div><span style="font-size:12px;font-weight:600;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#6b7280;">${esc(e.school)}</span></div>
+        <span style="font-size:11px;color:#6b7280;">${esc(e.year)}</span>
+      </div>`).join("")}` : ""}
   `);
 }
 
@@ -183,6 +200,11 @@ export function Canvas(d: PreviewData) {
       <ul style="margin-bottom:12px;">${e.bullets.map(b => `<li style="font-size:11px;color:#6b7280;">— ${esc(b)}</li>`).join("")}</ul>
     `).join(""))}
     ${sec("Skills", `<div style="font-size:12px;color:#4b5563;line-height:2;">${d.skills.map(esc).join("   ·   ")}</div>`)}
+    ${d.education.length ? sec("Education", d.education.map(e => `
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+        <div><span style="font-size:12px;color:#374151;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#9ca3af;">${esc(e.school)}</span></div>
+        <span style="font-size:10px;color:#9ca3af;">${esc(e.year)}</span>
+      </div>`).join("")) : ""}
   `);
 }
 
@@ -278,6 +300,13 @@ export function Vivid(d: PreviewData) {
       <div style="font-size:10px;color:#ddd6fe;line-height:1.9;">${esc(d.email)}<br>${esc(d.phone)}<br>${esc(d.location)}</div>
       <div style="font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 6px;">Skills</div>
       ${d.skills.map(s => `<div style="font-size:11px;color:#ede9fe;margin-bottom:3px;">▸ ${esc(s)}</div>`).join("")}
+      ${d.education.length ? `
+        <div style="font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 6px;">Education</div>
+        ${d.education.map(e => `
+          <div style="font-size:11px;color:#ede9fe;font-weight:600;margin-bottom:2px;">${esc(e.degree)}</div>
+          <div style="font-size:10px;color:#c4b5fd;">${esc(e.school)}</div>
+          <div style="font-size:10px;color:#a78bfa;margin-bottom:10px;">${esc(e.year)}</div>`).join("")}
+      ` : ""}
     </div>`;
   const main = `
     <div style="flex:1;padding:32px 26px;">
