@@ -378,7 +378,7 @@ def _generate_clean_docx(r: dict, kw_re=None) -> bytes:
 
 import html as _html
 
-_BRAND  = colors.HexColor("#2B579A")
+_RULE   = colors.HexColor("#374151")   # slate-700 — section separators, headings
 _TEXT   = colors.HexColor("#1a1a1a")
 _MUTED  = colors.HexColor("#555555")
 _LINK   = colors.HexColor("#0563C1")
@@ -418,7 +418,7 @@ def generate_pdf(resume_data: dict, bold_keywords: list[str] | None = None) -> b
     )
     section_style = ParagraphStyle(
         "Section", parent=base["Normal"],
-        fontSize=10, leading=12, textColor=_BRAND,
+        fontSize=10, leading=12, textColor=_RULE,
         fontName="Helvetica-Bold", spaceBefore=8, spaceAfter=2,
     )
     job_title_style = ParagraphStyle(
@@ -445,7 +445,7 @@ def generate_pdf(resume_data: dict, bold_keywords: list[str] | None = None) -> b
     )
 
     def hr():
-        return HRFlowable(width="100%", thickness=0.5, color=_BRAND, spaceAfter=3)
+        return HRFlowable(width="100%", thickness=0.5, color=_RULE, spaceAfter=3)
 
     def section_heading(title: str):
         return [Paragraph(title.upper(), section_style), hr()]
@@ -504,7 +504,7 @@ def generate_pdf(resume_data: dict, bold_keywords: list[str] | None = None) -> b
     if contact_parts:
         story.append(Paragraph("  ·  ".join(contact_parts), contact_style))
 
-    story.append(HRFlowable(width="100%", thickness=1, color=_BRAND, spaceAfter=5))
+    story.append(HRFlowable(width="100%", thickness=1, color=_RULE, spaceAfter=5))
 
     # ── Summary ────────────────────────────────────────────────────────────────
     if r.get("summary"):
