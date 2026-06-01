@@ -23,6 +23,7 @@ import {
   type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 import { getTemplateHtml } from "@/lib/templateHtml";
+import { EvalQualityPanel } from "@/components/EvalQualityPanel";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -383,7 +384,7 @@ export default function TemplatePage() {
           </p>
         </div>
 
-        {evalSummary && <QualityPanel evalSummary={evalSummary} />}
+        {evalSummary && <EvalQualityPanel evalSummary={evalSummary} />}
 
         <div className="card p-5 space-y-3">
           {files?.docx_file_id && (
@@ -455,7 +456,7 @@ export default function TemplatePage() {
               onUpload={handleUploadSample}
               getRootProps={getRootProps} getInputProps={getInputProps} isDragActive={isDragActive}
             />}
-            {evalSummary && <QualityPanel evalSummary={evalSummary} />}
+            {evalSummary && <EvalQualityPanel evalSummary={evalSummary} />}
             <button
               onClick={handleGenerate}
               disabled={exporting}
@@ -544,7 +545,7 @@ export default function TemplatePage() {
         getRootProps={getRootProps} getInputProps={getInputProps} isDragActive={isDragActive}
       />}
 
-      {evalSummary && <QualityPanel evalSummary={evalSummary} />}
+      {evalSummary && <EvalQualityPanel evalSummary={evalSummary} />}
 
       {/* Generate */}
       <button
@@ -622,35 +623,3 @@ function SampleCvCard({
   );
 }
 
-// ── Quality panel ─────────────────────────────────────────────────────────────
-
-function QualityPanel({ evalSummary }: { evalSummary: EvalSummary }) {
-  const { min_score, pass_threshold, all_passed, evaluator_results, cycles } = evalSummary;
-  const delta = min_score - pass_threshold;
-  const label  = delta >= 30 ? "Excellent" : delta >= 10 ? "Strong" : delta >= 0 ? "Good" : "Reviewed";
-  const colors = delta >= 30
-    ? { bg: "bg-green-50", border: "border-green-200", badge: "bg-green-100 text-green-700", bar: "bg-green-500" }
-    : delta >= 10
-    ? { bg: "bg-teal-50",  border: "border-teal-200",  badge: "bg-teal-100 text-teal-700",   bar: "bg-teal-500"  }
-    : delta >= 0
-    ? { bg: "bg-blue-50",  border: "border-blue-200",  badge: "bg-blue-100 text-blue-700",   bar: "bg-blue-500"  }
-    : { bg: "bg-slate-50", border: "border-slate-200", badge: "bg-slate-100 text-slate-600", bar: "bg-slate-400" };
-  return (
-    <div className={`rounded-2xl border ${colors.border} ${colors.bg} p-4`}>
-      <div className="flex items-center gap-3 mb-3">
-        <FiAward className="w-5 h-5 text-slate-500 shrink-0" />
-        <p className="font-semibold text-slate-700 text-sm">Resume Quality</p>
-        <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${colors.badge}`}>{label}</span>
-      </div>
-      <div className="flex items-center gap-3 mb-2">
-        <div className="flex-1 h-2 bg-white/70 rounded-full overflow-hidden border border-white">
-          <div className={`h-full rounded-full ${colors.bar}`} style={{ width: `${Math.min(100, Math.max(0, min_score))}%` }} />
-        </div>
-        <span className="text-sm font-bold text-slate-700 shrink-0">{min_score}<span className="text-xs font-normal text-slate-400">/100</span></span>
-      </div>
-      <p className="text-xs text-slate-500">
-        {evaluator_results.length} evaluator{evaluator_results.length !== 1 ? "s" : ""} · {cycles} cycle{cycles !== 1 ? "s" : ""} · {all_passed ? "All passed" : "Best version selected"}
-      </p>
-    </div>
-  );
-}

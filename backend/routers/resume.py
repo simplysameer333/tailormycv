@@ -45,6 +45,24 @@ def _content_type(filename: str) -> str:
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 
+async def _validate_and_parse(
+    file: UploadFile, *, label: str = "resume", require_text: bool = False
+) -> tuple[dict, bytes]:
+    """Validate content-type and size, parse the file. Raises HTTPException on failure."""
+    if file.content_type not in ACCEPTED_TYPES:
+        raise HTTPException(400, "Only PDF and DOCX files are accepted.")
+    file_bytes = await file.read()
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(400, "File exceeds 5 MB limit.")
+    try:
+        parsed = parse_resume(file_bytes, file.filename)
+    except Exception as exc:
+        raise HTTPException(422, f"Failed to parse {label}: {exc}")
+    if require_text and not parsed.get("raw_text", "").strip():
+        raise HTTPException(422, "Could not extract text from this file. Try a plain PDF or DOCX.")
+    return parsed, file_bytes
+
+
 @router.post("/resume/upload")
 async def upload_resume(
     file: UploadFile = File(None),
@@ -74,15 +92,7 @@ async def upload_resume(
 
     # ── Parse resume file ──────────────────────────────────────────────────────
     if has_file:
-        if file.content_type not in ACCEPTED_TYPES:
-            raise HTTPException(400, "Only PDF and DOCX files are accepted.")
-        file_bytes = await file.read()
-        if len(file_bytes) > MAX_FILE_SIZE:
-            raise HTTPException(400, "File exceeds 5 MB limit.")
-        try:
-            parsed = parse_resume(file_bytes, file.filename)
-        except Exception as exc:
-            raise HTTPException(422, f"Failed to parse resume: {exc}")
+        parsed, file_bytes = await _validate_and_parse(file)
 
     # ── Merge LinkedIn text ────────────────────────────────────────────────────
     # Resume takes precedence; LinkedIn is appended as supplementary context.
@@ -151,17 +161,7 @@ async def upload_sample_cv(
     if not _hf((user or {}).get("tier", "free"), "sample_cv"):
         raise HTTPException(403, "Sample CV reference is not available on your plan. Visit /settings/plan to upgrade.")
 
-    if file.content_type not in ACCEPTED_TYPES:
-        raise HTTPException(400, "Only PDF and DOCX files are accepted.")
-
-    file_bytes = await file.read()
-    if len(file_bytes) > MAX_FILE_SIZE:
-        raise HTTPException(400, "File exceeds 5 MB limit.")
-
-    try:
-        parsed = parse_resume(file_bytes, file.filename)
-    except Exception as exc:
-        raise HTTPException(422, f"Failed to parse sample CV: {exc}")
+    parsed, file_bytes = await _validate_and_parse(file, label="sample CV")
 
     db = get_db()
     result = await db.sessions.find_one({"_id": ObjectId(session_id)}, {"_id": 1})
@@ -199,20 +199,7 @@ async def check_resume_quality(
     Returns 7-category breakdown with scores and improvement suggestions.
     Usage is tracked in the cv_checks MongoDB collection.
     """
-    if file.content_type not in ACCEPTED_TYPES:
-        raise HTTPException(400, "Only PDF and DOCX files are accepted.")
-
-    file_bytes = await file.read()
-    if len(file_bytes) > MAX_FILE_SIZE:
-        raise HTTPException(400, "File exceeds 5 MB limit.")
-
-    try:
-        parsed = parse_resume(file_bytes, file.filename)
-    except Exception as exc:
-        raise HTTPException(422, f"Failed to parse CV: {exc}")
-
-    if not parsed.get("raw_text", "").strip():
-        raise HTTPException(422, "Could not extract text from this file. Try a plain PDF or DOCX.")
+    parsed, _ = await _validate_and_parse(file, label="CV", require_text=True)
 
     try:
         result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)

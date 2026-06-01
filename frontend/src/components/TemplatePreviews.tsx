@@ -89,7 +89,13 @@ export const SAMPLE: PreviewData = {
   ],
 };
 
-const W = 600; // base template width in px
+const W = 600; // base template width in px (used by React components)
+
+// A4 iframe dimensions — used by all iframe-based previews
+const A4_W     = 794;
+const A4_RATIO = 1.414;
+const a4H = (scale: number) => Math.round(A4_W * A4_RATIO * scale);
+const a4W = (scale: number) => Math.round(A4_W * scale);
 
 // ── Scaling wrapper ───────────────────────────────────────────────────────────
 
@@ -758,11 +764,9 @@ export const CATEGORY_COLORS: Record<string, string> = {
 
 // ── Iframe-based preview (crisp, pixel-perfect rendering) ─────────────────────
 
-// Thumbnail: top 65% of A4 at scale that fits card width (~196px)
-// Showing top 65% focuses on header + 2-3 experience entries — the key differentiator
-const THUMB_IFRAME_W = 794;
-const THUMB_SCALE    = 0.247;
-const THUMB_H        = Math.round(THUMB_IFRAME_W * 1.414 * THUMB_SCALE * 0.68);
+// Thumbnail: top 68% of A4 at scale that fits card width (~196px)
+const THUMB_SCALE = 0.247;
+const THUMB_H     = Math.round(a4H(THUMB_SCALE) * 0.68);
 
 export function TemplateThumbnail({
   info, isSelected, onClick, locked = false, data,
@@ -808,8 +812,8 @@ export function TemplateThumbnail({
           style={{
             position: "absolute",
             top: 0, left: 0,
-            width: THUMB_IFRAME_W,
-            height: Math.round(THUMB_IFRAME_W * 1.414),
+            width: A4_W,
+            height: a4H(1),
             border: "none",
             transform: `scale(${THUMB_SCALE})`,
             transformOrigin: "top left",
@@ -849,10 +853,9 @@ export function TemplateThumbnail({
 }
 
 // Large live preview — shown above gallery, updates instantly on template switch
-const LARGE_IFRAME_W = 794;
-const LARGE_SCALE    = 0.48;
-const LARGE_H        = Math.round(LARGE_IFRAME_W * 1.414 * LARGE_SCALE);
-const LARGE_W        = Math.round(LARGE_IFRAME_W * LARGE_SCALE);
+const LARGE_SCALE = 0.48;
+const LARGE_H     = a4H(LARGE_SCALE);
+const LARGE_W     = a4W(LARGE_SCALE);
 
 export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?: PreviewData }) {
   // Large preview uses full data so it looks like a real complete document
@@ -876,8 +879,8 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
           style={{
             position: "absolute",
             top: 0, left: 0,
-            width: LARGE_IFRAME_W,
-            height: Math.round(LARGE_IFRAME_W * 1.414),
+            width: A4_W,
+            height: a4H(1),
             border: "none",
             transform: `scale(${LARGE_SCALE})`,
             transformOrigin: "top left",
@@ -964,8 +967,8 @@ export function TemplateSuggestions({ extractedProfile }: {
 
   // Large preview dimensions — scale so the full A4 page is visible
   const LARGE_SCALE = 0.62;
-  const LARGE_W = Math.round(794 * LARGE_SCALE);       // ≈ 492px
-  const LARGE_H = Math.round(794 * 1.414 * LARGE_SCALE); // ≈ 696px
+  const LARGE_W = a4W(LARGE_SCALE);
+  const LARGE_H = a4H(LARGE_SCALE);
 
   const largeHtml = useMemo(
     () => getTemplateHtml(selected.key, previewData),
@@ -975,7 +978,7 @@ export function TemplateSuggestions({ extractedProfile }: {
 
   // Thumbnail dimensions
   const THUMB_SCALE = 0.22;
-  const THUMB_H = Math.round(794 * 1.414 * THUMB_SCALE * 0.62);
+  const THUMB_H = Math.round(a4H(THUMB_SCALE) * 0.62);
 
   return (
     <div className="space-y-5">
@@ -1003,8 +1006,8 @@ export function TemplateSuggestions({ extractedProfile }: {
               title={`${selected.name} preview`}
               style={{
                 position: "absolute", top: 0, left: 0,
-                width: 794,
-                height: Math.round(794 * 1.414),
+                width: A4_W,
+                height: a4H(1),
                 border: "none",
                 transform: `scale(${LARGE_SCALE})`,
                 transformOrigin: "top left",

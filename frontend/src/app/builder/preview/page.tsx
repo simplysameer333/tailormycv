@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/useAuth";
 import Link from "next/link";
 import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap } from "react-icons/fi";
 import { SUPPORT_EMAIL, hasFeature } from "@/lib/config";
+import { EvalSummaryPanel } from "@/components/EvalQualityPanel";
 
 const LS_RESUME = "tailormycv_generated";
 const LS_EVAL = "tailormycv_eval_summary";
@@ -686,65 +687,6 @@ export default function PreviewPage() {
   );
 }
 
-function EvalSummaryPanel({ summary }: { summary: EvalSummary }) {
-  const passed = summary.all_passed;
-
-  function qualityLabel(score: number, threshold: number): string {
-    if (score >= threshold + 30) return "Excellent";
-    if (score >= threshold + 15) return "Strong";
-    if (score >= threshold) return "Good";
-    return "Reviewed";
-  }
-
-  function qualityColor(score: number, threshold: number): string {
-    if (score >= threshold + 30) return "bg-green-100 text-green-700";
-    if (score >= threshold + 15) return "bg-blue-100 text-blue-700";
-    if (score >= threshold) return "bg-amber-100 text-amber-700";
-    return "bg-slate-100 text-slate-600";
-  }
-
-  return (
-    <div
-      className={`rounded-xl border p-4 flex flex-col gap-3 ${
-        passed
-          ? "border-green-200 bg-green-50"
-          : "border-blue-200 bg-blue-50"
-      }`}
-    >
-      <div className="flex items-center gap-2">
-        {passed ? (
-          <FiCheckCircle className="w-5 h-5 text-green-600 shrink-0" />
-        ) : (
-          <FiShield className="w-5 h-5 text-blue-600 shrink-0" />
-        )}
-        <span className="font-semibold text-sm text-slate-800">
-          {passed
-            ? `Resume fully tailored to your target role — reviewed across ${summary.cycles} iteration${summary.cycles !== 1 ? "s" : ""}`
-            : `Resume optimized over ${summary.cycles} iteration${summary.cycles !== 1 ? "s" : ""} — best version selected`}
-        </span>
-        {summary.profession && (
-          <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-white border border-slate-200 text-slate-600 capitalize shrink-0">
-            {summary.profession}
-          </span>
-        )}
-      </div>
-      {summary.evaluator_results.length > 0 && (
-        <div className="flex gap-3 flex-wrap">
-          {summary.evaluator_results.map((r) => (
-            <div key={r.model} className="flex items-center gap-1.5 text-xs text-slate-600">
-              <span className="capitalize font-medium">{r.model} review</span>
-              <span
-                className={`px-2 py-0.5 rounded font-semibold ${qualityColor(r.score, summary.pass_threshold)}`}
-              >
-                {qualityLabel(r.score, summary.pass_threshold)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function LockedFactsPanel({
   facts,
