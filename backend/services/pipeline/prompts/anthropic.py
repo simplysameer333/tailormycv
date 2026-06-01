@@ -171,26 +171,31 @@ def _page_rules(pages: int) -> str:
     if pages == 1:
         return (
             "The selected template fits exactly **1 A4 page**. This is a non-negotiable hard limit.\n"
-            "You are a senior CV writer — curate content ruthlessly so everything fits on one page:\n"
-            "- Summary: 2 sentences maximum — every word must earn its place\n"
-            "- Experience: at most 3 roles (most recent and most relevant only)\n"
-            "- Bullets: exactly 2 per role; 3 only for the most recent role if space allows\n"
-            "- Each bullet: maximum 12 words — cut ruthlessly, no padding\n"
-            "- Skills: maximum 8 skills — strongest and most relevant only\n"
-            "- Omit optional sections (certifications, languages, interests) unless critical\n"
-            "A 1-page CV that fits perfectly is worth far more than one that spills to a second page."
+            "You are a senior CV writer. NEVER remove sections (Education, Certifications, Awards, Languages, etc.) "
+            "to save space — that is never acceptable. Instead, compress content within every section:\n\n"
+            "COMPRESSION STRATEGY (apply in order until it fits):\n"
+            "1. Summary: 2 sentences maximum — strip to the most impactful claim only\n"
+            "2. Experience: most recent 3 roles only; older roles omitted from the list (not their section)\n"
+            "3. Bullets: exactly 2 per role, 3 only for the most recent role — each max 10 words\n"
+            "4. Skills: maximum 8 — strongest and most relevant only\n"
+            "5. Education: include all entries but degree + institution + year on one line each\n"
+            "6. Other sections (Certifications, Awards): 1 line per entry, most relevant only\n\n"
+            "Sections must all appear. Content within them is compressed to fit."
         )
     else:
         return (
             "The selected template fits exactly **2 A4 pages**. This is a non-negotiable hard limit.\n"
-            "You are a senior CV writer — curate content so it fills 2 pages but never spills to a 3rd:\n"
-            "- Summary: exactly 3 sentences — no more, no less\n"
-            "- Experience: at most 5 roles; for 6+ role careers keep only the most recent 5\n"
-            "- Bullets: exactly 3 per role; 4 only for the most recent role with genuinely distinct achievements\n"
-            "- Each bullet: maximum 20 words — be concise and impactful\n"
-            "- Skills: maximum 12 skills — strongest and most relevant\n"
-            "- Roles older than 12 years: reduce to 2 bullets or omit entirely if not relevant\n"
-            "A tight, well-curated 2-page CV always outperforms a padded 3-page one."
+            "You are a senior CV writer. NEVER remove sections (Education, Certifications, Awards, Languages, etc.) "
+            "to save space — a missing section is always worse than a compressed one. Instead:\n\n"
+            "COMPRESSION STRATEGY (apply in order until it fits):\n"
+            "1. Summary: exactly 3 sentences — no more\n"
+            "2. Experience: at most 5 roles; for 6+ role careers, keep the 5 most recent/relevant\n"
+            "3. Bullets: exactly 3 per role; 4 only for the most recent role with distinct achievements\n"
+            "4. Each bullet: maximum 18 words — be concise\n"
+            "5. Skills: maximum 12 — strongest and most relevant\n"
+            "6. Roles older than 12 years: compress to 2 bullets; do not remove the role entirely\n"
+            "7. Education, Certifications, Awards: include all but keep each entry to 1–2 lines\n\n"
+            "Sections must all appear. A tight, well-curated 2-page CV always beats a padded 3-page one."
         )
 
 
