@@ -278,7 +278,7 @@ export function Jade(d: PreviewData) {
   const h2 = `font-size:10px;font-weight:700;color:${teal};text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 4px;`;
   const chip = (s: string) => `<span style="background:#f0fdfa;border:1px solid ${teal};color:${teal};border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;display:inline-block;">${esc(s)}</span>`;
   return wrap(`body{font-family:Arial,sans-serif;display:flex;}`, `
-    <div style="width:6px;background:${teal};flex-shrink:0;min-height:100vh;"></div>
+    <div style="width:6px;background:${teal};flex-shrink:0;"></div>
     <div style="padding:${PAD};flex:1;">
       <div style="font-size:26px;font-weight:700;color:#0f172a;">${esc(d.name)}</div>
       <div style="font-size:13px;color:${teal};margin-top:3px;">${esc(d.title)}</div>
@@ -300,7 +300,7 @@ export function Jade(d: PreviewData) {
 // ── 9. Prism (sidebar) ────────────────────────────────────────────────────────
 export function Prism(d: PreviewData) {
   const sidebar = `
-    <div style="width:200px;background:#e8f0fe;padding:32px 18px;flex-shrink:0;min-height:100vh;border-right:3px solid #2563eb;">
+    <div style="width:200px;background:#e8f0fe;padding:32px 18px;flex-shrink:0;border-right:3px solid #2563eb;">
       <div style="font-size:18px;font-weight:800;color:#1e293b;line-height:1.2;">${esc(d.name)}</div>
       <div style="font-size:12px;color:#2563eb;margin-top:5px;font-weight:600;">${esc(d.title)}</div>
       <div style="height:2px;width:32px;background:#2563eb;margin:10px 0;"></div>
@@ -338,14 +338,14 @@ export function Prism(d: PreviewData) {
         ${s.items.map(i => `<div style="font-size:11px;color:#475569;margin-bottom:3px;">▸ ${esc(i)}</div>`).join("")}
       `).join("")}
     </div>`;
-  return wrap(`body{font-family:Arial,sans-serif;display:flex;min-height:100vh;}`, sidebar + main);
+  return wrap(`body{font-family:Arial,sans-serif;display:flex;}`, sidebar + main);
 }
 
 // ── 10. Vivid (purple sidebar) ────────────────────────────────────────────────
 export function Vivid(d: PreviewData) {
   const purple = "#7c3aed";
   const sidebar = `
-    <div style="width:190px;background:${purple};padding:28px 16px;flex-shrink:0;min-height:100vh;">
+    <div style="width:190px;background:${purple};padding:28px 16px;flex-shrink:0;">
       <div style="width:56px;height:56px;border-radius:50%;background:rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:24px;font-weight:900;color:#fff;">${esc(d.name.charAt(0))}</div>
       <div style="font-size:17px;font-weight:800;color:#fff;line-height:1.2;">${esc(d.name)}</div>
       <div style="font-size:11px;color:#c4b5fd;margin-top:3px;">${esc(d.title)}</div>
@@ -386,7 +386,7 @@ export function Vivid(d: PreviewData) {
         ${s.items.map(i => `<div style="font-size:11px;color:#475569;margin-bottom:3px;">▸ ${esc(i)}</div>`).join("")}
       `).join("")}
     </div>`;
-  return wrap(`body{font-family:Arial,sans-serif;display:flex;min-height:100vh;}`, sidebar + main);
+  return wrap(`body{font-family:Arial,sans-serif;display:flex;}`, sidebar + main);
 }
 
 // ── 11–15: Remaining templates ────────────────────────────────────────────────
@@ -455,8 +455,8 @@ export function Pulse(d: PreviewData) {
   const rose = "#e11d48";
   const h2 = `font-size:11px;font-weight:800;color:${rose};text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 4px;`;
   const rule = `<div style="border-top:2.5px solid ${rose};margin-bottom:8px;"></div>`;
-  return wrap(`body{font-family:Arial,sans-serif;display:flex;min-height:100vh;}`, `
-    <div style="width:16px;background:${rose};flex-shrink:0;min-height:100vh;"></div>
+  return wrap(`body{font-family:Arial,sans-serif;display:flex;}`, `
+    <div style="width:16px;background:${rose};flex-shrink:0;"></div>
     <div style="padding:${PAD};flex:1;">
       <div style="font-size:32px;font-weight:900;color:#0f172a;letter-spacing:-0.5px;">${esc(d.name)}</div>
       <div style="font-size:13px;color:${rose};margin-top:4px;font-weight:600;">${esc(d.title)}</div>

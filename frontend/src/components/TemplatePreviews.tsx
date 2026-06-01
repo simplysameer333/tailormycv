@@ -943,7 +943,7 @@ export function TemplateSuggestions({ extractedProfile }: {
   // Pre-generate ALL 4 template HTMLs when profile loads — instant switching
   const LARGE_SCALE = 0.62;
   const LARGE_W = a4W(LARGE_SCALE);
-  const LARGE_H = a4H(LARGE_SCALE);
+  const A4_PAGE_PX = Math.round(A4_W * A4_RATIO);   // one A4 page height at 794px width
 
   const allHtmls = useMemo(
     () => previewData
@@ -954,6 +954,21 @@ export function TemplateSuggestions({ extractedProfile }: {
   );
 
   const largeHtml = allHtmls[selected.key] ?? "";
+
+  // Measure each template's true rendered height so the preview sizes to fit the
+  // ACTUAL content — it never clips/truncates. The iframe renders at natural
+  // height; onLoad we read body.scrollHeight and size the container accordingly.
+  const [naturalHeights, setNaturalHeights] = useState<Record<string, number>>({});
+  const measuredH   = naturalHeights[selected.key];
+  // Until measured, render tall enough for any CV (3 pages) so nothing clips
+  // during the first paint; the onLoad measurement then snaps it to the exact size.
+  const iframeH     = measuredH ?? A4_PAGE_PX * 3;
+  const containerH  = Math.round((measuredH ?? A4_PAGE_PX) * LARGE_SCALE);
+  const pagesNeeded = measuredH ? measuredH / A4_PAGE_PX : null;
+  // True when the CV fills more than this template's design page count (with a
+  // small tolerance so a hair over one page doesn't trigger it).
+  const overflowsTemplate = pagesNeeded ? pagesNeeded > selected.pages + 0.08 : false;
+  const pagesLabel = pagesNeeded ? (Math.round(pagesNeeded * 10) / 10) : null;
 
   // Thumbnail dimensions
   const THUMB_SCALE = 0.22;
@@ -978,24 +993,48 @@ export function TemplateSuggestions({ extractedProfile }: {
           <>
             <div className="flex justify-center bg-slate-50 py-6 border-b border-slate-100">
               <div className="rounded-lg shadow-lg overflow-hidden border border-slate-200"
-                   style={{ width: LARGE_W, height: LARGE_H, position: "relative", background: "#fff" }}>
+                   style={{ width: LARGE_W, height: containerH, position: "relative", background: "#fff" }}>
                 <iframe
                   srcDoc={largeHtml}
                   sandbox="allow-same-origin"
                   scrolling="no"
                   title={`${selected.name} preview`}
+                  onLoad={(e) => {
+                    const h = e.currentTarget.contentDocument?.body?.scrollHeight;
+                    if (h && h > 50) {
+                      setNaturalHeights(prev =>
+                        prev[selected.key] === h ? prev : { ...prev, [selected.key]: h });
+                    }
+                  }}
                   style={{
                     position: "absolute", top: 0, left: 0,
                     width: A4_W,
-                    height: a4H(1),
+                    height: iframeH,
                     border: "none",
                     transform: `scale(${LARGE_SCALE})`,
                     transformOrigin: "top left",
                     pointerEvents: "none",
                   }}
                 />
+                {/* Subtle page guide lines so the user sees where pages break */}
+                {pagesNeeded && pagesNeeded > 1 && Array.from({ length: Math.floor(pagesNeeded) }).map((_, i) => (
+                  <div key={i} aria-hidden
+                    style={{ position: "absolute", left: 0, right: 0,
+                      top: Math.round(A4_PAGE_PX * (i + 1) * LARGE_SCALE),
+                      borderTop: "1px dashed #cbd5e1" }} />
+                ))}
               </div>
             </div>
+            {overflowsTemplate && (
+              <div className="flex items-start gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
+                <span className="text-amber-500 mt-0.5">⚠</span>
+                <p className="text-xs text-amber-800">
+                  Your CV runs to <strong>~{pagesLabel} pages</strong> — more than this
+                  template&apos;s {selected.pages}-page design. It&apos;s shown in full above (nothing is cut off).
+                  The 2-page styles suit it best, or tailor it in the builder to condense it to fit.
+                </p>
+              </div>
+            )}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-slate-900 text-sm">{selected.name}</span>
