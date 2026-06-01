@@ -12,7 +12,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { FiUploadCloud, FiCheckCircle, FiFile, FiFileText, FiLayers, FiLock, FiZap } from "react-icons/fi";
 import {
-  ALL_TEMPLATES, LargeTemplatePreview, TemplateThumbnail, type PreviewData,
+  ALL_TEMPLATES, LargeTemplatePreview, TemplateThumbnail, type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 
 type OutputFormat = "docx" | "pdf" | "both";
