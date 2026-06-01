@@ -27,7 +27,6 @@ passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
 # Job alerts
 apscheduler==3.10.4
-# Template preview (Layer 2 — HTML→PDF→PNG)
-weasyprint==62.3
-PyMuPDF==1.24.3
-Jinja2==3.1.4
+# NOTE: weasyprint + PyMuPDF + Jinja2 will be added when Layer 2 preview
+# endpoint is built (/api/sessions/{id}/preview). Dockerfile will also need
+# libcairo2, libpangocairo-1.0-0, libfontconfig1, fonts-liberation, fontconfig.
