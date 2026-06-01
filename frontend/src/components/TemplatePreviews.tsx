@@ -20,72 +20,55 @@ export interface PreviewData {
   education: { degree: string; school: string; year: string }[];
 }
 
-// Condensed sample for thumbnails — shows template STYLE, not full content
-// Fewer bullets + fewer roles = clear structure at small scale
+// Generic placeholder — used only when no real user data is available.
+// Deliberately generic so it is obviously a layout demo, never mistaken for a real CV.
 export const SAMPLE_THUMB: PreviewData = {
-  name:     "Alex Johnson",
-  title:    "Senior Software Engineer",
-  email:    "alex.johnson@email.com",
-  phone:    "+44 7700 900 123",
-  location: "London, UK",
-  linkedin: "linkedin.com/in/alexjohnson",
-  summary:  "Software Engineer with 10+ years building scalable distributed systems. Led teams reducing infrastructure costs by $500K annually.",
-  skills:   ["Python", "TypeScript", "AWS", "Kubernetes", "PostgreSQL", "React", "Docker", "System Design"],
+  name:     "Your Name",
+  title:    "Your Professional Title",
+  email:    "your.email@example.com",
+  phone:    "+00 0000 000 000",
+  location: "City, Country",
+  linkedin: "linkedin.com/in/yourname",
+  summary:  "Your professional summary will appear here, showcasing your key experience, achievements and the value you bring to employers.",
+  skills:   ["Core Skill", "Technical Skill", "Industry Tool", "Key Competency", "Framework", "Methodology"],
   experience: [
-    { title: "Senior Software Engineer", company: "Google DeepMind", date: "2021 – Present",
-      bullets: ["Re-architected ML pipeline, reducing latency by 40%", "Built feature store serving 50M predictions/day"] },
-    { title: "Software Engineer", company: "Stripe", date: "2018 – 2021",
-      bullets: ["Built payment service processing $2B+ annually", "Improved test coverage from 45% to 92%"] },
-    { title: "Software Developer", company: "Genpact", date: "2015 – 2018",
-      bullets: ["Developed trading gateway for 15+ institutional clients"] },
+    { title: "Senior Role Title", company: "Company Name", date: "2021 – Present",
+      bullets: ["Key achievement demonstrating measurable impact", "Another significant contribution to the team"] },
+    { title: "Previous Role Title", company: "Previous Company", date: "2018 – 2021",
+      bullets: ["Notable achievement in your field", "Quantified result or successful project"] },
+    { title: "Earlier Role", company: "Earlier Company", date: "2015 – 2018",
+      bullets: ["Relevant contribution to the business"] },
   ],
   education: [
-    { degree: "BSc Computer Science (First Class)", school: "University College London", year: "2013" },
-    { degree: "AWS Solutions Architect", school: "Amazon Web Services", year: "2022" },
+    { degree: "Your Degree Title", school: "University Name", year: "2015" },
+    { degree: "Professional Certification", school: "Awarding Body", year: "2022" },
   ],
 };
 
-// Full sample for large preview — dense, realistic, fills the page
+// Alias kept for backward compatibility — same generic placeholder
 export const SAMPLE: PreviewData = {
-  name:     "Alex Johnson",
-  title:    "Senior Software Engineer",
-  email:    "alex.johnson@email.com",
-  phone:    "+44 7700 900 123",
-  location: "London, UK",
-  linkedin: "linkedin.com/in/alexjohnson",
-  summary:  "Senior Software Engineer with 10+ years of experience designing and delivering scalable distributed systems for Fortune 500 companies. Led cross-functional teams of 8+ engineers, reducing infrastructure costs by $500K annually and improving system latency by 40%. Currently responsible for AI/ML serving infrastructure at Google DeepMind processing 50M predictions daily.",
-  skills:   ["Python", "TypeScript", "Java", "AWS", "GCP", "Kubernetes", "Docker", "PostgreSQL", "Redis", "Kafka", "React", "System Design", "Machine Learning", "CI/CD"],
+  ...SAMPLE_THUMB,
+  summary: "Your professional summary will appear here, showcasing your key experience, skills and achievements. This is replaced with your actual CV content when you upload your resume.",
+  skills: ["Core Skill", "Technical Skill", "Industry Tool", "Key Competency", "Framework", "Methodology", "Soft Skill", "Domain Knowledge"],
   experience: [
-    { title: "Senior Software Engineer", company: "Google DeepMind", date: "Sep 2021 – Present",
+    { title: "Senior Role Title", company: "Company Name", date: "Sep 2021 – Present",
       bullets: [
-        "Re-architected ML serving pipeline reducing P99 latency by 40% across 50M daily predictions",
-        "Led team of 6 engineers delivering real-time feature store; reduced model inference time by 60%",
-        "Designed distributed training infrastructure supporting 200+ model experiments per week",
-        "Introduced weekly design review process adopted across 3 engineering teams",
-        "Mentored 4 junior engineers; 2 promoted to mid-level within 18 months",
+        "Key achievement demonstrating measurable impact on the business",
+        "Led initiative that improved a core metric by a significant amount",
+        "Collaborated cross-functionally to deliver a strategic project",
+        "Mentored junior team members and contributed to team growth",
       ] },
-    { title: "Software Engineer II", company: "Stripe", date: "Mar 2018 – Aug 2021",
+    { title: "Mid-Level Role", company: "Previous Company", date: "Mar 2018 – Aug 2021",
       bullets: [
-        "Built payment reconciliation service processing $2B+ in transactions annually with 99.99% uptime",
-        "Improved test coverage from 45% to 92% across core payment modules; reduced production bugs by 65%",
-        "Migrated monolithic auth service to microservices, cutting deployment time from 4 hours to 12 minutes",
-        "Collaborated with product and legal teams to ensure PCI-DSS compliance across 3 payment flows",
+        "Delivered a major project on time and within budget",
+        "Improved a key process, resulting in measurable efficiency gains",
+        "Worked with stakeholders to define and implement a new approach",
       ] },
-    { title: "Software Developer", company: "Genpact Capital Markets", date: "Jun 2015 – Feb 2018",
+    { title: "Earlier Role", company: "Earlier Company", date: "Jun 2015 – Feb 2018",
       bullets: [
-        "Developed FIX/JSON/XML trading gateway supporting 15+ institutional clients across EMEA",
-        "Reduced daily batch processing time from 6 hours to 45 minutes through parallelisation",
-        "Led migration of on-premise infrastructure to AWS; saved $1M in annual hosting costs",
+        "Contributed to core business objectives during this period",
+        "Developed skills in key areas relevant to your target role",
       ] },
-    { title: "Junior Developer", company: "TechCorp Solutions", date: "Sep 2013 – May 2015",
-      bullets: [
-        "Built RESTful APIs for client-facing dashboard serving 10,000+ daily active users",
-        "Maintained CI/CD pipeline and reduced deployment failures by 40%",
-      ] },
-  ],
-  education: [
-    { degree: "BSc Computer Science (First Class)", school: "University College London", year: "2013" },
-    { degree: "AWS Solutions Architect – Professional", school: "Amazon Web Services", year: "2022" },
   ],
 };
 
@@ -123,7 +106,7 @@ const contact = (d: PreviewData) =>
 // ══════════════════════════════════════════════════════════════════════════════
 
 // 1. CAMBRIDGE — Classic single-column, clean dividers
-export function Cambridge({ data = SAMPLE }: { data?: PreviewData }) {
+export function Cambridge({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const h2 = { fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: 1.5, color: "#374151", margin: "18px 0 4px" };
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 52px", fontFamily: "'Calibri',system-ui,sans-serif", color: "#1f2937", lineHeight: 1.5 }}>
@@ -158,7 +141,7 @@ export function Cambridge({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 2. HORIZON — Blue header, bold section headings
-export function Horizon({ data = SAMPLE }: { data?: PreviewData }) {
+export function Horizon({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const blue = "#1d4ed8";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", color: "#1f2937" }}>
@@ -193,7 +176,7 @@ export function Horizon({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 3. PRESTIGE — Formal serif, centered header, double rules
-export function Prestige({ data = SAMPLE }: { data?: PreviewData }) {
+export function Prestige({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 52px", fontFamily: "Georgia,serif", color: "#1c1c1c" }}>
       <div style={{ borderTop: "2.5px solid #1c1c1c", marginBottom: 10 }} />
@@ -234,7 +217,7 @@ export function Prestige({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 4. CATALYST — Bold orange accent, strong typography
-export function Catalyst({ data = SAMPLE }: { data?: PreviewData }) {
+export function Catalyst({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const orange = "#ea580c";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif", color: "#111" }}>
@@ -276,7 +259,7 @@ export function Catalyst({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 5. CANVAS — Ultra-minimal, whitespace-first
-export function Canvas({ data = SAMPLE }: { data?: PreviewData }) {
+export function Canvas({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "56px 60px", fontFamily: "'Helvetica Neue',system-ui,sans-serif", color: "#374151" }}>
       <div style={{ fontSize: 24, fontWeight: 300, color: "#111827", letterSpacing: -0.5 }}>{data.name}</div>
@@ -308,7 +291,7 @@ export function Canvas({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 6. ADMIRAL — Navy blue, formal two-tone
-export function Admiral({ data = SAMPLE }: { data?: PreviewData }) {
+export function Admiral({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const navy = "#1e3a5f";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif" }}>
@@ -344,7 +327,7 @@ export function Admiral({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 7. JADE — Teal left accent bar + teal headings
-export function Jade({ data = SAMPLE }: { data?: PreviewData }) {
+export function Jade({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const teal = "#0d9488";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex" }}>
@@ -387,7 +370,7 @@ function SectionTeal({ label, teal, children }: { label: string; teal: string; c
 }
 
 // 8. PRISM — Two-column: gray sidebar | main
-export function Prism({ data = SAMPLE }: { data?: PreviewData }) {
+export function Prism({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex", minHeight: 848 }}>
       <div style={{ width: 200, background: "#f1f5f9", padding: "40px 22px", flexShrink: 0 }}>
@@ -436,7 +419,7 @@ export function Prism({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 9. VIVID — Purple sidebar, creative
-export function Vivid({ data = SAMPLE }: { data?: PreviewData }) {
+export function Vivid({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const purple = "#7c3aed";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif", display: "flex", minHeight: 848 }}>
@@ -482,7 +465,7 @@ export function Vivid({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 10. CHRONICLE — Timeline with left border dots
-export function Chronicle({ data = SAMPLE }: { data?: PreviewData }) {
+export function Chronicle({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const brand = "#2563eb";
   return (
     <div style={{ width: W, background: "#fff", padding: "44px 52px", fontFamily: "system-ui,sans-serif" }}>
@@ -518,7 +501,7 @@ export function Chronicle({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 11. SUMMIT — Dark charcoal header block
-export function Summit({ data = SAMPLE }: { data?: PreviewData }) {
+export function Summit({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const dark = "#1e293b";
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif" }}>
@@ -557,7 +540,7 @@ export function Summit({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 12. SYMMETRY — Equal two columns
-export function Symmetry({ data = SAMPLE }: { data?: PreviewData }) {
+export function Symmetry({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", fontFamily: "system-ui,sans-serif" }}>
       <div style={{ padding: "36px 48px 16px", borderBottom: "2px solid #0f172a" }}>
@@ -605,7 +588,7 @@ export function Symmetry({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 13. SCHOLAR — Academic, formal structure
-export function Scholar({ data = SAMPLE }: { data?: PreviewData }) {
+export function Scholar({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "48px 56px", fontFamily: "Georgia,serif", color: "#1c1c1c", lineHeight: 1.6 }}>
       <div style={{ textAlign: "center" as const, marginBottom: 20 }}>
@@ -645,7 +628,7 @@ export function Scholar({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 14. SWIFT — Ultra-compact, maximises content on one page
-export function Swift({ data = SAMPLE }: { data?: PreviewData }) {
+export function Swift({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   return (
     <div style={{ width: W, background: "#fff", padding: "32px 44px", fontFamily: "system-ui,sans-serif", fontSize: 11 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: "1.5px solid #374151", paddingBottom: 8, marginBottom: 8 }}>
@@ -673,7 +656,7 @@ export function Swift({ data = SAMPLE }: { data?: PreviewData }) {
 }
 
 // 15. LUXE — Warm gold accents, cream background
-export function Luxe({ data = SAMPLE }: { data?: PreviewData }) {
+export function Luxe({ data = SAMPLE_THUMB }: { data?: PreviewData }) {
   const gold = "#b45309";
   return (
     <div style={{ width: W, background: "#fffdf5", padding: "52px 56px", fontFamily: "Georgia,serif", color: "#292524" }}>
@@ -715,11 +698,11 @@ export function Luxe({ data = SAMPLE }: { data?: PreviewData }) {
 // 16-20. New templates — previews rendered via getTemplateHtml (iframes)
 // These stubs exist only to satisfy the TemplateInfo type; the component
 // field is unused at runtime (all previews use getTemplateHtml).
-export function TechModern({ data = SAMPLE }: { data?: PreviewData }) { return Cambridge({ data }); }
-export function Pulse({ data = SAMPLE }: { data?: PreviewData })      { return Jade({ data }); }
-export function HexagonPro({ data = SAMPLE }: { data?: PreviewData }) { return Horizon({ data }); }
-export function SalesImpact({ data = SAMPLE }: { data?: PreviewData }) { return Horizon({ data }); }
-export function Healthcare({ data = SAMPLE }: { data?: PreviewData }) { return Jade({ data }); }
+export function TechModern({ data = SAMPLE_THUMB }: { data?: PreviewData }) { return Cambridge({ data }); }
+export function Pulse({ data = SAMPLE_THUMB }: { data?: PreviewData })      { return Jade({ data }); }
+export function HexagonPro({ data = SAMPLE_THUMB }: { data?: PreviewData }) { return Horizon({ data }); }
+export function SalesImpact({ data = SAMPLE_THUMB }: { data?: PreviewData }) { return Horizon({ data }); }
+export function Healthcare({ data = SAMPLE_THUMB }: { data?: PreviewData }) { return Jade({ data }); }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // TEMPLATE REGISTRY
@@ -885,11 +868,11 @@ const LARGE_W     = a4W(LARGE_SCALE);
 export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?: PreviewData }) {
   // Large preview uses full data so it looks like a real complete document
   const html = useMemo(
-    () => getTemplateHtml(info.key, data ?? SAMPLE),
+    () => getTemplateHtml(info.key, data ?? SAMPLE_THUMB),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [info.key, data?.name, data?.title]
   );
-  const isPersonalised = !!(data?.name && data.name !== SAMPLE.name);
+  const isPersonalised = !!(data?.name && data.name !== SAMPLE_THUMB.name);
 
   return (
     <div className="flex flex-col sm:flex-row gap-5 items-start card border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4 shadow-sm">
@@ -970,17 +953,19 @@ export function TemplateSuggestions({ extractedProfile }: {
     ALL_TEMPLATES.find(t => t.key === "Swift")!,
   ];
 
-  // Overlay real contact fields on top of SAMPLE — experience/skills stay as sample
-  const previewData: PreviewData = extractedProfile ? {
+  // Only show a real preview when we have an actual name from the uploaded CV.
+  // When no profile data is available we show thumbnails only (no large preview)
+  // so we never display generic placeholder content as if it were the user's CV.
+  const hasRealProfile = !!(extractedProfile?.name && extractedProfile.name.trim());
+  const previewData: PreviewData = hasRealProfile ? {
     ...SAMPLE_THUMB,
-    name:    extractedProfile.name     || SAMPLE_THUMB.name,
-    title:   extractedProfile.title    || SAMPLE_THUMB.title,
-    email:   extractedProfile.email    || SAMPLE_THUMB.email,
-    phone:   extractedProfile.phone    || SAMPLE_THUMB.phone,
-    linkedin: extractedProfile.linkedin || SAMPLE_THUMB.linkedin,
+    name:     extractedProfile!.name     || SAMPLE_THUMB.name,
+    title:    extractedProfile!.title    || SAMPLE_THUMB.title,
+    email:    extractedProfile!.email    || SAMPLE_THUMB.email,
+    phone:    extractedProfile!.phone    || SAMPLE_THUMB.phone,
+    linkedin: extractedProfile!.linkedin || SAMPLE_THUMB.linkedin,
   } : SAMPLE_THUMB;
 
-  const isPersonalised = !!(extractedProfile?.name && extractedProfile.name !== SAMPLE.name);
   const selected = shown[selectedIdx];
 
   // Large preview dimensions — scale so the full A4 page is visible
@@ -1002,53 +987,63 @@ export function TemplateSuggestions({ extractedProfile }: {
     <div className="space-y-5">
       <div>
         <h3 className="font-bold text-slate-900 text-lg">
-          {isPersonalised ? "Your Resume in Professional Templates" : "See how your CV could look"}
+          {hasRealProfile ? "Your CV in Professional Templates" : "See how your CV could look"}
         </h3>
         <p className="text-sm text-slate-500 mt-1">
-          {isPersonalised
-            ? "See how your resume looks with different professional formatting."
-            : "Choose from 1-page or 2-page layouts. Our AI builder applies your chosen template when tailoring for a job."}
+          {hasRealProfile
+            ? "Your uploaded CV reformatted in different professional styles."
+            : "Choose from 20 templates. Our AI builder applies your chosen template when tailoring for a job."}
         </p>
       </div>
 
-      {/* Large preview + template switcher */}
+      {/* Large preview — only shown when we have a real name from the uploaded CV */}
       <div className="card p-0 overflow-hidden border-slate-200">
-        {/* Large preview centred */}
-        <div className="flex justify-center bg-slate-50 py-6 border-b border-slate-100">
-          <div className="rounded-lg shadow-lg overflow-hidden border border-slate-200"
-               style={{ width: LARGE_W, height: LARGE_H, position: "relative", background: "#fff" }}>
-            <iframe
-              srcDoc={largeHtml}
-              sandbox="allow-same-origin"
-              scrolling="no"
-              title={`${selected.name} preview`}
-              style={{
-                position: "absolute", top: 0, left: 0,
-                width: A4_W,
-                height: a4H(1),
-                border: "none",
-                transform: `scale(${LARGE_SCALE})`,
-                transformOrigin: "top left",
-                pointerEvents: "none",
-              }}
-            />
+        {hasRealProfile ? (
+          <>
+            <div className="flex justify-center bg-slate-50 py-6 border-b border-slate-100">
+              <div className="rounded-lg shadow-lg overflow-hidden border border-slate-200"
+                   style={{ width: LARGE_W, height: LARGE_H, position: "relative", background: "#fff" }}>
+                <iframe
+                  srcDoc={largeHtml}
+                  sandbox="allow-same-origin"
+                  scrolling="no"
+                  title={`${selected.name} preview`}
+                  style={{
+                    position: "absolute", top: 0, left: 0,
+                    width: A4_W,
+                    height: a4H(1),
+                    border: "none",
+                    transform: `scale(${LARGE_SCALE})`,
+                    transformOrigin: "top left",
+                    pointerEvents: "none",
+                  }}
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-slate-900 text-sm">{selected.name}</span>
+                <span className={clsx("text-[10px] font-semibold px-1.5 py-0.5 rounded-full", CATEGORY_COLORS[selected.category])}>
+                  {selected.category}
+                </span>
+                <span className={clsx("text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
+                  selected.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500")}>
+                  {selected.pages}-page
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 hidden sm:block">{selected.bestFor}</p>
+            </div>
+          </>
+        ) : (
+          <div className="bg-slate-50 py-8 px-6 text-center border-b border-slate-100">
+            <p className="text-sm font-medium text-slate-600">
+              Upload your CV for a personalised template preview
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              We&apos;ll show how your actual CV looks in each style
+            </p>
           </div>
-        </div>
-
-        {/* Selected template info bar */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-900 text-sm">{selected.name}</span>
-            <span className={clsx("text-[10px] font-semibold px-1.5 py-0.5 rounded-full", CATEGORY_COLORS[selected.category])}>
-              {selected.category}
-            </span>
-            <span className={clsx("text-[10px] font-semibold px-1.5 py-0.5 rounded-full",
-              selected.pages === 1 ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500")}>
-              {selected.pages}-page
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 hidden sm:block">{selected.bestFor}</p>
-        </div>
+        )}
 
         {/* Thumbnail selector row */}
         <div className="grid grid-cols-4 gap-0 divide-x divide-slate-100">

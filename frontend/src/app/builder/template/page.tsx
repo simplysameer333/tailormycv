@@ -19,7 +19,7 @@ import {
   FiDownload, FiRefreshCw, FiBookmark, FiX,
 } from "react-icons/fi";
 import {
-  ALL_TEMPLATES, SAMPLE, CATEGORY_COLORS, CATEGORY_HEADER,
+  ALL_TEMPLATES, SAMPLE_THUMB, CATEGORY_COLORS, CATEGORY_HEADER,
   type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 import { getTemplateHtml } from "@/lib/templateHtml";
@@ -31,22 +31,22 @@ function toPreviewData(resume: GeneratedResume): PreviewData {
   const skills: string[] =
     resume.skills?.length
       ? resume.skills
-      : (resume.sections?.find(s => s.title.toLowerCase().includes("skill"))?.items ?? SAMPLE.skills);
+      : (resume.sections?.find(s => s.title.toLowerCase().includes("skill"))?.items ?? SAMPLE_THUMB.skills);
   return {
-    name:     resume.name     || SAMPLE.name,
-    title:    resume.experience?.[0]?.role || SAMPLE.title,
-    email:    resume.contact?.email    || SAMPLE.email,
-    phone:    resume.contact?.phone    || SAMPLE.phone,
-    location: resume.contact?.location || SAMPLE.location,
-    linkedin: resume.contact?.linkedin || SAMPLE.linkedin,
-    summary:  resume.summary  || SAMPLE.summary,
+    name:     resume.name     || SAMPLE_THUMB.name,
+    title:    resume.experience?.[0]?.role || SAMPLE_THUMB.title,
+    email:    resume.contact?.email    || SAMPLE_THUMB.email,
+    phone:    resume.contact?.phone    || SAMPLE_THUMB.phone,
+    location: resume.contact?.location || SAMPLE_THUMB.location,
+    linkedin: resume.contact?.linkedin || SAMPLE_THUMB.linkedin,
+    summary:  resume.summary  || SAMPLE_THUMB.summary,
     skills,
     experience: resume.experience?.length
       ? resume.experience.map(e => ({ title: e.role, company: e.company, date: e.dates, bullets: e.bullets }))
-      : SAMPLE.experience,
+      : SAMPLE_THUMB.experience,
     education: resume.education?.length
       ? resume.education.map(e => ({ degree: e.degree, school: e.institution, year: e.dates }))
-      : SAMPLE.education,
+      : SAMPLE_THUMB.education,
   };
 }
 
@@ -137,7 +137,7 @@ function TemplateModal({
   const PREVIEW_W = Math.round(IFRAME_W * SCALE);        // ≈ 492px
   const PREVIEW_H = Math.round(IFRAME_W * 1.414 * SCALE); // ≈ 696px
   const html = getTemplateHtml(info.key, previewData);
-  const isPersonalised = previewData.name !== SAMPLE.name;
+  const isPersonalised = previewData.name !== SAMPLE_THUMB.name;
   const hdr = CATEGORY_HEADER[info.category] ?? CATEGORY_HEADER["Classic"];
 
   return (
@@ -293,7 +293,7 @@ export default function TemplatePage() {
   const [detailId, setDetailId]               = useState<string | null>(null); // which template is previewed
   const [generatedResume, setGeneratedResume] = useState<GeneratedResume | null>(null);
   const [evalSummary, setEvalSummary]         = useState<EvalSummary | null>(null);
-  const [previewData, setPreviewData]         = useState<PreviewData>(SAMPLE);
+  const [previewData, setPreviewData]         = useState<PreviewData>(SAMPLE_THUMB);
 
   const [exporting, setExporting] = useState(false);
   const [files, setFiles]         = useState<ExportResult | null>(null);
