@@ -213,26 +213,20 @@ async def check_resume_quality(
         logger.info("[cv_score] Cache hit for hash %s…", text_hash[:8])
         # Issue a new permalink UUID so the user gets a fresh shareable link
         new_id = str(uuid.uuid4())
+        full_profile_c = extract_contact_regex(parsed["raw_text"])
         try:
             await db.cv_check_results.insert_one({
                 "_id": new_id, "user_id": user["_id"] if user else None,
                 "created_at": datetime.utcnow(), "text_hash": text_hash,
                 "overall_score": cached["overall_score"], "file_ext": cached.get("file_ext", ""),
                 "result": cached["result"],
+                "raw_text": parsed["raw_text"],
+                "extracted_profile": full_profile_c,
                 "categories": cached.get("categories", []),
             })
         except Exception:
             new_id = cached["_id"]
-        llm_contact_c   = cached["result"].get("extracted_contact") or {}
-        regex_contact_c = extract_contact_regex(parsed["raw_text"])
-        extracted_contact_c = {
-            "name":     llm_contact_c.get("name")     or regex_contact_c.get("name", ""),
-            "title":    llm_contact_c.get("title")    or regex_contact_c.get("title", ""),
-            "email":    llm_contact_c.get("email")    or regex_contact_c.get("email", ""),
-            "phone":    llm_contact_c.get("phone")    or regex_contact_c.get("phone", ""),
-            "linkedin": llm_contact_c.get("linkedin") or regex_contact_c.get("linkedin", ""),
-        }
-        return {**cached["result"], "result_id": new_id, "extracted_profile": extracted_contact_c, "cached": True}
+        return {**cached["result"], "result_id": new_id, "extracted_profile": full_profile_c, "cached": True}
 
     try:
         result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
@@ -279,15 +273,16 @@ async def check_resume_quality(
         logger.warning("[cv_score] Failed to persist result: %s", exc)
         result_id = None
 
-    # Prefer the LLM-extracted contact (already parsed the full CV) over regex
+    # Merge LLM contact (accurate name/title) with full regex profile (sections)
     llm_contact   = result.pop("extracted_contact", None) or {}
-    regex_contact = extract_contact_regex(parsed["raw_text"])
+    full_profile  = extract_contact_regex(parsed["raw_text"])  # extract_full_profile alias
     extracted_contact = {
-        "name":     llm_contact.get("name")     or regex_contact.get("name", ""),
-        "title":    llm_contact.get("title")    or regex_contact.get("title", ""),
-        "email":    llm_contact.get("email")    or regex_contact.get("email", ""),
-        "phone":    llm_contact.get("phone")    or regex_contact.get("phone", ""),
-        "linkedin": llm_contact.get("linkedin") or regex_contact.get("linkedin", ""),
+        "name":     llm_contact.get("name")     or full_profile.get("name", ""),
+        "title":    llm_contact.get("title")    or full_profile.get("title", ""),
+        "email":    llm_contact.get("email")    or full_profile.get("email", ""),
+        "phone":    llm_contact.get("phone")    or full_profile.get("phone", ""),
+        "linkedin": llm_contact.get("linkedin") or full_profile.get("linkedin", ""),
+        "sections": full_profile.get("sections", []),   # always from regex parser
     }
     return {**result, "result_id": result_id, "extracted_profile": extracted_contact}
 

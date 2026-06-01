@@ -8,19 +8,23 @@ import re
 from anthropic import AsyncAnthropic
 
 
-def extract_contact_regex(raw_text: str) -> dict:
-    """Extract basic contact fields from CV text without an LLM call."""
+def extract_full_profile(raw_text: str) -> dict:
+    """Extract name, contact and ALL CV sections from raw text — no LLM required.
+
+    Returns the same shape as the LLM-extracted extracted_contact so it can be
+    used as a drop-in replacement for both fresh and cached result paths.
+    """
     lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
 
     email_m    = re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", raw_text)
     phone_m    = re.search(r"(?:\+\d{1,3}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,5}", raw_text)
     linkedin_m = re.search(r"linkedin\.com/in/[\w\-]+", raw_text, re.IGNORECASE)
 
-    # Find name: scan first 8 non-empty lines for one that looks like a person's name
-    # (2-4 capitalised words, no digits, not a common header like "CV" or "Resume")
-    _name_re   = re.compile(r"^[A-Z][a-zA-Z'\-]+(?: [A-Z][a-zA-Z'\-]+){1,3}$")
-    _skip_kws  = {"cv", "resume", "curriculum", "vitae", "page", "profile", "address"}
+    # ── Name: first line in the header area that looks like a person's name ─────
+    _name_re  = re.compile(r"^[A-Z][a-zA-Z'\-]+(?: [A-Z][a-zA-Z'\-]+){1,3}$")
+    _skip_kws = {"cv", "resume", "curriculum", "vitae", "page", "profile", "address"}
     name = title = ""
+    name_line_idx = 0
     for i, line in enumerate(lines[:8]):
         if (_name_re.match(line)
                 and len(line) < 50
@@ -28,10 +32,50 @@ def extract_contact_regex(raw_text: str) -> dict:
                 and not re.search(r"\d", line)):
             name  = line
             title = lines[i + 1] if i + 1 < len(lines) else ""
+            name_line_idx = i
             break
     if not name:
         name  = lines[0] if lines else ""
         title = lines[1] if len(lines) > 1 else ""
+        name_line_idx = 0
+
+    # ── Section parser: detect headers then collect items beneath them ──────────
+    # A section header is an ALL-CAPS or Title-Case short line (not contact data).
+    _hdr_re = re.compile(
+        r"^(?:[A-Z][A-Z\s&/\(\)\-]{2,35}|[A-Z][a-z]+(?:\s+[A-Z][a-z]*)*)\s*:?$"
+    )
+    _contact_skip = {"gmail", "yahoo", "hotmail", "linkedin", "http", "@", "phone", "email", "tel"}
+    _hdr_skip = {"cv", "resume", "curriculum vitae", "page", "references available"}
+
+    sections: list[dict] = []
+    cur_title: str | None = None
+    cur_items: list[str] = []
+
+    # Skip lines that belong to the contact header block (first ~6 lines after name)
+    body_start = name_line_idx + 4
+
+    for line in lines[body_start:]:
+        clean_line = line.lstrip("•·▪▸►-–—○●*").strip()
+        if not clean_line:
+            continue
+
+        is_header = (
+            _hdr_re.match(line)
+            and len(line) <= 40
+            and not any(kw in line.lower() for kw in _contact_skip)
+            and line.lower().rstrip(":") not in _hdr_skip
+        )
+
+        if is_header:
+            if cur_title and cur_items:
+                sections.append({"title": cur_title, "items": cur_items})
+            cur_title = line.rstrip(":").strip()
+            cur_items = []
+        elif cur_title and clean_line:
+            cur_items.append(clean_line)
+
+    if cur_title and cur_items:
+        sections.append({"title": cur_title, "items": cur_items})
 
     return {
         "name":     name,
@@ -39,7 +83,12 @@ def extract_contact_regex(raw_text: str) -> dict:
         "email":    email_m.group(0)    if email_m    else "",
         "phone":    phone_m.group(0)    if phone_m    else "",
         "linkedin": linkedin_m.group(0) if linkedin_m else "",
+        "sections": sections,
     }
+
+
+# Keep old name as alias so any existing imports don't break
+extract_contact_regex = extract_full_profile
 
 logger = logging.getLogger("tailormycv")
 
