@@ -42,6 +42,43 @@ function wrap(css: string, body: string) {
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${BASE_CSS}${css}</style></head><body>${body}</body></html>`;
 }
 
+// ── Extra-section routing ──────────────────────────────────────────────────────
+// Sections are placed by their CONTENT shape, not hardcoded names:
+//  - highlights (Accomplishments/Achievements) → featured right after the summary
+//  - compact (short label lists like Languages, short Certs) → sidebar in 2-col
+//  - longform (Projects, Publications, White Papers) → main column
+type Section = { title: string; items: string[] };
+const HIGHLIGHT_RE = /accomplish|achievement|highlight|key win|career win/i;
+const isCompactSection = (s: Section) =>
+  s.items.length <= 8 && s.items.every(i => i.length <= 40);
+
+function splitExtra(d: PreviewData) {
+  const extra = (d.extra_sections || []) as Section[];
+  return {
+    highlights: extra.filter(s => HIGHLIGHT_RE.test(s.title)),
+    compact:    extra.filter(s => !HIGHLIGHT_RE.test(s.title) && isCompactSection(s)),
+    longform:   extra.filter(s => !HIGHLIGHT_RE.test(s.title) && !isCompactSection(s)),
+  };
+}
+
+/** Render a list of sections inline (dot-separated items). */
+function renderSections(secs: Section[], headingStyle: string, rule: string,
+                        itemStyle = "font-size:12px;color:#374151;line-height:1.8;") {
+  return secs.map(sec => `
+    <div style="${headingStyle}">${esc(sec.title)}</div>${rule}
+    <div style="${itemStyle}">${sec.items.map(esc).join("  ·  ")}</div>
+  `).join("");
+}
+
+/** Render a list of sections as bullet points (better for long-form items). */
+function renderSectionsBullets(secs: Section[], headingStyle: string, rule: string,
+                               itemStyle = "font-size:11px;color:#475569;margin-bottom:3px;line-height:1.5;") {
+  return secs.map(sec => `
+    <div style="${headingStyle}">${esc(sec.title)}</div>${rule}
+    ${sec.items.map(i => `<div style="${itemStyle}">▸ ${esc(i)}</div>`).join("")}
+  `).join("");
+}
+
 /**
  * Renders all extra_sections (Certifications, Languages, Projects, Awards, …)
  * that exist in the resume but don't map to a core field.
@@ -110,6 +147,7 @@ export function Horizon(d: PreviewData) {
     <div style="padding:20px 36px;">
       <div style="${h2}">Profile</div>${rule}
       ${prose(d.summary, "margin-bottom:18px;")}
+      ${renderSectionsBullets(splitExtra(d).highlights, h2, rule)}
       <div style="${h2}">Experience</div>${rule}
       ${expRows(d, "#1e293b", blue)}
       <div style="${h2}">Skills</div>${rule}
@@ -120,7 +158,8 @@ export function Horizon(d: PreviewData) {
           <div><span style="font-size:12px;font-weight:700;color:#1e293b;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#475569;">${esc(e.school)}</span></div>
           <span style="font-size:11px;color:#64748b;">${esc(e.year)}</span>
         </div>`).join("")}` : ""}
-      ${extraSections(d, h2, rule)}
+      ${renderSections(splitExtra(d).compact, h2, rule)}
+      ${renderSectionsBullets(splitExtra(d).longform, h2, rule)}
     </div>
   `);
 }
@@ -161,6 +200,7 @@ export function Catalyst(d: PreviewData) {
     <div style="font-size:13px;color:#475569;">${esc(d.title)}  ·  ${esc(d.location)}</div>
     <div style="font-size:11px;color:#64748b;margin-top:3px;">${esc(d.email)}  ·  ${esc(d.phone)}</div>
     ${sec("About", prose(d.summary))}
+    ${splitExtra(d).highlights.map(s => sec(s.title, `<ul style="margin-bottom:6px;">${s.items.map(i => `<li style="font-size:11px;color:#334155;">${esc(i)}</li>`).join("")}</ul>`)).join("")}
     ${sec("Experience", d.experience.map(e => `
       <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
         <span style="font-weight:700;font-size:13px;">${esc(e.title)}</span>
@@ -174,7 +214,7 @@ export function Catalyst(d: PreviewData) {
         <div><span style="font-size:12px;font-weight:700;">${esc(e.degree)}</span>  ·  <span style="font-size:11px;color:#64748b;">${esc(e.school)}</span></div>
         <span style="font-size:11px;color:#94a3b8;">${esc(e.year)}</span>
       </div>`).join("")) : ""}
-    ${(d.extra_sections||[]).map(s => sec(s.title, `<div style="font-size:11px;color:#334155;line-height:1.8;">${s.items.map(esc).join("  ·  ")}</div>`)).join("")}
+    ${[...splitExtra(d).compact, ...splitExtra(d).longform].map(s => sec(s.title, `<div style="font-size:11px;color:#334155;line-height:1.8;">${s.items.map(esc).join("  ·  ")}</div>`)).join("")}
   `);
 }
 
@@ -256,6 +296,7 @@ export function Swift(d: PreviewData) {
     <div style="font-size:10px;color:#64748b;border-bottom:1px solid #334155;padding-bottom:8px;margin-bottom:8px;">${esc(d.email)}  ·  ${esc(d.phone)}  ·  ${esc(d.location)}</div>
     <div style="${h2}">Summary</div>
     ${prose(d.summary, "color:#4b5563;margin-bottom:8px;")}
+    ${renderSectionsBullets(splitExtra(d).highlights, h2, "", "color:#475569;margin-bottom:2px;line-height:1.45;")}
     <div style="${h2}">Experience</div>
     ${d.experience.map(e => `
       <div style="display:flex;justify-content:space-between;">
@@ -268,7 +309,8 @@ export function Swift(d: PreviewData) {
     <div style="color:#4b5563;line-height:1.8;margin-bottom:8px;">${d.skills.map(esc).join("  ·  ")}</div>
     ${d.education.length ? `<div style="${h2}">Education</div>
     ${d.education.map(e => `<div style="font-size:11px;color:#4b5563;">${esc(e.degree)}  ·  ${esc(e.school)}  ·  ${esc(e.year)}</div>`).join("")}` : ""}
-    ${extraSections(d, h2, "", "font-size:11px;color:#4b5563;line-height:1.8;")}
+    ${renderSections(splitExtra(d).compact, h2, "", "font-size:11px;color:#4b5563;line-height:1.8;")}
+    ${renderSectionsBullets(splitExtra(d).longform, h2, "", "font-size:11px;color:#4b5563;margin-bottom:2px;line-height:1.45;")}
   `);
 }
 
@@ -311,19 +353,20 @@ export function Prism(d: PreviewData) {
       <div style="font-size:9px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:1.5px;margin:16px 0 6px;">Education</div>
       <div style="border-top:1px solid #cbd5e1;margin-bottom:6px;"></div>
       ${d.education.map(e => `<div style="font-size:10px;color:#334155;line-height:1.6;"><strong>${esc(e.degree)}</strong><br><span style="color:#64748b;">${esc(e.school)}</span><br><span style="color:#94a3b8;">${esc(e.year)}</span></div>`).join("")}
-      ${(d.extra_sections||[]).filter(s => s.items.length <= 5).map(s => `
+      ${splitExtra(d).compact.map(s => `
         <div style="font-size:9px;font-weight:700;color:#1e293b;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 4px;">${esc(s.title)}</div>
         <div style="border-top:1px solid #cbd5e1;margin-bottom:4px;"></div>
         ${s.items.map(i => `<div style="font-size:10px;color:#334155;margin-bottom:2px;">▸ ${esc(i)}</div>`).join("")}
       `).join("")}
     </div>`;
+  const pHead = `font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 6px;`;
+  const pRule = `<div style="border-top:1px solid #e2e8f0;margin-bottom:10px;"></div>`;
   const main = `
     <div style="flex:1;padding:32px 26px;">
-      <div style="font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Profile</div>
-      <div style="border-top:1px solid #e2e8f0;margin-bottom:10px;"></div>
-      ${prose(d.summary, "margin-bottom:18px;")}
-      <div style="font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Experience</div>
-      <div style="border-top:1px solid #e2e8f0;margin-bottom:10px;"></div>
+      <div style="${pHead}margin-top:0;">Profile</div>${pRule}
+      ${prose(d.summary, "margin-bottom:14px;")}
+      ${renderSectionsBullets(splitExtra(d).highlights, pHead, pRule)}
+      <div style="${pHead}">Experience</div>${pRule}
       ${d.experience.map(e => `
         <div style="font-size:13px;font-weight:600;color:#1e293b;">${esc(e.title)}</div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
@@ -332,11 +375,7 @@ export function Prism(d: PreviewData) {
         </div>
         <ul style="margin-bottom:12px;">${e.bullets.map(b => `<li style="font-size:11px;color:#475569;">${esc(b)}</li>`).join("")}</ul>
       `).join("")}
-      ${(d.extra_sections||[]).filter(s => s.items.length > 5).map(s => `
-        <div style="font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 6px;">${esc(s.title)}</div>
-        <div style="border-top:1px solid #e2e8f0;margin-bottom:8px;"></div>
-        ${s.items.map(i => `<div style="font-size:11px;color:#475569;margin-bottom:3px;">▸ ${esc(i)}</div>`).join("")}
-      `).join("")}
+      ${renderSectionsBullets(splitExtra(d).longform, pHead, pRule)}
     </div>`;
   return wrap(`body{font-family:Arial,sans-serif;display:flex;}`, sidebar + main);
 }
@@ -360,18 +399,19 @@ export function Vivid(d: PreviewData) {
           <div style="font-size:10px;color:#c4b5fd;">${esc(e.school)}</div>
           <div style="font-size:10px;color:#a78bfa;margin-bottom:10px;">${esc(e.year)}</div>`).join("")}
       ` : ""}
-      ${(d.extra_sections||[]).filter(s => s.items.length <= 5).map(s => `
+      ${splitExtra(d).compact.map(s => `
         <div style="font-size:9px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 6px;">${esc(s.title)}</div>
         ${s.items.map(i => `<div style="font-size:11px;color:#ede9fe;margin-bottom:3px;">▸ ${esc(i)}</div>`).join("")}
       `).join("")}
     </div>`;
+  const purpleHead = `font-size:10px;font-weight:700;color:${purple};text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 6px;`;
+  const purpleRule = `<div style="border-top:1.5px solid #ede9fe;margin-bottom:8px;"></div>`;
   const main = `
     <div style="flex:1;padding:32px 26px;">
-      <div style="font-size:10px;font-weight:700;color:${purple};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Profile</div>
-      <div style="border-top:1.5px solid #ede9fe;margin-bottom:10px;"></div>
-      ${prose(d.summary, "margin-bottom:18px;")}
-      <div style="font-size:10px;font-weight:700;color:${purple};text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;">Experience</div>
-      <div style="border-top:1.5px solid #ede9fe;margin-bottom:10px;"></div>
+      <div style="${purpleHead}margin-top:0;">Profile</div>${purpleRule}
+      ${prose(d.summary, "margin-bottom:14px;")}
+      ${renderSectionsBullets(splitExtra(d).highlights, purpleHead, purpleRule)}
+      <div style="${purpleHead}">Experience</div>${purpleRule}
       ${d.experience.map(e => `
         <div style="font-size:13px;font-weight:600;">${esc(e.title)}</div>
         <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
@@ -380,11 +420,7 @@ export function Vivid(d: PreviewData) {
         </div>
         <ul style="margin-bottom:12px;">${e.bullets.map(b => `<li style="font-size:11px;color:#475569;">${esc(b)}</li>`).join("")}</ul>
       `).join("")}
-      ${(d.extra_sections||[]).filter(s => s.items.length > 5).map(s => `
-        <div style="font-size:10px;font-weight:700;color:${purple};text-transform:uppercase;letter-spacing:1.5px;margin:14px 0 6px;">${esc(s.title)}</div>
-        <div style="border-top:1.5px solid #ede9fe;margin-bottom:8px;"></div>
-        ${s.items.map(i => `<div style="font-size:11px;color:#475569;margin-bottom:3px;">▸ ${esc(i)}</div>`).join("")}
-      `).join("")}
+      ${renderSectionsBullets(splitExtra(d).longform, purpleHead, purpleRule)}
     </div>`;
   return wrap(`body{font-family:Arial,sans-serif;display:flex;}`, sidebar + main);
 }

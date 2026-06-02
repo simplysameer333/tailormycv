@@ -913,6 +913,10 @@ export function TemplateSuggestions({ extractedProfile }: {
 
   const previewData: PreviewData | null = useMemo(() => {
     if (!hasRealProfile) return null;
+    // Curate the real CV to senior resume-writing standards so the preview shows
+    // how it SHOULD look, not a raw dump. Matches the agreed builder counts.
+    const SKILLS_CAP = 10;                 // 8–10 agreed; cap the dump
+    const BULLETS_BY_ROLE = [5, 4, 3, 3];  // inverted pyramid; index 4+ → 2
     return {
       name:     extractedProfile!.name     || "",
       title:    extractedProfile!.title    || "",
@@ -921,12 +925,12 @@ export function TemplateSuggestions({ extractedProfile }: {
       location: extractedProfile!.location || "",
       linkedin: extractedProfile!.linkedin || "",
       summary:  extractedProfile!.summary  || "",
-      skills:   extractedProfile!.skills   || [],
-      experience: (extractedProfile!.experience || []).map(e => ({
+      skills:   (extractedProfile!.skills || []).slice(0, SKILLS_CAP),
+      experience: (extractedProfile!.experience || []).map((e, i) => ({
         title:   e.role,
         company: e.company,
         date:    e.dates,
-        bullets: e.bullets,
+        bullets: (e.bullets || []).slice(0, BULLETS_BY_ROLE[i] ?? 2),
       })),
       education: (extractedProfile!.education || []).map(e => ({
         degree: e.degree,
@@ -955,18 +959,16 @@ export function TemplateSuggestions({ extractedProfile }: {
 
   const largeHtml = allHtmls[selected.key] ?? "";
 
-  // Measure each template's true rendered height so the preview sizes to fit the
-  // ACTUAL content — it never clips/truncates. The iframe renders at natural
-  // height; onLoad we read body.scrollHeight and size the container accordingly.
+  // Realistic A4-page-sized preview that SCROLLS to reveal the full resume
+  // (competitor-style) — not a long stretched view. The visible frame stays one
+  // A4 page tall; the inner scroll area is the full content height so the user
+  // scrolls through page 2, 3, etc. We measure body.scrollHeight to set it.
   const [naturalHeights, setNaturalHeights] = useState<Record<string, number>>({});
   const measuredH   = naturalHeights[selected.key];
-  // Until measured, render tall enough for any CV (3 pages) so nothing clips
-  // during the first paint; the onLoad measurement then snaps it to the exact size.
-  const iframeH     = measuredH ?? A4_PAGE_PX * 3;
-  const containerH  = Math.round((measuredH ?? A4_PAGE_PX) * LARGE_SCALE);
+  const iframeH     = measuredH ?? A4_PAGE_PX * 3;          // render tall until measured
+  const VIEWPORT_H  = a4H(LARGE_SCALE);                     // visible frame = 1 A4 page
+  const scrollAreaH = Math.round((measuredH ?? A4_PAGE_PX) * LARGE_SCALE);  // full content
   const pagesNeeded = measuredH ? measuredH / A4_PAGE_PX : null;
-  // True when the CV fills more than this template's design page count (with a
-  // small tolerance so a hair over one page doesn't trigger it).
   const overflowsTemplate = pagesNeeded ? pagesNeeded > selected.pages + 0.08 : false;
   const pagesLabel = pagesNeeded ? (Math.round(pagesNeeded * 10) / 10) : null;
 
@@ -992,47 +994,50 @@ export function TemplateSuggestions({ extractedProfile }: {
         {hasRealProfile ? (
           <>
             <div className="flex justify-center bg-slate-50 py-6 border-b border-slate-100">
-              <div className="rounded-lg shadow-lg overflow-hidden border border-slate-200"
-                   style={{ width: LARGE_W, height: containerH, position: "relative", background: "#fff" }}>
-                <iframe
-                  srcDoc={largeHtml}
-                  sandbox="allow-same-origin"
-                  scrolling="no"
-                  title={`${selected.name} preview`}
-                  onLoad={(e) => {
-                    const h = e.currentTarget.contentDocument?.body?.scrollHeight;
-                    if (h && h > 50) {
-                      setNaturalHeights(prev =>
-                        prev[selected.key] === h ? prev : { ...prev, [selected.key]: h });
-                    }
-                  }}
-                  style={{
-                    position: "absolute", top: 0, left: 0,
-                    width: A4_W,
-                    height: iframeH,
-                    border: "none",
-                    transform: `scale(${LARGE_SCALE})`,
-                    transformOrigin: "top left",
-                    pointerEvents: "none",
-                  }}
-                />
-                {/* Subtle page guide lines so the user sees where pages break */}
-                {pagesNeeded && pagesNeeded > 1 && Array.from({ length: Math.floor(pagesNeeded) }).map((_, i) => (
-                  <div key={i} aria-hidden
-                    style={{ position: "absolute", left: 0, right: 0,
-                      top: Math.round(A4_PAGE_PX * (i + 1) * LARGE_SCALE),
-                      borderTop: "1px dashed #cbd5e1" }} />
-                ))}
+              {/* Fixed one-page-tall window that scrolls to reveal the full resume */}
+              <div className="rounded-lg shadow-lg overflow-y-auto overflow-x-hidden border border-slate-200"
+                   style={{ width: LARGE_W, height: VIEWPORT_H, position: "relative", background: "#fff" }}>
+                {/* Scroll area = full scaled content height */}
+                <div style={{ width: LARGE_W, height: scrollAreaH, position: "relative" }}>
+                  <iframe
+                    srcDoc={largeHtml}
+                    sandbox="allow-same-origin"
+                    scrolling="no"
+                    title={`${selected.name} preview`}
+                    onLoad={(e) => {
+                      const h = e.currentTarget.contentDocument?.body?.scrollHeight;
+                      if (h && h > 50) {
+                        setNaturalHeights(prev =>
+                          prev[selected.key] === h ? prev : { ...prev, [selected.key]: h });
+                      }
+                    }}
+                    style={{
+                      position: "absolute", top: 0, left: 0,
+                      width: A4_W,
+                      height: iframeH,
+                      border: "none",
+                      transform: `scale(${LARGE_SCALE})`,
+                      transformOrigin: "top left",
+                      pointerEvents: "none",
+                    }}
+                  />
+                  {/* Page-break guides so the user sees where each A4 page ends */}
+                  {pagesNeeded && pagesNeeded > 1 && Array.from({ length: Math.floor(pagesNeeded) }).map((_, i) => (
+                    <div key={i} aria-hidden
+                      style={{ position: "absolute", left: 0, right: 0,
+                        top: Math.round(A4_PAGE_PX * (i + 1) * LARGE_SCALE),
+                        borderTop: "1px dashed #cbd5e1" }} />
+                  ))}
+                </div>
               </div>
             </div>
-            {overflowsTemplate && (
-              <div className="flex items-start gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100">
-                <span className="text-amber-500 mt-0.5">⚠</span>
-                <p className="text-xs text-amber-800">
-                  Your CV runs to <strong>~{pagesLabel} pages</strong> — more than this
-                  template&apos;s {selected.pages}-page design. It&apos;s shown in full above (nothing is cut off).
-                  The 2-page styles suit it best, or tailor it in the builder to condense it to fit.
-                </p>
+            {pagesLabel && (
+              <div className="flex items-center justify-center gap-1.5 px-4 py-1.5 bg-slate-50 border-b border-slate-100">
+                <span className="text-[11px] text-slate-400">
+                  {overflowsTemplate
+                    ? `Scroll to view all ${pagesLabel} pages · best suited to a 2-page template`
+                    : "Scroll to view the full resume"}
+                </span>
               </div>
             )}
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
