@@ -7,8 +7,8 @@ from pydantic import BaseModel
 from datetime import datetime
 from database import get_db, get_fs
 from dependencies.auth import get_optional_user
+from services.audit import log_audit
 from services.file_generator import generate_docx, generate_pdf
-from services.template_service import get_template_path
 from services.docx_templates import generate_docx_from_key, KNOWN_TEMPLATE_KEYS
 
 router = APIRouter()
@@ -56,30 +56,23 @@ async def export_resume(
     output_files = {}
 
     # ── DOCX generation ────────────────────────────────────────────────────────
-    # Priority: custom uploaded template (MongoDB) > named template key > default
+    # Resume templates live in the `cv_templates` collection (incl. AI-generated).
+    # DOCX is rendered from the template's docx_config knobs — no per-template code;
+    # honours admin edits, falls back to the in-code config for the built-ins, then
+    # to a clean default for an unknown / unset template.
     docx_bytes: bytes | None = None
 
     if template_id:
-        # 1. Try MongoDB lookup (custom uploaded .docx templates)
-        tmpl = None
-        try:
-            tmpl = await db.templates.find_one({"_id": ObjectId(template_id)})
-        except Exception:
-            pass
-        if tmpl is None:
-            tmpl = await db.templates.find_one({"name": template_id})
-
-        if tmpl:
-            # Custom uploaded template — apply placeholder substitution
-            template_path = get_template_path(tmpl["file_path"])
-            docx_bytes = generate_docx(resume_data, template_path, bold_keywords=bold_keywords)
-
+        cv_tmpl = await db.cv_templates.find_one({"key": template_id})
+        if cv_tmpl is not None:
+            docx_bytes = generate_docx_from_key(
+                resume_data, template_id, bold_keywords=bold_keywords,
+                docx_config=cv_tmpl.get("docx_config"),
+            )
         elif template_id in KNOWN_TEMPLATE_KEYS:
-            # One of the 15 built-in templates — use its dedicated DOCX generator
             docx_bytes = generate_docx_from_key(resume_data, template_id, bold_keywords=bold_keywords)
 
     if docx_bytes is None:
-        # No template selected or unrecognised key — generate default clean DOCX
         docx_bytes = generate_docx(resume_data, "", bold_keywords=bold_keywords)
 
     docx_id = await fs.upload_from_stream(
@@ -108,6 +101,13 @@ async def export_resume(
         {"_id": ObjectId(session_id)},
         {"$set": {"output_files": output_files}},
     )
+
+    if user:
+        log_audit(user, "resume.export", {
+            "session_id": session_id,
+            "template": template_id,
+            "pdf": "pdf_file_id" in output_files,
+        })
 
     return output_files
 

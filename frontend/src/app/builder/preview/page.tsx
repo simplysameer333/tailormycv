@@ -206,7 +206,7 @@ export default function PreviewPage() {
     { title: "Analysing your resume and job description…",     sub: "Matching your background to the role requirements" },
     { title: "Extracting key skills from the job description…", sub: "Identifying the terms that matter most to this employer" },
     { title: "Generating your tailored resume draft…",          sub: "AI writer crafting a targeted version of your experience" },
-    { title: "Quality evaluators reviewing the draft…",         sub: "Anthropic, OpenAI and Google Gemini scoring the result" },
+    { title: "Quality evaluators reviewing the draft…",         sub: "Multiple AI models scoring the result" },
     { title: "Refining based on evaluation feedback…",          sub: "Addressing gaps and strengthening weak areas" },
     { title: "Selecting the best version…",                     sub: "Picking the highest-scoring iteration for you" },
     { title: "Final polish underway…",                          sub: "Almost there — wrapping up your tailored resume" },

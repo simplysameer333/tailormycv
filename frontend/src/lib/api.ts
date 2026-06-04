@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { CvTemplate, DocxConfig } from "@/lib/cvTemplates";
 
 export const SESSION_KEYS = [
   "tailormycv_session_id",
@@ -14,6 +15,15 @@ export const SESSION_KEYS = [
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000",
 });
+
+// Dev-bypass: seed a dev token at module load so the very first request (e.g. a
+// hard load of /admin) is authenticated BEFORE DevProvider's effect runs — React
+// fires child effects before parent effects, so without this the admin page's
+// initial fetch would go out tokenless and 401. DevProvider.setApiToken() then
+// overrides this whenever the tier switcher changes.
+if (process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true") {
+  api.defaults.headers.common["Authorization"] = "Bearer dev-pro";
+}
 
 /** Called by AuthProvider whenever the NextAuth session changes. */
 export function setApiToken(token: string | null) {
@@ -212,18 +222,6 @@ export async function saveJobDescription(sessionId: string, jobDescription: stri
   return data;
 }
 
-export async function listTemplates() {
-  const { data } = await api.get("/api/templates");
-  return data as Template[];
-}
-
-export async function uploadCustomTemplate(file: File) {
-  const form = new FormData();
-  form.append("file", file);
-  const { data } = await api.post("/api/templates/upload", form);
-  return data as { template_id: string };
-}
-
 /** Full pipeline generation returns PipelineResult; section regeneration returns GeneratedResume. */
 export async function generateResume(
   sessionId: string,
@@ -276,15 +274,6 @@ export async function setLockedFacts(sessionId: string, lockedFacts: string[]): 
 
 export function downloadUrl(fileId: string) {
   return `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000"}/api/download/${fileId}`;
-}
-
-export interface Template {
-  _id: string;
-  name: string;
-  type: "prebuilt" | "custom";
-  preview_image_url: string;
-  description?: string;
-  placeholders: string[];
 }
 
 export interface ContactInfo {
@@ -733,6 +722,7 @@ export interface PromptOverride {
   body: string;
   is_override: boolean;
   default_body: string;
+  category?: string;   // "builder" | "cv_score" — drives the admin sub-tabs
 }
 
 export async function adminListUsers(): Promise<AdminUser[]> {
@@ -833,52 +823,76 @@ export async function adminDeleteProfession(slug: string): Promise<void> {
   await api.delete(`/api/admin/professions/${slug}`);
 }
 
-// ── Admin: Templates ──────────────────────────────────────────────────────────
+// ── CV templates (resume preview/export templates — `cv_templates` collection) ──
+// `CvTemplate` / `DocxConfig` types are imported at the top of this file
+// (type-only — no runtime cycle).
 
-export interface AdminTemplate {
-  id: string;
-  name: string;
-  type: "prebuilt" | "custom";
-  description: string;
-  placeholders: string[];
-  preview_image_url: string;
-  file_path: string;
-  is_active: boolean;
-  created_at: string | null;
-  updated_at: string | null;
+/** Public — active templates for the gallery / preview store. */
+export async function fetchCvTemplates(): Promise<CvTemplate[]> {
+  const { data } = await api.get("/api/cv-templates");
+  return data as CvTemplate[];
 }
 
-export async function adminListTemplates(): Promise<AdminTemplate[]> {
-  const { data } = await api.get("/api/admin/templates");
-  return data;
+/** Admin — all templates including inactive. */
+export async function adminListCvTemplates(): Promise<CvTemplate[]> {
+  const { data } = await api.get("/api/admin/cv-templates");
+  return data as CvTemplate[];
 }
 
-export async function adminUploadTemplate(
-  file: File,
-  name: string,
-  description: string,
-): Promise<AdminTemplate> {
-  const form = new FormData();
-  form.append("file", file);
-  form.append("name", name);
-  form.append("description", description);
-  const { data } = await api.post("/api/admin/templates/upload", form);
-  return data;
+export async function adminCreateCvTemplate(
+  body: Partial<CvTemplate> & { name: string; html: string },
+): Promise<CvTemplate> {
+  const { data } = await api.post("/api/admin/cv-templates", body);
+  return data as CvTemplate;
 }
 
-export async function adminUpdateTemplate(
-  id: string,
-  body: { name?: string; description?: string; is_active?: boolean },
-): Promise<AdminTemplate> {
-  const { data } = await api.patch(`/api/admin/templates/${id}`, body);
-  return data;
+export async function adminUpdateCvTemplate(
+  key: string,
+  body: Partial<CvTemplate>,
+): Promise<CvTemplate> {
+  const { data } = await api.patch(`/api/admin/cv-templates/${key}`, body);
+  return data as CvTemplate;
 }
 
-export async function adminDeleteTemplate(id: string): Promise<void> {
-  await api.delete(`/api/admin/templates/${id}`);
+export async function adminDeleteCvTemplate(key: string): Promise<void> {
+  await api.delete(`/api/admin/cv-templates/${key}`);
 }
 
-export function adminTemplateDownloadUrl(id: string): string {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
-  return `${base}/api/admin/templates/${id}/download`;
+export interface GeneratedTemplate {
+  html: string;
+  docx_config: DocxConfig;
+  suggested_metadata: {
+    name?: string;
+    category?: CvTemplate["category"];
+    traits?: string[];
+    bestFor?: string;
+    description?: string;
+    pages?: 1 | 2;
+    accentColor?: string;
+  };
+}
+
+/** Admin — one dedicated LLM call: author a single template from a prompt. */
+export async function adminGenerateCvTemplate(
+  prompt: string,
+  base_key?: string,
+): Promise<GeneratedTemplate> {
+  const { data } = await api.post("/api/admin/cv-templates/generate", { prompt, base_key });
+  return data as GeneratedTemplate;
+}
+
+// ── System config (global admin master switches) ────────────────────────────────
+
+export interface SystemConfig {
+  alerts_enabled: boolean;
+}
+
+export async function fetchSystemConfig(): Promise<SystemConfig> {
+  const { data } = await api.get("/api/admin/system-config");
+  return data as SystemConfig;
+}
+
+export async function updateSystemConfig(patch: Partial<SystemConfig>): Promise<SystemConfig> {
+  const { data } = await api.put("/api/admin/system-config", patch);
+  return data as SystemConfig;
 }

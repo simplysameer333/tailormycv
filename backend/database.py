@@ -29,7 +29,6 @@ async def _ensure_indexes():
     await db["fs.files"].create_index(
         "uploadDate", expireAfterSeconds=86400
     )
-    await db.templates.create_index("type")
     # Users — unique email + google_id lookups
     await db.users.create_index("email", unique=True)
     await db.users.create_index("google_id", sparse=True)
@@ -53,6 +52,9 @@ async def _ensure_indexes():
     await db.audit_log.create_index([("created_at", -1)])
     await db.audit_log.create_index([("user_id", 1), ("created_at", -1)])
     await db.prompt_overrides.create_index("key", unique=True)
+    # CV templates (HTML preview templates) — unique key + ordered listing
+    await db.cv_templates.create_index("key", unique=True)
+    await db.cv_templates.create_index("sort_order")
     # LLM output caches ─────────────────────────────────────────────────────
     # CV Score: index on text_hash for fast lookup; no TTL (results are permalinks)
     await db.cv_check_results.create_index("text_hash", sparse=True)

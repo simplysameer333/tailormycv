@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { useDropzone } from "react-dropzone";
 import {
-  listTemplates, uploadSampleCv, exportResume, downloadUrl,
+  uploadSampleCv, exportResume, downloadUrl,
   setSessionTemplate, saveResumeFromSession,
-  type Template, type GeneratedResume, type EvalSummary,
+  type GeneratedResume, type EvalSummary,
 } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
@@ -19,7 +19,7 @@ import {
   FiDownload, FiRefreshCw, FiBookmark, FiX,
 } from "react-icons/fi";
 import {
-  ALL_TEMPLATES, CATEGORY_COLORS, CATEGORY_HEADER,
+  CATEGORY_COLORS, CATEGORY_HEADER, useCvTemplateInfos,
   type PreviewData, type TemplateInfo,
 } from "@/components/TemplatePreviews";
 import { getTemplateHtml } from "@/lib/templateHtml";
@@ -287,7 +287,6 @@ export default function TemplatePage() {
   const canSaveLibrary = hasFeature(tier, "save_to_library");
   const canUseAll      = tier === "plus" || tier === "pro";
 
-  const [dbTemplates, setDbTemplates]         = useState<Template[]>([]);
   const [selected, setSelected]               = useState<string | null>(null);
   const [detailId, setDetailId]               = useState<string | null>(null); // which template is previewed
   const [generatedResume, setGeneratedResume] = useState<GeneratedResume | null>(null);
@@ -304,16 +303,14 @@ export default function TemplatePage() {
   const [uploadingSample, setUploadingSample] = useState(false);
   const [sampleUploaded, setSampleUploaded]   = useState(false);
 
-  const templatesWithId: TemplateWithId[] = ALL_TEMPLATES.map(info => {
-    const dbMatch = dbTemplates.find(t => t.name === info.key || t.name === info.name);
-    return { ...info, _id: dbMatch?._id ?? info.key };
-  });
+  const templates = useCvTemplateInfos();
+  // Each gallery card's id is its cv_template key — exported as selected_template_id.
+  const templatesWithId: TemplateWithId[] = templates.map(info => ({ ...info, _id: info.key }));
 
   const detailInfo   = detailId   ? (templatesWithId.find(t => t._id === detailId)   ?? null) : null;
   const selectedInfo = selected   ? (templatesWithId.find(t => t._id === selected)   ?? null) : null;
 
   useEffect(() => {
-    listTemplates().then(setDbTemplates).catch(() => {});
     try {
       const storedResume = localStorage.getItem("tailormycv_generated");
       const storedEval   = localStorage.getItem("tailormycv_eval_summary");
@@ -469,8 +466,8 @@ export default function TemplatePage() {
         <h1 className="text-2xl font-bold text-slate-900">Choose a Template</h1>
         <p className="text-sm text-slate-500 mt-0.5">
           {canUseAll
-            ? `All ${ALL_TEMPLATES.length} templates — click any to preview with your CV content.`
-            : `5 free templates · ${ALL_TEMPLATES.length - 5} more on Plus / Pro — click to preview.`}
+            ? `All ${templates.length} templates — click any to preview with your CV content.`
+            : `5 free templates · ${templates.length - 5} more on Plus / Pro — click to preview.`}
         </p>
       </div>
 

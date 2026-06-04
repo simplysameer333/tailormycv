@@ -26,7 +26,7 @@
 | 6-step AI resume builder | ✅ | ✅ | ✅ |
 | DOCX export | ✅ | ✅ | ✅ |
 | PDF export | ❌ | ✅ | ✅ |
-| Resume templates | 3 | 3 | 3 |
+| Resume templates | 5 free designs | 20+ | 20+ |
 | AI quality evaluators | 1 | 2 | 3 |
 | Key skills extracted from JD | 3 | 5 | 10 |
 | Resume sessions per period | 5 | 20 | Unlimited |
@@ -127,7 +127,7 @@ The AI reads this to:
 
 Choose how your resume is presented:
 
-**Template** — pick from the available designs. The preview shows what the output will look like.
+**Template** — pick from 20+ professional designs (5 available on Free; all on Plus/Pro). The live preview shows your CV content in the selected style.
 
 **Output format:**
 - Free: DOCX only
@@ -315,28 +315,24 @@ Click **Upgrade to Plus** or **Upgrade to Pro** on the plan card. This will prom
 
 ## 9. Admin Dashboard *(Superadmins only)*
 
-Accessible at `/admin`. Only accounts with the superadmin flag can see this.
+Accessible at `/admin`. Tabs are organised into three feature groups, each with sub-sections.
 
-### Users tab
-- Search users by name or email
-- Filter by tier (Free / Plus / Pro) or status (Active / Inactive)
-- Inline tier selector, Admin toggle, Active toggle — click **Save** to apply changes
-- Delete users (must revoke superadmin first)
+### User Management
 
-### Tier Config tab
-- **Feature gates** — checkboxes showing which tiers can use each feature
-  - Changes take effect immediately — no restart needed
-  - Frontend picks up changes on next page load
-- **Numeric limits** — editable per-tier limits (∞ = unlimited)
-- **Contradiction validator** — prevents invalid configs (limits must be non-decreasing across tiers)
-- **Pricing** — set prices per currency; add/remove currencies
-- **Currency Detection Rules** — ordered rules to detect user's local currency from timezone/locale
+- **Users** — search by name/email, filter by tier or status, inline Tier / Admin / Active toggles (click **Save** to apply), and delete users (revoke superadmin first).
+- **Audit Log** — a paginated record of privileged actions: user / tier / superadmin changes, user deletes, template and prompt edits, resume generate & export, and system-setting changes.
 
-### Other tabs
-- **Audit Log** — paginated log of all user actions
-- **Prompts** — override AI prompt templates per profession
-- **Professions** — manage profession configs (affects AI tailoring strategy)
-- **Templates** — upload/manage DOCX resume templates
+### Prompts & Templates
+
+- **CV Builder Prompts** — override the resume-generation pipeline prompts (generator, job analyzer, evaluators). **Save** replaces the default; **Reset** reverts. Live immediately, no deploy.
+- **CV Score Prompts** — override the CV-Score prompts (quality check, grammar & spelling, preview extractor, layout validator). Same Save/Reset behaviour.
+- **Professions** — manage profession configs that shape AI tailoring strategy.
+- **Resume Templates** — the live preview/export templates. Edit the design (HTML) + metadata + DOCX layout knobs, enable/disable, tick **"Show in CV Score"**, copy/download the standalone `.html`, or **generate a brand-new template with AI** (describe it, preview live, save). All changes go live with **no deploy**.
+
+### Feature Controls
+
+- **Tiers & Pricing** — feature gates (which tiers get each feature), numeric limits (for unlimited: leave blank, type `unlimited` / `-1`, or click the **∞** button), pricing per currency, and currency-detection rules. Changes take effect immediately.
+- **System** — app-wide master switches. The **Daily Job Alerts** toggle pauses or resumes alert emails for **every** user at once (individual alerts are left untouched).
 
 ---
 

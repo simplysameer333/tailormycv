@@ -36,7 +36,7 @@ const PROCESS_STEPS = [
     step: 4,
     icon: FiCpu,
     title: "AI tailors your CV",
-    desc: "Claude, GPT-4o and Gemini each score and refine your CV across up to 3 cycles — until it scores best for this specific role.",
+    desc: "Multiple AI models each score and refine your CV across up to 3 cycles — until it scores best for this specific role.",
     time: "30–90 sec",
     highlight: true,
   },

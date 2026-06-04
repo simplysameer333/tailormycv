@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import {
   FiUploadCloud, FiFile, FiZap, FiShield, FiTarget, FiStar,
   FiAlertCircle, FiArrowRight,
-  FiUser, FiFileText, FiBriefcase, FiTag, FiAward, FiCpu, FiLayout,
+  FiUser, FiFileText, FiBriefcase, FiTag, FiAward, FiCpu, FiLayout, FiEdit3,
 } from "react-icons/fi";
 import { useEffect, useRef } from "react";
 import { checkResume, type ResumeCheckResult } from "@/lib/api";
@@ -61,14 +61,33 @@ const CATEGORIES_INFO = [
     name: "Design & Format",
     desc: "We assess your CV's structure, length, visual hierarchy, and formatting consistency — and suggest which of our templates would best suit your profile.",
   },
+  {
+    key: "grammar",
+    icon: FiEdit3,
+    name: "Grammar & Spelling",
+    desc: "We proofread your CV for spelling, grammar, punctuation, and tense errors — and suggest the exact correction for each, since a single typo can cost you an interview.",
+  },
 ];
+
+// A distinct accent per category so the "What we'll analyse" grid is colourful
+// and scannable (full class strings so Tailwind JIT keeps them).
+const CATEGORY_ACCENT: Record<string, { bg: string; text: string; border: string }> = {
+  contact:    { bg: "bg-blue-50",    text: "text-blue-600",    border: "hover:border-blue-300" },
+  summary:    { bg: "bg-violet-50",  text: "text-violet-600",  border: "hover:border-violet-300" },
+  experience: { bg: "bg-emerald-50", text: "text-emerald-600", border: "hover:border-emerald-300" },
+  skills:     { bg: "bg-amber-50",   text: "text-amber-600",   border: "hover:border-amber-300" },
+  education:  { bg: "bg-rose-50",    text: "text-rose-600",    border: "hover:border-rose-300" },
+  ats:        { bg: "bg-cyan-50",    text: "text-cyan-600",    border: "hover:border-cyan-300" },
+  design:     { bg: "bg-fuchsia-50", text: "text-fuchsia-600", border: "hover:border-fuchsia-300" },
+  grammar:    { bg: "bg-teal-50",    text: "text-teal-600",    border: "hover:border-teal-300" },
+};
 
 
 const WHY_CHECK = [
   { icon: FiShield, stat: "98%", label: "of employers use ATS",    desc: "Most CVs are filtered out before a human ever reads them." },
   { icon: FiTarget, stat: "3×",  label: "more interview callbacks", desc: "Tailored, well-structured CVs get significantly more responses." },
-  { icon: FiZap,    stat: "~45s", label: "thorough AI analysis",    desc: "A deep AI review across 51 checks — worth the wait." },
-  { icon: FiStar,   stat: "51",  label: "individual checks",        desc: "7 categories · 51 checks across contact, summary, experience, skills, ATS, design." },
+  { icon: FiZap,    stat: "~45s", label: "thorough AI analysis",    desc: "A deep AI review across 54 checks — worth the wait." },
+  { icon: FiStar,   stat: "54",  label: "individual checks",        desc: "8 categories · 54 checks across contact, summary, experience, skills, ATS, design and grammar." },
 ];
 
 const LOADING_MESSAGES = [
@@ -79,7 +98,8 @@ const LOADING_MESSAGES = [
   { title: "Scoring ATS compatibility…",     sub: "Section headings, keywords and formatting" },
   { title: "Reviewing skills section…",      sub: "Technical depth and relevance to your role" },
   { title: "Checking design and format…",    sub: "Length, visual hierarchy and consistency" },
-  { title: "Finalising your score…",         sub: "Compiling results across all 51 checks" },
+  { title: "Proofreading for grammar & spelling…", sub: "Spelling, grammar, punctuation and tense" },
+  { title: "Finalising your score…",         sub: "Compiling results across all 54 checks" },
 ];
 
 // ── upload zone ───────────────────────────────────────────────────────────────
@@ -211,7 +231,7 @@ export default function CvScorePage() {
         </div>
         <h1 className="text-4xl font-bold text-slate-900 mb-3">Free CV Score</h1>
         <p className="text-slate-500 text-base max-w-xl mx-auto">
-          Upload your CV and get a full AI-powered breakdown across 7 categories and 51 checks —
+          Upload your CV and get a full AI-powered breakdown across 8 categories and 54 checks —
           no account needed.
         </p>
       </div>
@@ -229,17 +249,20 @@ export default function CvScorePage() {
           What we&apos;ll analyse
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {CATEGORIES_INFO.map(({ key, icon: Icon, name, desc }) => (
-            <div key={key} className="flex items-start gap-3 card p-4 hover:border-brand-200 transition">
-              <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center shrink-0 mt-0.5">
-                <Icon className="w-4.5 h-4.5 text-brand-600" />
+          {CATEGORIES_INFO.map(({ key, icon: Icon, name, desc }) => {
+            const a = CATEGORY_ACCENT[key] ?? { bg: "bg-brand-50", text: "text-brand-600", border: "hover:border-brand-300" };
+            return (
+              <div key={key} className={`flex items-start gap-3 card p-4 transition hover:shadow-md ${a.border}`}>
+                <div className={`w-10 h-10 rounded-xl ${a.bg} flex items-center justify-center shrink-0 mt-0.5`}>
+                  <Icon className={`w-5 h-5 ${a.text}`} />
+                </div>
+                <div>
+                  <p className="font-semibold text-slate-800 text-sm">{name}</p>
+                  <p className="text-xs text-slate-500 leading-relaxed mt-0.5">{desc}</p>
+                </div>
               </div>
-              <div>
-                <p className="font-semibold text-slate-800 text-sm">{name}</p>
-                <p className="text-xs text-slate-500 leading-relaxed mt-0.5">{desc}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <p className="text-center text-xs text-slate-400 mt-3">
           Analysis takes around 30–60 seconds · Results are shareable via a permanent link

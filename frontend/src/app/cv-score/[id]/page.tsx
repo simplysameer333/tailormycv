@@ -68,7 +68,7 @@ export default function CvScoreResultPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">CV Score Results</h1>
           <p className="text-sm text-slate-500 mt-1">
-            Analysed across 7 categories · 51 checks
+            Analysed across 8 categories · 54 checks
           </p>
         </div>
         <div className="flex gap-2">

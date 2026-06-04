@@ -32,6 +32,7 @@ from typing import Optional
 from database import get_db
 from config import settings
 from dependencies.auth import get_optional_user
+from services.audit import log_audit
 from services.pipeline import pipeline, generator
 from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
 from services.resume_checker_service import validate_resume_layout
@@ -138,6 +139,13 @@ async def generate(
     session = await db.sessions.find_one({"_id": ObjectId(session_id)})
     if not session:
         raise HTTPException(404, "Session not found.")
+
+    if user:
+        log_audit(user, "resume.generate", {
+            "session_id": session_id,
+            "template": session.get("selected_template_id"),
+            "section": body.section,
+        })
 
     resume_text = (session.get("resume_parsed") or {}).get("raw_text", "")
     user_profile = session.get("user_profile") or {}

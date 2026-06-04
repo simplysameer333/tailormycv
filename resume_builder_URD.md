@@ -1,8 +1,8 @@
 # User Requirements Document
 ## TailorMyCv — AI-Powered Resume Builder
 
-**Version:** 1.7
-**Date:** 2026-05-31
+**Version:** 1.9
+**Date:** 2026-06-04
 **App Name:** TailorMyCv
 **Support Email:** samorsameer@gmail.com
 **Deployment Target:** Railway.com
@@ -236,9 +236,34 @@ A persistent profile stored in the `user_profiles` MongoDB collection.
 ### 7.4 Job Description Input
 - Large textarea; min 50 characters enforced
 
-### 7.5 Template System
-- Prebuilt templates, custom upload, optional formatting reference CV (Pro)
-- **Output format**: DOCX only (Free); PDF/Both buttons unlocked for Plus/Pro; buttons locked with "Plus+" badge for free users at Step 4
+### 7.5 Template System (data-driven, MongoDB-backed)
+- **20+ resume templates stored in MongoDB** (`cv_templates` collection) — each is a complete, standalone HTML document using a logic-less **Mustache** placeholder contract (`{{name}}`, `{{#experience}}…{{/experience}}`, etc.). Adding/editing a template is a data change — **no code deploy**.
+- **Preview** (CV-score gallery + builder Step 4) renders the stored HTML client-side via a shared renderer (`frontend/src/lib/cvTemplates.ts`); all section-routing logic lives in `renderCtx`.
+- **DOCX download** is rendered by `services/docx_templates.py` from the same template's `docx_config` knobs (layout / header / heading / font / accent) — so a brand-new admin/AI template downloads as a real Word doc with no per-template code. PDF (`reportlab`) is already template-agnostic.
+- **Free tier** sees the first 5 templates; **Plus/Pro** see all. Tier gating is per-template (`tier` field).
+- Optional formatting reference CV (Pro) and custom DOCX upload remain available.
+- **Output format**: DOCX only (Free); PDF/Both unlocked for Plus/Pro; buttons locked with "Plus+" badge for free users at Step 4.
+
+### 7.5a Admin — Resume Templates (superadmin)
+- Admin Dashboard → **Prompts & Templates → Resume Templates** manages the `cv_templates` collection:
+  - Edit template HTML, metadata (name, category, traits, bestFor, description, pages, tier, accent) and **DOCX layout knobs**
+  - **Enable/disable** a template (hidden from users when inactive; built-ins can be deactivated but not deleted)
+  - **`show_in_cv_score`** checkbox controls which templates appear in the CV-score preview gallery (defaults to Horizon, Vivid, Catalyst, Swift)
+  - **Copy / download** a template's rendered standalone `.html` (opens in a browser)
+  - **AI generation** — one dedicated LLM call authors a new template from a prompt, returning `{html, docx_config, suggested_metadata}` with a **live preview**. Output passes an **eval gate** (validates complete-document structure, required placeholders, balanced Mustache sections, and the `docx_config` enum vocabulary) before it can be saved; each generation logs **telemetry** (model, latency, tokens, validation result).
+
+### 7.5b CV Score (`/cv-score`) — free, no account
+- `POST /api/resume/check` runs **focused LLM calls in parallel** (`asyncio.gather`), one per purpose:
+  - **Quality analysis** — 7 content categories across 51 checks (contact, summary, experience, skills, education, ATS, design).
+  - **Grammar & Spelling** — a **dedicated proofreading call** (8th category → 54 checks total) that finds genuine spelling/grammar/punctuation errors and returns the **exact correction + location** for each. It factors into the overall score (15% blend) and is best-effort (failure never blocks the rest).
+  - **Preview extractor** — structured profile powering the live template preview.
+  - **Layout validator** — page-fit / truncation / page-break checks (builder).
+- All CV-Score prompts are **admin-editable** via **Admin → Prompts & Templates → CV Score Prompts**, resolved at call time with a safe-format fallback so a bad edit can't break scoring.
+
+### 7.5c Admin prompt overrides & system controls (superadmin)
+- **Prompt overrides** (`prompt_overrides` collection, via `prompt_store.py`): both **CV Builder** prompts (generator, job analyzer, evaluators) and **CV Score** prompts are editable with Save / Reset — no deploy.
+- **System config** (`system_config` collection): app-wide master switches. `GET/PUT /api/admin/system-config` toggles e.g. `alerts_enabled` — when off, the daily alert scheduler skips entirely (no emails to any user).
+- **Audit log** records privileged actions (user/tier/superadmin changes, deletes, template + prompt edits, resume generate/export, system-config changes).
 
 ### 7.6 AI Resume Generation Pipeline
 See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "key_skills")`.
@@ -394,6 +419,36 @@ See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "ke
 }
 ```
 
+### `cv_templates` collection (HTML preview templates)
+```json
+{
+  "_id": "ObjectId",
+  "key": "string (unique index, e.g. 'Cambridge' | 'ai-1717...')",
+  "name": "string",
+  "category": "Classic | Modern | Creative | Executive | ATS",
+  "traits": ["string"],
+  "bestFor": "string",
+  "description": "string",
+  "pages": 1,
+  "tier": "free | plus",
+  "accentColor": "string (#hex)",
+  "html": "string (complete standalone HTML doc with Mustache placeholders)",
+  "docx_config": {
+    "accent": "string (6-hex)", "header": "centered|banner|serif-centered|left",
+    "font": "Calibri|Times New Roman|Georgia|Courier New",
+    "heading": "rule|colored|left-border|double-rule|gold-rule|circle-marker",
+    "compact": false, "layout": "single|sidebar|two-equal|left-bar",
+    "sidebar_color": "string", "sidebar_ratio": 0.0, "banner_bg": "string"
+  },
+  "source": "builtin | ai | custom",
+  "is_active": true,
+  "show_in_cv_score": false,
+  "sort_order": 0,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
 ---
 
 ## 10. API Endpoints (FastAPI)
@@ -457,8 +512,7 @@ See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "ke
 | GET | `/api/profile/prefill?session_id=` | AI-extract profile fields |
 | POST | `/api/profile?session_id=` | Save session profile |
 | POST | `/api/job-description?session_id=` | Save job description |
-| GET | `/api/templates` | List templates |
-| POST | `/api/templates/upload` | Upload custom template |
+| GET | `/api/cv-templates` | List active resume templates (gallery + CV-score) |
 | PATCH | `/api/sessions/{id}/template` | Attach template |
 | PUT | `/api/sessions/{id}/locked-facts` | Update locked facts |
 | PUT | `/api/sessions/{id}/resume` | Sync client-side resume to session |
@@ -472,6 +526,16 @@ See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "ke
 | GET | `/api/catalog/roles?q=` | Role autocomplete |
 | GET | `/api/catalog/skills?q=` | Skills autocomplete |
 | GET/POST/PUT/DELETE | `/api/professions` | Profession profile CRUD |
+
+### CV Templates (HTML preview templates)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/api/cv-templates` | List active templates (gallery + CV-score) |
+| GET | `/api/admin/cv-templates` | List all templates incl. inactive (superadmin) |
+| POST | `/api/admin/cv-templates` | Create a template (superadmin) |
+| PATCH | `/api/admin/cv-templates/{key}` | Edit metadata / html / docx_config / flags (superadmin) |
+| DELETE | `/api/admin/cv-templates/{key}` | Delete a non-built-in template (superadmin) |
+| POST | `/api/admin/cv-templates/generate` | AI-generate a template from a prompt (superadmin) |
 
 ---
 
@@ -648,4 +712,4 @@ All tier-based limits enforced via `tier_config_service` — no hardcoded dicts 
 
 ---
 
-*End of User Requirements Document — TailorMyCv v1.7*
+*End of User Requirements Document — TailorMyCv v1.9*

@@ -11,11 +11,38 @@ from database import get_db
 
 # Keys that can be overridden, with human-readable labels
 PROMPT_KEYS: dict[str, str] = {
+    # ── CV Builder pipeline (services/pipeline/prompts/*) ──────────────────────
     "generator_system": "Generator — System Prompt",
     "job_analyzer_system": "Job Analyzer — System Prompt",
     "anthropic_evaluator_base": "Anthropic Evaluator — Base Prompt",
     "openai_evaluator_base": "OpenAI Evaluator — Base Prompt",
     "google_evaluator_base": "Google Evaluator — Base Prompt",
+    # ── CV Score (services/resume_checker_service.py) ─────────────────────────
+    "cv_score_quality_system": "Quality Check — System Prompt",
+    "cv_score_quality_prompt": "Quality Check — User Prompt (keep {resume_text})",
+    "cv_score_extract_system": "Preview Extractor — System Prompt",
+    "cv_score_extract_prompt": "Preview Extractor — User Prompt (keep {resume_text})",
+    "cv_score_validate_system": "Layout Validator — System Prompt",
+    "cv_score_validate_prompt": "Layout Validator — User Prompt (keep {page_count} {targets} {source_block} {resume_json})",
+    "cv_score_grammar_system": "Grammar & Spelling — System Prompt",
+    "cv_score_grammar_prompt": "Grammar & Spelling — User Prompt (keep {resume_text})",
+}
+
+# Which feature each prompt belongs to — drives the admin sub-tabs.
+PROMPT_CATEGORIES: dict[str, str] = {
+    "generator_system": "builder",
+    "job_analyzer_system": "builder",
+    "anthropic_evaluator_base": "builder",
+    "openai_evaluator_base": "builder",
+    "google_evaluator_base": "builder",
+    "cv_score_quality_system": "cv_score",
+    "cv_score_quality_prompt": "cv_score",
+    "cv_score_extract_system": "cv_score",
+    "cv_score_extract_prompt": "cv_score",
+    "cv_score_validate_system": "cv_score",
+    "cv_score_validate_prompt": "cv_score",
+    "cv_score_grammar_system": "cv_score",
+    "cv_score_grammar_prompt": "cv_score",
 }
 
 

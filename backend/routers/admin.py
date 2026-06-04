@@ -10,14 +10,16 @@ DELETE /api/admin/prompts/{key}    — remove override (revert to hardcoded defa
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from bson import ObjectId
 
 from dependencies.auth import require_superadmin
 from database import get_db
-from services.prompt_store import PROMPT_KEYS, get_override, set_override, delete_override, list_overrides
+from services.audit import log_audit
+from services.prompt_store import (
+    PROMPT_KEYS, PROMPT_CATEGORIES, get_override, set_override, delete_override, list_overrides,
+)
 
 # Import hardcoded defaults so admin UI can show them when no override exists
 from services.pipeline.prompts.anthropic import (
@@ -27,6 +29,12 @@ from services.pipeline.prompts.anthropic import (
 )
 from services.pipeline.prompts.openai import _OPENAI_EVALUATOR_BASE
 from services.pipeline.prompts.google import _GOOGLE_EVALUATOR_BASE
+from services.resume_checker_service import (
+    _SYSTEM as _CV_QUALITY_SYSTEM, _PROMPT as _CV_QUALITY_PROMPT,
+    _EXTRACT_SYSTEM as _CV_EXTRACT_SYSTEM, _EXTRACT_PROMPT as _CV_EXTRACT_PROMPT,
+    _VALIDATE_SYSTEM as _CV_VALIDATE_SYSTEM, _VALIDATE_PROMPT as _CV_VALIDATE_PROMPT,
+    _GRAMMAR_SYSTEM as _CV_GRAMMAR_SYSTEM, _GRAMMAR_PROMPT as _CV_GRAMMAR_PROMPT,
+)
 
 DEFAULTS: dict[str, str] = {
     "generator_system": _GENERATOR_SYSTEM_BASE,
@@ -34,6 +42,14 @@ DEFAULTS: dict[str, str] = {
     "anthropic_evaluator_base": _ANTHROPIC_EVALUATOR_BASE,
     "openai_evaluator_base": _OPENAI_EVALUATOR_BASE,
     "google_evaluator_base": _GOOGLE_EVALUATOR_BASE,
+    "cv_score_quality_system": _CV_QUALITY_SYSTEM,
+    "cv_score_quality_prompt": _CV_QUALITY_PROMPT,
+    "cv_score_extract_system": _CV_EXTRACT_SYSTEM,
+    "cv_score_extract_prompt": _CV_EXTRACT_PROMPT,
+    "cv_score_validate_system": _CV_VALIDATE_SYSTEM,
+    "cv_score_validate_prompt": _CV_VALIDATE_PROMPT,
+    "cv_score_grammar_system": _CV_GRAMMAR_SYSTEM,
+    "cv_score_grammar_prompt": _CV_GRAMMAR_PROMPT,
 }
 
 router = APIRouter()
@@ -100,6 +116,9 @@ async def admin_update_user(user_id: str, body: UserPatchBody, admin: dict = Dep
                 {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
             )
 
+    changes = {k: v for k, v in updates.items() if k != "updated_at"}
+    log_audit(admin, "user.update", {"target": result.get("email", ""), "changes": changes})
+
     return {
         "id": str(result["_id"]),
         "email": result.get("email"),
@@ -133,6 +152,8 @@ async def admin_delete_user(user_id: str, admin: dict = Depends(require_superadm
         db.saved_resumes.delete_many({"user_id": oid}),
         db.audit_log.delete_many({"user_id": str(oid)}),
     )
+    # Logged under the acting admin (not the deleted user), so it survives the purge above.
+    log_audit(admin, "user.delete", {"target": doc.get("email", "")})
 
 
 @router.get("/admin/users/{user_id}/stats")
@@ -202,6 +223,7 @@ async def list_prompts(_: dict = Depends(require_superadmin)):
             "body": overrides.get(key, DEFAULTS.get(key, "")),
             "is_override": key in overrides,
             "default_body": DEFAULTS.get(key, ""),
+            "category": PROMPT_CATEGORIES.get(key, "builder"),
         }
         for key, label in PROMPT_KEYS.items()
     ]
@@ -305,234 +327,26 @@ async def admin_delete_profession(slug: str, _: dict = Depends(require_superadmi
         raise HTTPException(404, f"Profession '{slug}' not found.")
 
 
-# ── Templates ─────────────────────────────────────────────────────────────────
-
-def _serialize_template(doc: dict) -> dict:
-    return {
-        "id": str(doc["_id"]),
-        "name": doc.get("name", ""),
-        "type": doc.get("type", "custom"),
-        "description": doc.get("description", ""),
-        "placeholders": doc.get("placeholders", []),
-        "preview_image_url": doc.get("preview_image_url", ""),
-        "file_path": doc.get("file_path", ""),
-        "is_active": doc.get("is_active", True),
-        "created_at": doc.get("created_at"),
-        "updated_at": doc.get("updated_at"),
-    }
+# ── DOCX-template management removed — resume templates now live in the
+# `cv_templates` collection (see routers/cv_templates.py + admin_cv_templates.py).
 
 
-@router.get("/admin/templates")
-async def admin_list_templates(_: dict = Depends(require_superadmin)):
-    """Return ALL templates including inactive ones."""
-    db = get_db()
-    docs = await db.templates.find({}).sort("created_at", 1).to_list(length=200)
-    return [_serialize_template(d) for d in docs]
+# ── System config (global master switches) ─────────────────────────────────────
+
+@router.get("/admin/system-config")
+async def get_system_config_route(_: dict = Depends(require_superadmin)):
+    from services.system_config_service import get_system_config
+    return await get_system_config()
 
 
-@router.post("/admin/templates/upload", status_code=201)
-async def admin_upload_template(
-    file: UploadFile = File(...),
-    name: str = Form(...),
-    description: str = Form(""),
-    _: dict = Depends(require_superadmin),
-):
-    """Upload a new template DOCX, validate its placeholders, and store it."""
-    import os, io
-    from datetime import datetime
-    from docx import Document
-
-    if not file.filename or not file.filename.endswith(".docx"):
-        raise HTTPException(400, "Only .docx files are accepted.")
-
-    file_bytes = await file.read()
-    if len(file_bytes) > 5 * 1024 * 1024:
-        raise HTTPException(400, "File exceeds 5 MB limit.")
-
-    # Extract placeholders from the DOCX
-    try:
-        doc = Document(io.BytesIO(file_bytes))
-        full_text = "\n".join(p.text for p in doc.paragraphs)
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    full_text += "\n" + "\n".join(p.text for p in cell.paragraphs)
-    except Exception as exc:
-        raise HTTPException(422, f"Could not read DOCX: {exc}")
-
-    import re
-    found_placeholders = sorted(set(re.findall(r"\{\{[A-Z_]+\}\}", full_text)))
-
-    # Require at minimum the core contact + content placeholders
-    required = {"{{NAME}}", "{{SUMMARY}}", "{{EXPERIENCE}}", "{{EDUCATION}}"}
-    missing = required - set(found_placeholders)
-    if missing:
-        raise HTTPException(
-            422,
-            f"Template is missing required placeholders: {', '.join(sorted(missing))}. "
-            f"Found: {', '.join(found_placeholders) or 'none'}",
-        )
-
-    # Save file
-    uploads_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "templates", "uploads",
-    )
-    os.makedirs(uploads_dir, exist_ok=True)
-    safe_name = f"{datetime.utcnow().timestamp()}_{file.filename}"
-    dest = os.path.join(uploads_dir, safe_name)
-    with open(dest, "wb") as f_out:
-        f_out.write(file_bytes)
-
-    db = get_db()
-    now = datetime.utcnow()
-    result = await db.templates.insert_one({
-        "name": name.strip(),
-        "type": "custom",
-        "description": description.strip(),
-        "preview_image_url": "",
-        "file_path": f"templates/uploads/{safe_name}",
-        "placeholders": found_placeholders,
-        "is_active": True,
-        "created_at": now,
-        "updated_at": now,
-    })
-    doc_out = await db.templates.find_one({"_id": result.inserted_id})
-    return _serialize_template(doc_out)
+class SystemConfigBody(BaseModel):
+    alerts_enabled: bool | None = None
 
 
-class TemplatePatchBody(BaseModel):
-    name: str | None = None
-    description: str | None = None
-    is_active: bool | None = None
-
-
-@router.patch("/admin/templates/{template_id}")
-async def admin_update_template(
-    template_id: str,
-    body: TemplatePatchBody,
-    _: dict = Depends(require_superadmin),
-):
-    from datetime import datetime
-    db = get_db()
-    try:
-        oid = ObjectId(template_id)
-    except Exception:
-        raise HTTPException(400, "Invalid template ID.")
-    updates = {k: v for k, v in body.model_dump().items() if v is not None}
-    if not updates:
-        raise HTTPException(400, "No fields to update.")
-    updates["updated_at"] = datetime.utcnow()
-    result = await db.templates.find_one_and_update(
-        {"_id": oid}, {"$set": updates}, return_document=True
-    )
-    if not result:
-        raise HTTPException(404, "Template not found.")
-    return _serialize_template(result)
-
-
-@router.delete("/admin/templates/{template_id}", status_code=204)
-async def admin_delete_template(template_id: str, _: dict = Depends(require_superadmin)):
-    import os
-    from datetime import datetime
-    from services.template_service import get_template_path
-    db = get_db()
-    try:
-        oid = ObjectId(template_id)
-    except Exception:
-        raise HTTPException(400, "Invalid template ID.")
-    doc = await db.templates.find_one({"_id": oid})
-    if not doc:
-        raise HTTPException(404, "Template not found.")
-    if doc.get("type") == "prebuilt":
-        raise HTTPException(400, "Prebuilt templates cannot be deleted. Deactivate them instead.")
-    # Delete the file if it's in uploads
-    file_path = doc.get("file_path", "")
-    if "uploads" in file_path:
-        abs_path = get_template_path(file_path)
-        if os.path.exists(abs_path):
-            os.remove(abs_path)
-    await db.templates.delete_one({"_id": oid})
-
-
-@router.get("/admin/cv-score/stats")
-async def cv_score_stats(_: dict = Depends(require_superadmin)):
-    """Aggregate CV Score usage statistics for the admin dashboard."""
-    from datetime import datetime, timezone, timedelta
-    db = get_db()
-
-    now = datetime.now(timezone.utc)
-    today_start  = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    week_start   = today_start - timedelta(days=7)
-
-    total          = await db.cv_checks.count_documents({})
-    checks_today   = await db.cv_checks.count_documents({"created_at": {"$gte": today_start}})
-    checks_week    = await db.cv_checks.count_documents({"created_at": {"$gte": week_start}})
-    authenticated  = await db.cv_checks.count_documents({"user_id": {"$ne": None}})
-    anonymous      = total - authenticated
-
-    # Average overall score
-    pipeline = [{"$group": {"_id": None, "avg": {"$avg": "$overall_score"}}}]
-    avg_cursor = db.cv_checks.aggregate(pipeline)
-    avg_doc = await avg_cursor.to_list(length=1)
-    avg_score = round(avg_doc[0]["avg"]) if avg_doc else 0
-
-    # Average per category
-    cat_pipeline = [
-        {"$unwind": "$categories"},
-        {"$group": {
-            "_id": "$categories.key",
-            "avg": {"$avg": "$categories.score"},
-            "count": {"$sum": 1},
-        }},
-        {"$sort": {"_id": 1}},
-    ]
-    cat_cursor = db.cv_checks.aggregate(cat_pipeline)
-    category_averages = [
-        {"key": d["_id"], "avg_score": round(d["avg"]), "count": d["count"]}
-        async for d in cat_cursor
-    ]
-
-    # Recent 10 checks
-    recent_cursor = db.cv_checks.find(
-        {}, {"_id": 1, "created_at": 1, "overall_score": 1, "file_ext": 1, "user_id": 1}
-    ).sort("created_at", -1).limit(10)
-    recent = [
-        {
-            "id": str(d["_id"]),
-            "created_at": d["created_at"].isoformat(),
-            "overall_score": d.get("overall_score", 0),
-            "file_ext": d.get("file_ext", ""),
-            "authenticated": d.get("user_id") is not None,
-        }
-        async for d in recent_cursor
-    ]
-
-    return {
-        "total": total,
-        "checks_today": checks_today,
-        "checks_week": checks_week,
-        "authenticated": authenticated,
-        "anonymous": anonymous,
-        "avg_score": avg_score,
-        "category_averages": category_averages,
-        "recent": recent,
-    }
-
-
-@router.get("/admin/templates/{template_id}/download")
-async def admin_download_template(template_id: str, _: dict = Depends(require_superadmin)):
-    from services.template_service import get_template_path
-    db = get_db()
-    try:
-        oid = ObjectId(template_id)
-    except Exception:
-        raise HTTPException(400, "Invalid template ID.")
-    doc = await db.templates.find_one({"_id": oid})
-    if not doc:
-        raise HTTPException(404, "Template not found.")
-    abs_path = get_template_path(doc.get("file_path", ""))
-    if not abs_path or not __import__("os").path.exists(abs_path):
-        raise HTTPException(404, "Template file not found on disk.")
-    filename = f"{doc.get('name', 'template')}.docx"
-    return FileResponse(abs_path, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", filename=filename)
+@router.put("/admin/system-config")
+async def update_system_config_route(body: SystemConfigBody, admin: dict = Depends(require_superadmin)):
+    from services.system_config_service import update_system_config
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    cfg = await update_system_config(patch)
+    log_audit(admin, "system_config.update", patch)
+    return cfg

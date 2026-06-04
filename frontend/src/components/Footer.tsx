@@ -46,7 +46,7 @@ export default function Footer() {
         <div className="border-t border-slate-100 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-slate-400">© {new Date().getFullYear()} TailorMyCv. All rights reserved.</p>
           <p className="text-xs text-slate-400">
-            Built with multi-model AI — Claude · GPT-4 · Gemini
+            Built with multi-model AI
           </p>
         </div>
       </div>

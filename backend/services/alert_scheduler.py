@@ -149,6 +149,13 @@ async def _process_alert(db, alert: dict) -> str | None:
 async def run_daily_alerts() -> None:
     logger.info("[alert-scheduler] Daily alert run starting")
     db = get_db()
+
+    # Master switch — admins can pause ALL alert emails app-wide from the dashboard.
+    from services.system_config_service import alerts_enabled
+    if not await alerts_enabled(db):
+        logger.info("[alert-scheduler] Daily run skipped — alerts disabled by admin master switch")
+        return
+
     alerts = await db.job_alerts.find({"is_active": True}).to_list(length=2000)
     total = len(alerts)
     logger.info("[alert-scheduler] Processing %d active alerts", total)

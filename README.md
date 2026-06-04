@@ -15,8 +15,8 @@ tailormycv/
 │   ├── main.py                      FastAPI app entry point; mounts all routers; APScheduler lifespan
 │   ├── config.py                    Pydantic-settings; all tunable config from .env
 │   ├── database.py                  Motor async MongoDB client; TTL indexes on sessions (24h) and GridFS files
-│   ├── seed_templates.py            One-time script — upserts 3 prebuilt DOCX templates into MongoDB
 │   ├── seed_professions.py          One-time script — upserts initial profession configs into MongoDB
+│   ├── scripts/seed_cv_templates.py Seeds the 20 HTML resume templates into `cv_templates` (also auto-seeds at startup)
 │   │
 │   ├── routers/
 │   │   ├── auth.py                  POST /api/auth/register, /login, /sync (Google OAuth), /me
@@ -36,7 +36,8 @@ tailormycv/
 │   │   │                            PATCH /api/jobs/alerts/{id}/toggle — enable/disable alert
 │   │   │                            POST /api/jobs/alerts/send-test — trigger test email (superadmin only)
 │   │   ├── linkedin.py              POST /api/linkedin/parse — extract profile from LinkedIn URL
-│   │   ├── templates.py             GET /api/templates · POST /api/templates/upload
+│   │   ├── cv_templates.py          GET /api/cv-templates — data-driven HTML resume templates
+│   │   ├── admin_cv_templates.py    Admin CRUD + AI generate for cv_templates (superadmin)
 │   │   ├── generate.py              POST /api/generate — full pipeline
 │   │   │                            PUT /api/sessions/{id}/resume — sync client resume to session
 │   │   │                            PATCH /api/sessions/{id}/template — attach template
@@ -48,8 +49,7 @@ tailormycv/
 │   ├── models/
 │   │   ├── user.py                  User, UserPublic; tier: free | plus | pro
 │   │   ├── job_alert.py             JobAlert model
-│   │   ├── session.py               GeneratedResume, UserProfile, EvaluatorResult, EvalCycle, OutputFiles
-│   │   └── template.py              Template document model
+│   │   └── session.py               GeneratedResume, UserProfile, EvaluatorResult, EvalCycle, OutputFiles
 │   │
 │   ├── dependencies/
 │   │   └── auth.py                  get_current_user (Bearer dep), require_tier(min_tier) factory dep,
@@ -58,8 +58,13 @@ tailormycv/
 │   └── services/
 │       ├── auth_service.py          JWT (python-jose), bcrypt hashing, user CRUD; 24h token expiry
 │       ├── resume_parser.py         Extracts text from PDF/DOCX via pdfplumber / python-docx
-│       ├── template_service.py      Loads DOCX templates, substitutes {{PLACEHOLDER}} tags
 │       ├── file_generator.py        generate_docx (python-docx) + generate_pdf (reportlab)
+│       ├── docx_templates.py        Config-driven DOCX renderers; TemplateConfig sourced from cv_templates
+│       ├── cv_template_service.py   cv_templates CRUD + AI template generator (eval gate + telemetry)
+│       ├── cv_template_seed_data.py 20 built-in templates as standalone Mustache HTML + docx_config
+│       ├── resume_checker_service.py CV Score — quality + grammar/spelling + extractor + layout validator (parallel calls)
+│       ├── prompt_store.py          Admin-editable prompt overrides (builder + CV-score) → MongoDB
+│       ├── system_config_service.py Global master switches (e.g. alerts on/off)
 │       ├── quota_service.py         Monthly JSearch call counter; warning thresholds
 │       ├── profession_service.py    MongoDB CRUD + resolve_profession_for_role()
 │       ├── linkedin_service.py      LinkedIn profile parser via LinkdAPI (linkdapi.com)
@@ -114,6 +119,8 @@ tailormycv/
     │   │                            getTierLimit()
     │   ├── tierConfig.ts            Runtime store — getTierLimitDynamic(), hasFeatureDynamic(),
     │   │                            getPricing(), detectCurrencyFromConfig()
+    │   ├── cvTemplates.ts           Runtime store + logic-less Mustache renderer for HTML preview templates
+    │   ├── templateHtml.ts          getTemplateHtml() — renders stored template HTML (built-in fallback)
     │   ├── useAuth.ts               useAuth() hook — wraps useSession; works in real + dev mode
     │   ├── nextauth.ts              NextAuth config (Credentials + Google providers)
     │   ├── stepGuard.ts             useStepGuard() — prevents skipping builder steps
@@ -148,8 +155,8 @@ pip install -r requirements.txt
 
 # Copy .env.example → .env and fill in required values (see below)
 
-python seed_templates.py        # Seeds Clean / Modern / Executive templates
 python seed_professions.py      # Seeds initial profession profiles
+python -m scripts.seed_cv_templates   # Seeds the 20 HTML resume templates (also auto-seeds on startup)
 
 uvicorn main:app --reload --port 9000
 ```
@@ -277,6 +284,41 @@ Quality scores are **never shown to users** — qualitative labels (Excellent / 
 
 All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.0b1`) before prompt injection, cutting structured input tokens by 40–45%. Outputs remain plain JSON.
 
+### Resume Templates (data-driven, MongoDB-backed)
+
+The 20+ resume templates are **data, not code** — each lives in the `cv_templates` MongoDB collection as a complete, standalone HTML document using a logic-less **Mustache** placeholder contract (e.g. `{{name}}`, `{{#experience}}…{{/experience}}`). A small shared renderer (`frontend/src/lib/cvTemplates.ts`) fills the placeholders; all routing logic (HTML escaping, smart extra-section placement) lives in `renderCtx`, so templates stay pure layout.
+
+- **Preview** (CV-score gallery + builder Step 4) renders the stored HTML client-side.
+- **DOCX download** is rendered by `docx_templates.py` from the same template's `docx_config` knobs (layout/header/heading/font/accent) — so a new template downloads as a real Word doc with **no code change**.
+- **Admin → Prompts & Templates → Resume Templates** (superadmin): edit metadata/HTML/DOCX knobs, enable/disable, mark which appear in the CV-score gallery (`show_in_cv_score`), copy/download the standalone `.html`, and **AI-generate new templates** from a prompt with a live preview. New templates go live with **no deploy**.
+- The AI generator is one dedicated LLM call with an **eval gate** (validates the generated HTML/config before it can be saved) and **telemetry** logging (model, latency, tokens, validation result).
+
+Built-in templates are seeded at startup (`services/cv_template_service.py` → `seed_cv_templates`) and can be deactivated but not deleted.
+
+### CV Score (`/cv-score`)
+
+A free, no-account CV analyser. `POST /api/resume/check` runs **focused LLM calls in parallel**
+(`asyncio.gather`) — one per purpose, per the project's AI-engineering rule:
+
+- **Quality analysis** — scores **7 content categories** across **51 checks** (contact, summary,
+  experience, skills, education, ATS, design).
+- **Grammar & spelling** — a dedicated proofreading call that finds genuine errors and returns the
+  **exact correction** for each (the **8th category** → **54 checks total**). It factors into the
+  overall score (15% blend).
+- **Preview extractor** — structured profile for the live template preview.
+- **Layout validator** — page-fit / truncation / page-break checks (builder).
+
+All four prompts are **admin-editable** (no deploy) under **Admin → Prompts & Templates → CV Score
+Prompts**, resolved at call time with a safe-format fallback so a bad edit can't break scoring.
+
+### Admin Dashboard
+
+Superadmin-only (`/admin`), grouped by feature: **User Management** (Users · Audit Log) ·
+**Prompts & Templates** (CV Builder Prompts · CV Score Prompts · Professions · Resume Templates) ·
+**Feature Controls** (Tiers & Pricing · System). The **System** tab has app-wide master switches
+(e.g. pause all daily job alerts). The **Audit Log** records privileged actions
+(user/tier/superadmin changes, template + prompt edits, resume generate/export).
+
 ### Subscription Tiers
 
 | Feature | Free | Plus | Pro |
@@ -387,8 +429,12 @@ All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.
 | POST | `/api/jobs/alerts/send-test` | Send test alert email (superadmin only) |
 | GET | `/api/catalog/roles?q=` | Role autocomplete |
 | GET | `/api/catalog/skills?q=` | Skills autocomplete |
-| GET | `/api/templates` | List templates |
-| POST | `/api/templates/upload` | Upload custom template |
+| GET | `/api/cv-templates` | List active HTML resume templates (gallery + CV-score) |
+| GET | `/api/admin/cv-templates` | List all CV templates incl. inactive (superadmin) |
+| POST | `/api/admin/cv-templates` | Create a CV template (superadmin) |
+| PATCH | `/api/admin/cv-templates/{key}` | Edit metadata / HTML / docx_config / flags (superadmin) |
+| DELETE | `/api/admin/cv-templates/{key}` | Delete a non-built-in CV template (superadmin) |
+| POST | `/api/admin/cv-templates/generate` | AI-generate a template from a prompt (superadmin) |
 | PATCH | `/api/sessions/{id}/template` | Attach template to session |
 | PUT | `/api/sessions/{id}/locked-facts` | Update locked facts |
 | PUT | `/api/sessions/{id}/resume` | Sync client-side resume to session |
@@ -403,10 +449,11 @@ All structured data sent to LLMs is serialised with **TOON** (`toon-format==0.9.
 
 1. Create two Railway services: `tailormycv-backend` (root: `/backend`) and `tailormycv-frontend` (root: `/frontend`)
 2. Set environment variables per service (see tables above)
-3. Run seed scripts once after first deploy:
+3. Seeding is automatic: profession configs and the 20 HTML resume templates (`cv_templates`)
+   auto-seed on backend startup. To (re)seed manually outside a boot:
    ```
-   python seed_templates.py
    python seed_professions.py
+   python -m scripts.seed_cv_templates
    ```
 
 Minimum backend env vars for launch:

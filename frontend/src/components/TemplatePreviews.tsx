@@ -1,9 +1,17 @@
 "use client";
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useReducer } from "react";
 import Link from "next/link";
 import { FiCheckCircle, FiArrowRight, FiLock } from "react-icons/fi";
 import clsx from "clsx";
 import { getTemplateHtml } from "@/lib/templateHtml";
+import {
+  getCvTemplates, getCvScoreTemplates, cvTemplatesLoaded, loadCvTemplates,
+  subscribeCvTemplates, type CvTemplate, type PreviewData as _PreviewData,
+} from "@/lib/cvTemplates";
+
+// PreviewData now lives in `@/lib/cvTemplates` (single source of truth, no import
+// cycle). Re-exported here so existing `@/components/TemplatePreviews` imports work.
+export type PreviewData = _PreviewData;
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PREVIEW RULES — how the CV-score preview curates the uploaded CV for display.
@@ -22,20 +30,7 @@ const PREVIEW_RULES = {
 };
 
 // ── Preview data ──────────────────────────────────────────────────────────────
-
-export interface PreviewData {
-  name: string;
-  title: string;
-  email: string;
-  phone: string;
-  location: string;
-  linkedin: string;
-  summary: string;
-  skills: string[];
-  experience: { title: string; company: string; date: string; bullets: string[] }[];
-  education: { degree: string; school: string; year: string }[];
-  extra_sections?: { title: string; items: string[] }[];
-}
+// (PreviewData interface moved to `@/lib/cvTemplates` and re-exported above.)
 
 // SAMPLE / SAMPLE_THUMB removed — previews always use real data.
 // Kept as empty exports so any import that references them compiles without error.
@@ -722,6 +717,56 @@ export const ALL_TEMPLATES: TemplateInfo[] = [
   { key: "Healthcare",  name: "Healthcare",   component: Healthcare,  category: "Classic",   traits: ["Teal","Structured","Clinical"],         bestFor: "Healthcare, nursing",     description: "Teal-accented section blocks with a clean clinical structure.",              pages: 2, tier: "plus", accentColor: "#0891b2" },
 ];
 
+// ── Reactive store access ──────────────────────────────────────────────────────
+// ALL_TEMPLATES above is now the built-in FALLBACK; the live list comes from the
+// MongoDB-backed runtime store. Map a DB CvTemplate → the TemplateInfo shape the
+// UI expects. The `component` (React) field is legacy/unused at runtime (previews
+// render via getTemplateHtml/iframes); mapped from a registry, default Cambridge.
+const COMPONENT_REGISTRY: Record<string, React.FC<{ data: PreviewData }>> = {
+  Cambridge, Horizon, Prestige, Catalyst, Admiral, Canvas, Swift, Jade, Prism, Vivid,
+  Chronicle, Summit, Symmetry, Scholar, Luxe, TechModern, Pulse, HexagonPro, SalesImpact, Healthcare,
+};
+
+function toTemplateInfo(t: CvTemplate): TemplateInfo {
+  return {
+    key: t.key, name: t.name, component: COMPONENT_REGISTRY[t.key] ?? Cambridge,
+    category: t.category, traits: t.traits, bestFor: t.bestFor,
+    description: t.description, pages: t.pages, tier: t.tier, accentColor: t.accentColor,
+  };
+}
+
+/** Re-render the calling component when the template store loads/changes. */
+function useStoreTick() {
+  const [, force] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    const unsub = subscribeCvTemplates(force);
+    if (!cvTemplatesLoaded()) loadCvTemplates();
+    return unsub;
+  }, []);
+}
+
+/** All active templates as TemplateInfo[] (falls back to built-in ALL_TEMPLATES). */
+export function useCvTemplateInfos(): TemplateInfo[] {
+  useStoreTick();
+  const list = getCvTemplates();
+  return list.length ? list.map(toTemplateInfo) : ALL_TEMPLATES;
+}
+
+/** Round a template count down to the nearest 5 for marketing copy: 22 → "20+". */
+export function templateCountLabel(n: number): string {
+  return `${Math.max(5, Math.floor(n / 5) * 5)}+`;
+}
+
+/** CV-score gallery templates (show_in_cv_score) — falls back to the classic 4. */
+export function useCvScoreInfos(): TemplateInfo[] {
+  useStoreTick();
+  const list = getCvScoreTemplates();
+  if (list.length) return list.map(toTemplateInfo);
+  return ["Horizon", "Vivid", "Catalyst", "Swift"]
+    .map(k => ALL_TEMPLATES.find(t => t.key === k))
+    .filter(Boolean) as TemplateInfo[];
+}
+
 export const CATEGORY_COLORS: Record<string, string> = {
   Classic:   "bg-slate-100 text-slate-700",
   Modern:    "bg-blue-50 text-blue-700",
@@ -915,14 +960,11 @@ export function TemplateSuggestions({ extractedProfile }: {
 }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  // Best 4 templates for showcasing: 2 × 2-page + 2 × 1-page
-  // Selected for maximum visual variety and impact with fully populated data
-  const shown = [
-    ALL_TEMPLATES.find(t => t.key === "Horizon")!,   // 2-page: bold blue banner
-    ALL_TEMPLATES.find(t => t.key === "Vivid")!,     // 2-page: purple sidebar + monogram
-    ALL_TEMPLATES.find(t => t.key === "Catalyst")!,  // 1-page: orange accent, bold
-    ALL_TEMPLATES.find(t => t.key === "Swift")!,     // 1-page: dark header, ultra-dense
-  ];
+  // Templates shown in the CV-score gallery are admin-controlled via the
+  // "Show in CV Score" flag (falls back to the classic 4 before the store loads).
+  const shown = useCvScoreInfos();
+  // Total available templates, rounded for marketing copy (e.g. "20+").
+  const totalLabel = templateCountLabel(useCvTemplateInfos().length);
 
   // Build PreviewData directly from structured extracted fields — no demo fallback.
   const hasRealProfile = !!(extractedProfile?.name && extractedProfile.name.trim());
@@ -956,9 +998,10 @@ export function TemplateSuggestions({ extractedProfile }: {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasRealProfile, extractedProfile?.name]);
 
-  const selected = shown[selectedIdx];
+  const safeIdx = selectedIdx < shown.length ? selectedIdx : 0;
+  const selected = shown[safeIdx];
 
-  // Pre-generate ALL 4 template HTMLs when profile loads — instant switching
+  // Pre-generate ALL template HTMLs when profile loads — instant switching
   const LARGE_SCALE = 0.62;
   const LARGE_W = a4W(LARGE_SCALE);
   const A4_PAGE_PX = Math.round(A4_W * A4_RATIO);   // one A4 page height at 794px width
@@ -999,7 +1042,7 @@ export function TemplateSuggestions({ extractedProfile }: {
         <p className="text-sm text-slate-500 mt-1">
           {hasRealProfile
             ? "Your uploaded CV reformatted in different professional styles."
-            : "Choose from 20 templates. Our AI builder applies your chosen template when tailoring for a job."}
+            : `Choose from ${totalLabel} templates. Our AI builder applies your chosen template when tailoring for a job.`}
         </p>
       </div>
 
@@ -1083,10 +1126,11 @@ export function TemplateSuggestions({ extractedProfile }: {
         )}
 
         {/* Thumbnail selector row */}
-        <div className="grid grid-cols-4 gap-0 divide-x divide-slate-100">
+        <div className="grid gap-0 divide-x divide-slate-100"
+             style={{ gridTemplateColumns: `repeat(${shown.length}, minmax(0, 1fr))` }}>
           {shown.map((info, i) => {
             const thumbHtml = allHtmls[info.key] ?? "";
-            const isActive = i === selectedIdx;
+            const isActive = i === safeIdx;
             return (
               <button
                 key={info.key}
@@ -1127,7 +1171,7 @@ export function TemplateSuggestions({ extractedProfile }: {
 
       <div className="flex items-center justify-between bg-brand-50 border border-brand-200 rounded-2xl px-5 py-4">
         <div>
-          <p className="font-semibold text-slate-800 text-sm">Tailor your CV and choose from 20 professional templates</p>
+          <p className="font-semibold text-slate-800 text-sm">Tailor your CV and choose from {totalLabel} professional templates</p>
           <p className="text-xs text-slate-500 mt-0.5">Upload your CV, add a job description, pick a style — done in minutes.</p>
         </div>
         <Link href="/builder/upload" className="btn-primary text-sm px-4 py-2 shrink-0 ml-4 flex items-center gap-1.5">

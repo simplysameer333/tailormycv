@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
 import toast from "react-hot-toast";
@@ -8,21 +8,26 @@ import {
   adminListAudit, adminListPrompts,
   adminUpdatePrompt, adminResetPrompt,
   adminListProfessions, adminCreateProfession, adminUpdateProfession, adminDeleteProfession,
-  adminListTemplates, adminUploadTemplate, adminUpdateTemplate, adminDeleteTemplate,
-  AdminUser, UserStats, AuditPage, PromptOverride, AdminProfession, AdminTemplate,
+  AdminUser, UserStats, AuditPage, PromptOverride, AdminProfession,
 } from "@/lib/api";
-import api from "@/lib/api";
 import {
   FiUsers, FiActivity, FiCpu, FiRefreshCw, FiSave, FiRotateCcw,
   FiChevronLeft, FiChevronRight, FiBriefcase, FiPlus, FiTrash2,
   FiChevronDown, FiChevronUp, FiToggleLeft, FiToggleRight, FiClock,
-  FiLayout, FiDownload, FiUploadCloud, FiEdit2, FiX, FiSliders, FiAlertCircle, FiSearch, FiCheckSquare,
+  FiDownload, FiEdit2, FiX, FiSliders, FiAlertCircle, FiSearch,
+  FiGrid, FiCopy, FiZap, FiEye, FiBell,
 } from "react-icons/fi";
 import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
+import {
+  adminListCvTemplates, adminCreateCvTemplate, adminUpdateCvTemplate,
+  adminDeleteCvTemplate, adminGenerateCvTemplate,
+  fetchSystemConfig, updateSystemConfig, type SystemConfig,
+} from "@/lib/api";
+import { render as renderTpl, renderCtx, type CvTemplate, type DocxConfig, type PreviewData } from "@/lib/cvTemplates";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Tab = "users" | "audit" | "prompts" | "professions" | "templates" | "tier_config" | "cv_score";
+type Tab = "users" | "audit" | "prompts" | "cv_score_prompts" | "professions" | "manage_templates" | "tier_config" | "system";
 
 interface CacheEntry<T> {
   data: T;
@@ -34,7 +39,6 @@ interface PageCache {
   audit?: CacheEntry<AuditPage>;
   prompts?: CacheEntry<PromptOverride[]>;
   professions?: CacheEntry<AdminProfession[]>;
-  templates?: CacheEntry<AdminTemplate[]>;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -46,12 +50,19 @@ const TIER_COLORS: Record<string, string> = {
 };
 
 const ACTION_LABELS: Record<string, string> = {
+  "user.update":            "Updated user",
+  "user.delete":            "Deleted user",
+  "profile.save":           "Saved profile",
+  "resume.generate":        "Generated resume",
+  "resume.export":          "Exported resume",
+  "resume_library.upload":  "Uploaded to library",
   "job_alert.create":       "Created alert",
   "job_alert.delete":       "Deleted alert",
-  "profile.save":           "Saved profile",
-  "resume_library.upload":  "Uploaded resume",
-  "resume.upload":          "Uploaded resume",
-  "resume.generate":        "Generated resume",
+  "cv_template.create":     "Created template",
+  "cv_template.update":     "Updated template",
+  "cv_template.delete":     "Deleted template",
+  "cv_template.generate":   "AI-generated template",
+  "system_config.update":   "Changed system settings",
 };
 
 function formatDate(iso: string | null) {
@@ -635,16 +646,17 @@ function PromptCard({ prompt, onSaved }: { prompt: PromptOverride; onSaved: () =
 }
 
 function PromptsTab({
-  prompts, loading, fetchedAt, onRefresh,
+  prompts, loading, fetchedAt, onRefresh, headerLabel = "Edit prompts below",
 }: {
   prompts: PromptOverride[];
   loading: boolean;
   fetchedAt: Date | null;
   onRefresh: () => void;
+  headerLabel?: string;
 }) {
   return (
     <div>
-      <TabHeader label="Edit prompts below" fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
+      <TabHeader label={headerLabel} fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
       {loading && !prompts.length ? <Spinner text="Loading prompts…" /> : (
         <>
           <p className="text-sm text-slate-500 mb-5">
@@ -886,283 +898,449 @@ function ProfessionsTab({
   );
 }
 
-// ── Templates tab ─────────────────────────────────────────────────────────────
+// ── (DOCX Templates tab removed — resume templates now live in the
+//     "Resume Templates" tab, backed by the cv_templates collection.) ──────────
 
-const TYPE_COLORS: Record<string, string> = {
-  prebuilt: "bg-brand-100 text-brand-700",
-  custom:   "bg-teal-100 text-teal-700",
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+// ── Resume Templates tab (HTML preview templates — `cv_templates`) ─────────────
+
+// Sample CV used to render template previews in the admin screen.
+const SAMPLE_PREVIEW: PreviewData = {
+  name: "Alex Morgan", title: "Senior Product Manager",
+  email: "alex.morgan@email.com", phone: "+1 (555) 012-3456",
+  location: "San Francisco, CA", linkedin: "linkedin.com/in/alexmorgan",
+  summary: "Product leader with 8+ years shipping data-driven B2B SaaS. Led cross-functional teams to grow ARR 3× and cut churn by 40% through disciplined discovery and outcome-focused roadmaps.",
+  skills: ["Product Strategy", "Roadmapping", "SQL", "A/B Testing", "User Research", "Stakeholder Management", "Figma", "Analytics"],
+  experience: [
+    { title: "Senior Product Manager", company: "NovaCloud", date: "2021 — Present",
+      bullets: ["Drove a platform redesign that lifted activation 28% and added $4.2M ARR.", "Built the experimentation program (A/B) now used by 6 squads.", "Defined the north-star metric framework adopted company-wide."] },
+    { title: "Product Manager", company: "BrightData", date: "2018 — 2021",
+      bullets: ["Launched self-serve onboarding, cutting time-to-value from 14 to 3 days.", "Partnered with sales to close 3 enterprise logos worth $1.8M."] },
+    { title: "Associate PM", company: "Loop", date: "2016 — 2018",
+      bullets: ["Shipped mobile notifications increasing DAU retention by 12%."] },
+  ],
+  education: [
+    { degree: "B.S. Computer Science", school: "UC Berkeley", year: "2016" },
+  ],
+  extra_sections: [
+    { title: "Certifications", items: ["Pragmatic Institute PMC-III", "AWS Cloud Practitioner"] },
+    { title: "Key Achievements", items: ["Grew ARR 3× in 2 years", "Reduced churn 40%"] },
+  ],
 };
 
-async function downloadTemplateFile(id: string, name: string) {
-  try {
-    const res = await api.get(`/api/admin/templates/${id}/download`, { responseType: "blob" });
-    const url = URL.createObjectURL(new Blob([res.data]));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${name}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
-  } catch {
-    alert("Download failed — template file may not exist on disk.");
-  }
+const CV_CATEGORIES = ["Classic", "Modern", "Creative", "Executive", "ATS"] as const;
+const CV_TIERS = ["free", "plus"] as const;
+const DOCX_LAYOUTS = ["single", "sidebar", "two-equal", "left-bar"];
+const DOCX_HEADERS = ["centered", "banner", "serif-centered", "left"];
+const DOCX_HEADINGS = ["rule", "colored", "left-border", "double-rule", "gold-rule", "circle-marker"];
+const DOCX_FONTS = ["Calibri", "Times New Roman", "Georgia", "Courier New"];
+
+function renderPreviewDoc(html: string, accentColor: string): string {
+  try { return renderTpl(html, renderCtx(SAMPLE_PREVIEW, accentColor)); }
+  catch { return "<html><body style='font-family:sans-serif;padding:20px;color:#b91c1c'>Preview error — check the template HTML.</body></html>"; }
 }
 
-function TemplateCard({ template, onSaved, onDeleted }: {
-  template: AdminTemplate;
-  onSaved: () => void;
-  onDeleted: () => void;
+// Scaled iframe preview (matches the A4 thumbnail approach used elsewhere).
+function CvPreviewFrame({ html, accentColor, scale = 0.34, heightFactor = 0.72, title }: {
+  html: string; accentColor: string; scale?: number; heightFactor?: number; title?: string;
 }) {
+  const A4_W = 794;
+  const srcDoc = useMemo(() => renderPreviewDoc(html, accentColor), [html, accentColor]);
+  const frameH = Math.round(A4_W * 1.414 * scale * heightFactor);
+  return (
+    <div style={{ height: frameH, width: Math.round(A4_W * scale), overflow: "hidden", position: "relative", background: "#fff", borderRadius: 8, border: "1px solid #e2e8f0", flexShrink: 0 }}>
+      <iframe srcDoc={srcDoc} sandbox="allow-same-origin allow-scripts" scrolling="no" title={title || "preview"}
+        style={{ position: "absolute", top: 0, left: 0, width: A4_W, height: Math.round(A4_W * 1.414),
+          border: "none", transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none" }} />
+    </div>
+  );
+}
+
+function copyHtml(tmpl: { html: string; accentColor: string }, flash: (s: string) => void) {
+  const doc = renderPreviewDoc(tmpl.html, tmpl.accentColor);
+  navigator.clipboard.writeText(doc).then(() => flash("Copied HTML"), () => flash("Copy failed"));
+}
+
+function downloadHtml(tmpl: { html: string; accentColor: string; key: string }) {
+  const doc = renderPreviewDoc(tmpl.html, tmpl.accentColor);
+  const url = URL.createObjectURL(new Blob([doc], { type: "text/html" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = `${tmpl.key}.html`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Shared editor body for metadata + DOCX knobs + HTML (used by edit & generate-save).
+function TemplateFields({ draft, setDraft }: {
+  draft: Partial<CvTemplate>; setDraft: (fn: (d: Partial<CvTemplate>) => Partial<CvTemplate>) => void;
+}) {
+  const cfg: DocxConfig = (draft.docx_config ?? {} as DocxConfig);
+  const setCfg = (k: keyof DocxConfig, v: string | number | boolean) =>
+    setDraft(d => ({ ...d, docx_config: { ...(d.docx_config ?? {} as DocxConfig), [k]: v } }));
+  const inputCls = "w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300";
+  const lblCls = "block text-[11px] font-semibold text-slate-500 mb-1";
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div><label className={lblCls}>Name</label>
+          <input className={inputCls} value={draft.name ?? ""} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} /></div>
+        <div><label className={lblCls}>Accent colour</label>
+          <input type="color" className="w-full h-9 rounded-lg border border-slate-200" value={draft.accentColor ?? "#1d4ed8"} onChange={e => setDraft(d => ({ ...d, accentColor: e.target.value }))} /></div>
+        <div><label className={lblCls}>Category</label>
+          <select className={inputCls} value={draft.category ?? "Modern"} onChange={e => setDraft(d => ({ ...d, category: e.target.value as CvTemplate["category"] }))}>
+            {CV_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+        <div><label className={lblCls}>Tier</label>
+          <select className={inputCls} value={draft.tier ?? "plus"} onChange={e => setDraft(d => ({ ...d, tier: e.target.value as CvTemplate["tier"] }))}>
+            {CV_TIERS.map(t => <option key={t} value={t}>{t}</option>)}</select></div>
+        <div><label className={lblCls}>Pages</label>
+          <select className={inputCls} value={draft.pages ?? 2} onChange={e => setDraft(d => ({ ...d, pages: Number(e.target.value) as 1 | 2 }))}>
+            <option value={1}>1</option><option value={2}>2</option></select></div>
+        <div><label className={lblCls}>Best for</label>
+          <input className={inputCls} value={draft.bestFor ?? ""} onChange={e => setDraft(d => ({ ...d, bestFor: e.target.value }))} /></div>
+      </div>
+      <div><label className={lblCls}>Description</label>
+        <input className={inputCls} value={draft.description ?? ""} onChange={e => setDraft(d => ({ ...d, description: e.target.value }))} /></div>
+      <div><label className={lblCls}>Traits (comma-separated)</label>
+        <input className={inputCls} value={(draft.traits ?? []).join(", ")} onChange={e => setDraft(d => ({ ...d, traits: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} /></div>
+
+      <div className="pt-2 border-t border-slate-100">
+        <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2">DOCX download layout</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div><label className={lblCls}>Layout</label>
+            <select className={inputCls} value={cfg.layout ?? "single"} onChange={e => setCfg("layout", e.target.value)}>
+              {DOCX_LAYOUTS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+          <div><label className={lblCls}>Header</label>
+            <select className={inputCls} value={cfg.header ?? "centered"} onChange={e => setCfg("header", e.target.value)}>
+              {DOCX_HEADERS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+          <div><label className={lblCls}>Heading</label>
+            <select className={inputCls} value={cfg.heading ?? "rule"} onChange={e => setCfg("heading", e.target.value)}>
+              {DOCX_HEADINGS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+          <div><label className={lblCls}>Font</label>
+            <select className={inputCls} value={cfg.font ?? "Calibri"} onChange={e => setCfg("font", e.target.value)}>
+              {DOCX_FONTS.map(o => <option key={o} value={o}>{o}</option>)}</select></div>
+          <div><label className={lblCls}>Accent (hex)</label>
+            <input className={inputCls} value={cfg.accent ?? ""} onChange={e => setCfg("accent", e.target.value)} placeholder="1d4ed8" /></div>
+          <div><label className={lblCls}>Sidebar colour</label>
+            <input className={inputCls} value={cfg.sidebar_color ?? ""} onChange={e => setCfg("sidebar_color", e.target.value)} placeholder="(hex)" /></div>
+          <div><label className={lblCls}>Sidebar ratio</label>
+            <input className={inputCls} type="number" step="0.05" min="0" max="0.6" value={cfg.sidebar_ratio ?? 0} onChange={e => setCfg("sidebar_ratio", Number(e.target.value))} /></div>
+          <label className="flex items-center gap-2 mt-5 text-sm text-slate-600">
+            <input type="checkbox" checked={!!cfg.compact} onChange={e => setCfg("compact", e.target.checked)} className="accent-brand-600" /> Compact</label>
+        </div>
+      </div>
+
+      <div className="pt-2 border-t border-slate-100">
+        <label className={lblCls}>Template HTML (standalone, Mustache placeholders) — live preview on the right</label>
+        <div className="flex gap-3">
+          <textarea rows={14} value={draft.html ?? ""} onChange={e => setDraft(d => ({ ...d, html: e.target.value }))}
+            className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-mono text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-y" />
+          <CvPreviewFrame html={draft.html ?? ""} accentColor={draft.accentColor ?? "#1d4ed8"} scale={0.4} heightFactor={1.0} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CvTemplateCard({ tmpl, onChanged }: { tmpl: CvTemplate; onChanged: () => void }) {
   const [editing, setEditing] = useState(false);
-  const [draftName, setDraftName] = useState(template.name);
-  const [draftDesc, setDraftDesc] = useState(template.description);
-  const [saving, setSaving] = useState(false);
-  const [toggling, setToggling] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [draft, setDraft] = useState<Partial<CvTemplate>>(tmpl);
+  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  useEffect(() => { setDraft(tmpl); }, [tmpl]);
+  function flash(t: string) { setMsg(t); setTimeout(() => setMsg(""), 2500); }
 
-  function flash(t: string) { setMsg(t); setTimeout(() => setMsg(""), 3000); }
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      await adminUpdateTemplate(template.id, { name: draftName.trim(), description: draftDesc.trim() });
-      flash("Saved"); setEditing(false); onSaved();
-    } catch { flash("Save failed"); }
-    finally { setSaving(false); }
+  async function patch(body: Partial<CvTemplate>, ok = "Saved") {
+    setBusy(true);
+    try { await adminUpdateCvTemplate(tmpl.key, body); flash(ok); onChanged(); }
+    catch (e: unknown) { flash((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed"); }
+    finally { setBusy(false); }
   }
-
-  async function handleToggle() {
-    setToggling(true);
+  async function saveEdit() {
+    setBusy(true);
     try {
-      await adminUpdateTemplate(template.id, { is_active: !template.is_active });
-      flash(template.is_active ? "Deactivated" : "Activated"); onSaved();
-    } catch { flash("Failed"); }
-    finally { setToggling(false); }
+      await adminUpdateCvTemplate(tmpl.key, {
+        name: draft.name, category: draft.category, tier: draft.tier, pages: draft.pages,
+        bestFor: draft.bestFor, description: draft.description, traits: draft.traits,
+        accentColor: draft.accentColor, html: draft.html, docx_config: draft.docx_config,
+      });
+      flash("Saved"); setEditing(false); onChanged();
+    } catch (e: unknown) { flash((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Save failed"); }
+    finally { setBusy(false); }
   }
-
-  async function handleDelete() {
-    if (!confirm(`Delete template "${template.name}"? This cannot be undone.`)) return;
-    setDeleting(true);
-    try { await adminDeleteTemplate(template.id); onDeleted(); }
-    catch (e: unknown) {
-      const err = e instanceof Error ? e.message : "";
-      flash(err.includes("400") ? "Prebuilt templates cannot be deleted." : "Delete failed");
-    }
-    finally { setDeleting(false); }
+  async function del() {
+    if (!confirm(`Delete template "${tmpl.name}"? This cannot be undone.`)) return;
+    setBusy(true);
+    try { await adminDeleteCvTemplate(tmpl.key); onChanged(); }
+    catch (e: unknown) { flash((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Delete failed"); }
+    finally { setBusy(false); }
   }
 
   return (
-    <div className={`card mb-3 ${!template.is_active ? "opacity-60" : ""}`}>
-      <div className="flex items-start justify-between gap-3">
-        {/* Left: name + meta */}
+    <div className={`card ${!tmpl.is_active ? "opacity-60" : ""}`}>
+      <div className="flex gap-4">
+        <CvPreviewFrame html={tmpl.html} accentColor={tmpl.accentColor} title={tmpl.name} />
         <div className="flex-1 min-w-0">
-          {editing ? (
-            <div className="space-y-2 mb-3">
-              <input
-                value={draftName}
-                onChange={e => setDraftName(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-300"
-              />
-              <textarea
-                rows={2}
-                value={draftDesc}
-                onChange={e => setDraftDesc(e.target.value)}
-                placeholder="Description…"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-300 resize-none"
-              />
-            </div>
-          ) : (
-            <>
-              <div className="flex items-center gap-2 flex-wrap mb-1">
-                <span className="font-semibold text-slate-800">{template.name}</span>
-                <span className={`text-xs font-semibold rounded px-2 py-0.5 ${TYPE_COLORS[template.type] ?? "bg-slate-100 text-slate-600"}`}>
-                  {template.type}
-                </span>
-                {!template.is_active && (
-                  <span className="text-xs bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">Inactive</span>
-                )}
-              </div>
-              {template.description && (
-                <p className="text-sm text-slate-500 mb-2">{template.description}</p>
-              )}
-            </>
-          )}
-
-          {/* Placeholder chips */}
-          {template.placeholders.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-1">
-              {template.placeholders.map(p => (
-                <span key={p} className="text-xs bg-slate-100 text-slate-600 font-mono rounded px-1.5 py-0.5">{p}</span>
-              ))}
-            </div>
-          )}
-          {template.placeholders.length === 0 && !editing && (
-            <p className="text-xs text-amber-600 mt-1">No placeholders detected — template may not work correctly.</p>
-          )}
-        </div>
-
-        {/* Right: actions */}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {msg && <span className={`text-xs font-medium ${msg.includes("fail") || msg.includes("cannot") ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
-
-          {editing ? (
-            <>
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-medium hover:bg-brand-700 disabled:opacity-50 transition">
-                <FiSave className="w-3.5 h-3.5" /> {saving ? "Saving…" : "Save"}
-              </button>
-              <button onClick={() => { setEditing(false); setDraftName(template.name); setDraftDesc(template.description); }}
-                className="p-1.5 text-slate-400 hover:text-slate-600">
-                <FiX className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            <>
-              <button onClick={() => setEditing(true)} title="Edit name & description"
-                className="p-1.5 text-slate-400 hover:text-brand-600 transition">
-                <FiEdit2 className="w-4 h-4" />
-              </button>
-              <button onClick={() => downloadTemplateFile(template.id, template.name)} title="Download DOCX"
-                className="p-1.5 text-slate-400 hover:text-teal-600 transition">
-                <FiDownload className="w-4 h-4" />
-              </button>
-              <button onClick={handleToggle} disabled={toggling}
-                title={template.is_active ? "Deactivate (hide from users)" : "Activate"}
-                className="text-slate-400 hover:text-slate-600 disabled:opacity-50">
-                {template.is_active
-                  ? <FiToggleRight className="w-5 h-5 text-teal-600" />
-                  : <FiToggleLeft className="w-5 h-5" />}
-              </button>
-              {template.type !== "prebuilt" && (
-                <button onClick={handleDelete} disabled={deleting} title="Delete"
-                  className="p-1.5 text-slate-400 hover:text-red-500 disabled:opacity-50 transition">
-                  <FiTrash2 className="w-4 h-4" />
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function UploadTemplateForm({ onUploaded }: { onUploaded: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [err, setErr] = useState("");
-
-  async function handleUpload() {
-    if (!file) { setErr("Select a .docx file."); return; }
-    if (!name.trim()) { setErr("Template name is required."); return; }
-    setUploading(true); setErr("");
-    try {
-      await adminUploadTemplate(file, name.trim(), description.trim());
-      setFile(null); setName(""); setDescription(""); setOpen(false); onUploaded();
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "";
-      const detail = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      setErr(detail || msg || "Upload failed.");
-    }
-    finally { setUploading(false); }
-  }
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-dashed border-slate-300 text-slate-500 text-sm hover:border-brand-400 hover:text-brand-600 transition w-full justify-center mt-2">
-        <FiUploadCloud className="w-4 h-4" /> Upload new template
-      </button>
-    );
-  }
-
-  return (
-    <div className="card mt-3 border-brand-200 bg-brand-50/30">
-      <h3 className="font-semibold text-slate-800 mb-4">Upload new template</h3>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-semibold text-slate-500 mb-1">DOCX file</label>
-          <input type="file" accept=".docx"
-            onChange={e => setFile(e.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-700 file:text-sm file:font-medium hover:file:bg-brand-100" />
-          <p className="text-xs text-slate-400 mt-1">
-            Must contain at minimum: <span className="font-mono">{`{{NAME}} {{SUMMARY}} {{EXPERIENCE}} {{EDUCATION}}`}</span>
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Template name</label>
-            <input value={name} onChange={e => setName(e.target.value)}
-              placeholder="e.g. Minimal Sidebar"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <span className="font-semibold text-slate-800">{tmpl.name}</span>
+            <span className="text-[10px] font-mono text-slate-400">{tmpl.key}</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{tmpl.category}</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600">{tmpl.pages}-page</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-700">{tmpl.tier}</span>
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{tmpl.source}</span>
+            {!tmpl.is_active && <span className="text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">Inactive</span>}
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-500 mb-1">Description (optional)</label>
-            <input value={description} onChange={e => setDescription(e.target.value)}
-              placeholder="e.g. Two-column layout, blue accent"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+          <p className="text-xs text-slate-500 line-clamp-2 mb-2">{tmpl.description}</p>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+              <input type="checkbox" checked={tmpl.show_in_cv_score} disabled={busy}
+                onChange={e => patch({ show_in_cv_score: e.target.checked }, e.target.checked ? "Shown in CV Score" : "Hidden from CV Score")}
+                className="accent-brand-600" />
+              Show in CV Score
+            </label>
+            <button onClick={() => patch({ is_active: !tmpl.is_active }, tmpl.is_active ? "Deactivated" : "Activated")} disabled={busy}
+              title={tmpl.is_active ? "Deactivate (hide from users)" : "Activate"} className="text-slate-400 hover:text-slate-600 disabled:opacity-40">
+              {tmpl.is_active ? <FiToggleRight className="w-5 h-5 text-teal-600" /> : <FiToggleLeft className="w-5 h-5" />}
+            </button>
+            <button onClick={() => setEditing(v => !v)} title="Edit" className="text-slate-400 hover:text-brand-600"><FiEdit2 className="w-4 h-4" /></button>
+            <button onClick={() => copyHtml(tmpl, flash)} title="Copy rendered HTML" className="text-slate-400 hover:text-brand-600"><FiCopy className="w-4 h-4" /></button>
+            <button onClick={() => downloadHtml(tmpl)} title="Download .html" className="text-slate-400 hover:text-teal-600"><FiDownload className="w-4 h-4" /></button>
+            {tmpl.source !== "builtin" && (
+              <button onClick={del} disabled={busy} title="Delete" className="text-slate-400 hover:text-red-500 disabled:opacity-40"><FiTrash2 className="w-4 h-4" /></button>
+            )}
+            {msg && <span className={`text-xs font-medium ${msg.includes("fail") || msg.includes("Failed") ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
           </div>
         </div>
-        {err && <p className="text-sm text-red-600">{err}</p>}
-        <div className="flex gap-2">
-          <button onClick={handleUpload} disabled={uploading || !file}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 disabled:opacity-50 transition">
-            <FiUploadCloud className="w-3.5 h-3.5" /> {uploading ? "Uploading…" : "Upload"}
-          </button>
-          <button onClick={() => { setOpen(false); setErr(""); setFile(null); setName(""); setDescription(""); }}
-            className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition">
-            Cancel
-          </button>
-        </div>
       </div>
-    </div>
-  );
-}
 
-function TemplatesTab({ templates, loading, fetchedAt, onRefresh }: {
-  templates: AdminTemplate[];
-  loading: boolean;
-  fetchedAt: Date | null;
-  onRefresh: () => void;
-}) {
-  const active   = templates.filter(t => t.is_active);
-  const inactive = templates.filter(t => !t.is_active);
-
-  return (
-    <div>
-      <TabHeader count={templates.length} label="templates" fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
-      {loading && !templates.length ? <Spinner text="Loading templates…" /> : (
-        <>
-          <p className="text-sm text-slate-500 mb-5">
-            Prebuilt templates cannot be deleted — deactivate them to hide from users.
-            Each template must contain at minimum <span className="font-mono text-xs">{`{{NAME}} {{SUMMARY}} {{EXPERIENCE}} {{EDUCATION}}`}</span>.
-            Download any template to inspect or edit its DOCX layout.
-          </p>
-          {active.map(t => <TemplateCard key={t.id} template={t} onSaved={onRefresh} onDeleted={onRefresh} />)}
-          {inactive.length > 0 && (
-            <p className="text-xs text-slate-400 mt-4 mb-2 font-semibold uppercase tracking-wide">Inactive</p>
-          )}
-          {inactive.map(t => <TemplateCard key={t.id} template={t} onSaved={onRefresh} onDeleted={onRefresh} />)}
-          <UploadTemplateForm onUploaded={onRefresh} />
-        </>
+      {editing && (
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <TemplateFields draft={draft} setDraft={setDraft} />
+          <div className="flex gap-2 mt-3">
+            <button onClick={saveEdit} disabled={busy} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
+              <FiSave className="w-3.5 h-3.5" /> {busy ? "Saving…" : "Save changes"}</button>
+            <button onClick={() => { setEditing(false); setDraft(tmpl); }} className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50">Cancel</button>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────────
+function GenerateTemplatePanel({ templates, onCreated }: { templates: CvTemplate[]; onCreated: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [baseKey, setBaseKey] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [err, setErr] = useState("");
+  const [draft, setDraft] = useState<Partial<CvTemplate> | null>(null);
+  const [saving, setSaving] = useState(false);
 
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-  { id: "users",       label: "Users",       icon: <FiUsers className="w-4 h-4" /> },
-  { id: "audit",       label: "Audit Log",   icon: <FiActivity className="w-4 h-4" /> },
-  { id: "prompts",     label: "Prompts",     icon: <FiCpu className="w-4 h-4" /> },
-  { id: "professions", label: "Professions", icon: <FiBriefcase className="w-4 h-4" /> },
-  { id: "templates",   label: "Templates",   icon: <FiLayout className="w-4 h-4" /> },
-  { id: "tier_config", label: "Tier Config", icon: <FiSliders className="w-4 h-4" /> },
-  { id: "cv_score",    label: "CV Score",    icon: <FiCheckSquare className="w-4 h-4" /> },
+  async function generate() {
+    if (!prompt.trim()) { setErr("Describe the template you want."); return; }
+    setGenerating(true); setErr("");
+    try {
+      const res = await adminGenerateCvTemplate(prompt, baseKey || undefined);
+      const m = res.suggested_metadata || {};
+      setDraft({
+        name: m.name || "New Template", category: m.category || "Modern", tier: "plus",
+        pages: (m.pages as 1 | 2) || 2, bestFor: m.bestFor || "", description: m.description || "",
+        traits: m.traits || [], accentColor: m.accentColor || "#1d4ed8",
+        html: res.html, docx_config: res.docx_config, show_in_cv_score: false,
+      });
+    } catch (e: unknown) { setErr((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Generation failed"); }
+    finally { setGenerating(false); }
+  }
+  async function save() {
+    if (!draft) return;
+    setSaving(true); setErr("");
+    try {
+      await adminCreateCvTemplate({ ...draft, name: draft.name || "New Template", html: draft.html || "" });
+      setOpen(false); setPrompt(""); setBaseKey(""); setDraft(null); onCreated();
+    } catch (e: unknown) { setErr((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Save failed"); }
+    finally { setSaving(false); }
+  }
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition">
+        <FiZap className="w-4 h-4" /> Generate new template with AI
+      </button>
+    );
+  }
+
+  return (
+    <div className="card border-brand-200 bg-brand-50/30">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-slate-800 flex items-center gap-2"><FiZap className="w-4 h-4 text-brand-600" /> Generate new template</h3>
+        <button onClick={() => { setOpen(false); setDraft(null); setErr(""); }} className="text-slate-400 hover:text-slate-600"><FiX className="w-4 h-4" /></button>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Describe the design</label>
+          <textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)}
+            placeholder="e.g. A modern two-column template with a dark charcoal sidebar, amber accent headings, and a monospace name."
+            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 resize-y" />
+        </div>
+        <div className="flex items-end gap-2">
+          <div className="w-56">
+            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Start from (optional)</label>
+            <select value={baseKey} onChange={e => setBaseKey(e.target.value)} className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm">
+              <option value="">— blank —</option>
+              {templates.map(t => <option key={t.key} value={t.key}>{t.name}</option>)}
+            </select>
+          </div>
+          <button onClick={generate} disabled={generating}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium hover:bg-slate-900 disabled:opacity-50">
+            <FiZap className="w-3.5 h-3.5" /> {generating ? "Generating…" : "Generate"}
+          </button>
+        </div>
+        {err && <p className="text-sm text-red-600 flex items-center gap-1.5"><FiAlertCircle className="w-4 h-4" /> {err}</p>}
+
+        {draft && (
+          <div className="pt-3 border-t border-brand-100">
+            <p className="text-xs text-slate-500 mb-3 flex items-center gap-1.5"><FiEye className="w-3.5 h-3.5" /> Preview &amp; adjust, then save.</p>
+            <TemplateFields draft={draft} setDraft={(fn) => setDraft(d => fn(d ?? {}))} />
+            <div className="flex gap-2 mt-3">
+              <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
+                <FiSave className="w-3.5 h-3.5" /> {saving ? "Saving…" : "Save template"}</button>
+              <button onClick={generate} disabled={generating} className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-slate-200 text-slate-600 text-sm hover:bg-slate-50">
+                <FiRefreshCw className="w-3.5 h-3.5" /> Regenerate</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ManageTemplatesTab() {
+  const [templates, setTemplates] = useState<CvTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setTemplates(await adminListCvTemplates()); setFetchedAt(new Date()); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const activeInScore = templates.filter(t => t.show_in_cv_score && t.is_active).length;
+
+  return (
+    <div className="space-y-4">
+      <TabHeader count={templates.length} label="resume templates" fetchedAt={fetchedAt} loading={loading} onRefresh={load} />
+      <div className="rounded-xl border border-brand-200 bg-brand-50/50 px-4 py-3.5 text-sm text-slate-700">
+        <p className="font-semibold text-slate-900 mb-2">
+          These templates power the live preview gallery in CV Score and the resume builder.
+        </p>
+        <ul className="space-y-1.5 text-[13px] leading-relaxed">
+          <li className="flex gap-2">
+            <span className="text-brand-500 font-bold">•</span>
+            <span>Tick <span className="font-semibold text-slate-900">Show in CV Score</span> to choose which templates appear in the CV-score gallery&nbsp;— <span className="font-semibold text-brand-700">{activeInScore} active</span>.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="text-brand-500 font-bold">•</span>
+            <span>Edit a template&apos;s HTML, or <span className="font-semibold text-slate-900">generate a brand-new one with AI</span>&nbsp;— changes go live instantly, with no deploy.</span>
+          </li>
+          <li className="flex gap-2">
+            <span className="text-brand-500 font-bold">•</span>
+            <span>Built-in templates can be deactivated to hide them, but not deleted.</span>
+          </li>
+        </ul>
+      </div>
+      <GenerateTemplatePanel templates={templates} onCreated={load} />
+      {loading && !templates.length ? <Spinner text="Loading templates…" /> : (
+        <div className="space-y-3">
+          {templates.map(t => <CvTemplateCard key={t.key} tmpl={t} onChanged={load} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── System tab (global master switches) ────────────────────────────────────────
+
+function SystemTab() {
+  const [cfg, setCfg] = useState<SystemConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    fetchSystemConfig().then(setCfg).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  function flash(t: string) { setMsg(t); setTimeout(() => setMsg(""), 2500); }
+
+  async function toggleAlerts() {
+    if (!cfg) return;
+    const next = !cfg.alerts_enabled;
+    setSaving(true);
+    try {
+      setCfg(await updateSystemConfig({ alerts_enabled: next }));
+      flash(next ? "Alerts resumed" : "Alerts paused");
+    } catch { flash("Failed"); }
+    finally { setSaving(false); }
+  }
+
+  if (loading) return <Spinner text="Loading system settings…" />;
+  if (!cfg) return <div className="py-16 text-center text-slate-400">Could not load system settings.</div>;
+
+  const on = cfg.alerts_enabled;
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-500">App-wide master switches — these apply to every user.</p>
+      <div className="card">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex gap-3">
+            <div className={`mt-0.5 w-9 h-9 rounded-lg flex items-center justify-center ${on ? "bg-teal-50 text-teal-600" : "bg-slate-100 text-slate-400"}`}>
+              <FiBell className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900">Daily Job Alerts</h3>
+              <p className="text-sm text-slate-500 mt-0.5 max-w-xl">
+                Master switch for the daily alert scheduler. When off, the daily run is skipped and
+                <span className="font-medium text-slate-600"> no alert emails are sent to any user</span>.
+                Individual users&apos; alerts are left untouched and resume when you switch this back on.
+              </p>
+              <p className="text-xs text-slate-400 mt-1.5">
+                Status: <span className={on ? "text-teal-600 font-semibold" : "text-amber-600 font-semibold"}>{on ? "Active" : "Paused"}</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {msg && <span className={`text-xs font-medium ${msg.includes("Failed") ? "text-red-600" : "text-green-600"}`}>{msg}</span>}
+            <button onClick={toggleAlerts} disabled={saving} title={on ? "Pause all alerts" : "Resume alerts"} className="disabled:opacity-50">
+              {on ? <FiToggleRight className="w-9 h-9 text-teal-600" /> : <FiToggleLeft className="w-9 h-9 text-slate-300" />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Per-tab display metadata (label + icon), keyed by Tab id.
+const TAB_META: Record<Tab, { label: string; icon: React.ReactNode }> = {
+  users:            { label: "Users",         icon: <FiUsers className="w-4 h-4" /> },
+  audit:            { label: "Audit Log",     icon: <FiActivity className="w-4 h-4" /> },
+  prompts:          { label: "CV Builder Prompts", icon: <FiCpu className="w-4 h-4" /> },
+  cv_score_prompts: { label: "CV Score Prompts",   icon: <FiActivity className="w-4 h-4" /> },
+  professions:      { label: "Professions",   icon: <FiBriefcase className="w-4 h-4" /> },
+  manage_templates: { label: "Resume Templates", icon: <FiGrid className="w-4 h-4" /> },
+  tier_config:      { label: "Tiers & Pricing", icon: <FiSliders className="w-4 h-4" /> },
+  system:           { label: "System",        icon: <FiBell className="w-4 h-4" /> },
+};
+
+// Top-level groups arranged by feature; each renders its tabs as sub-sections.
+const GROUPS: { id: string; label: string; icon: React.ReactNode; tabs: Tab[] }[] = [
+  { id: "people",  label: "User Management",     icon: <FiUsers className="w-4 h-4" />,   tabs: ["users", "audit"] },
+  { id: "content", label: "Prompts & Templates", icon: <FiCpu className="w-4 h-4" />,     tabs: ["prompts", "cv_score_prompts", "professions", "manage_templates"] },
+  { id: "config",  label: "Feature Controls",    icon: <FiSliders className="w-4 h-4" />, tabs: ["tier_config", "system"] },
 ];
 
 // ── TierConfigTab ──────────────────────────────────────────────────────────────
@@ -1194,10 +1372,14 @@ function TierConfigTab() {
     });
   }
 
+  // null = unlimited. Accept easy-to-type values for unlimited so admins never
+  // need the ∞ character: blank, "unlimited"/"unlim"/"inf"/"infinity"/"u", "-1", "*".
+  const _UNLIMITED_WORDS = new Set(["", "∞", "unlimited", "unlim", "inf", "infinity", "u", "-1", "*"]);
   function setLimit(limitKey: string, tier: string, value: string) {
     setDraft(prev => {
       if (!prev) return prev;
-      const parsed = value === "" || value === "∞" ? null : parseInt(value, 10);
+      const v = value.trim().toLowerCase();
+      const parsed = _UNLIMITED_WORDS.has(v) ? null : parseInt(value, 10);
       return {
         ...prev,
         limits: {
@@ -1415,7 +1597,7 @@ function TierConfigTab() {
       {/* ── Limits ──────────────────────────────────────────────────────── */}
       <div>
         <h3 className="text-sm font-semibold text-slate-800 mb-1">Numeric Limits</h3>
-        <p className="text-xs text-slate-400 mb-3">Leave blank or enter ∞ for unlimited. Limits must be non-decreasing across tiers.</p>
+        <p className="text-xs text-slate-400 mb-3">For unlimited: leave the box blank, type <span className="font-mono">unlimited</span> or <span className="font-mono">-1</span>, or click the <span className="font-semibold">∞</span> button. Type a number otherwise. Limits must be non-decreasing across tiers.</p>
         <div className="rounded-xl border border-slate-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
@@ -1435,15 +1617,30 @@ function TierConfigTab() {
                   </td>
                   {ALL_TIERS.map(tier => {
                     const val = draft.limits[limitKey]?.[tier];
+                    const isUnlimited = val === null;
                     return (
                       <td key={tier} className="px-4 py-2.5 text-center">
-                        <input
-                          type="text"
-                          value={val === null ? "∞" : (val ?? "")}
-                          onChange={e => setLimit(limitKey, tier, e.target.value)}
-                          className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300"
-                          placeholder="0"
-                        />
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={val === null || val === undefined ? "" : String(val)}
+                            onChange={e => setLimit(limitKey, tier, e.target.value)}
+                            className="w-16 text-center border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-brand-300"
+                            placeholder="∞"
+                            title="Type a number, or leave blank / type 'unlimited' for unlimited"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setLimit(limitKey, tier, "∞")}
+                            title={isUnlimited ? "Unlimited" : "Set unlimited"}
+                            className={`text-base leading-none px-1 rounded transition ${
+                              isUnlimited ? "text-brand-600 font-bold" : "text-slate-300 hover:text-brand-500"
+                            }`}
+                          >
+                            ∞
+                          </button>
+                        </div>
                       </td>
                     );
                   })}
@@ -1688,118 +1885,6 @@ function ZoneCard({
   );
 }
 
-// ── CvScoreTab ────────────────────────────────────────────────────────────────
-
-interface CvScoreStats {
-  total: number;
-  checks_today: number;
-  checks_week: number;
-  authenticated: number;
-  anonymous: number;
-  avg_score: number;
-  category_averages: { key: string; avg_score: number; count: number }[];
-  recent: { id: string; created_at: string; overall_score: number; file_ext: string; authenticated: boolean }[];
-}
-
-function CvScoreTab() {
-  const [stats, setStats] = useState<CvScoreStats | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const { data } = await api.get("/api/admin/cv-score/stats");
-        setStats(data);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  const CATEGORY_LABELS: Record<string, string> = {
-    contact: "Contact Info", summary: "Summary", experience: "Experience",
-    skills: "Skills", education: "Education", ats: "ATS", design: "Design",
-  };
-
-  const scoreColor = (s: number) =>
-    s >= 80 ? "text-green-600" : s >= 60 ? "text-amber-600" : s >= 40 ? "text-orange-600" : "text-red-600";
-  const barColor = (s: number) =>
-    s >= 80 ? "bg-green-500" : s >= 60 ? "bg-amber-500" : s >= 40 ? "bg-orange-500" : "bg-red-500";
-
-  if (loading) return <div className="py-16 text-center text-slate-400">Loading CV Score stats…</div>;
-  if (!stats)  return <div className="py-16 text-center text-slate-400">No data yet.</div>;
-
-  return (
-    <div className="space-y-6">
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: "Total Checks",    value: stats.total },
-          { label: "Today",           value: stats.checks_today },
-          { label: "This Week",       value: stats.checks_week },
-          { label: "Avg Score",       value: `${stats.avg_score}/100` },
-        ].map(({ label, value }) => (
-          <div key={label} className="card text-center py-4">
-            <div className="text-2xl font-bold text-slate-900">{value}</div>
-            <div className="text-xs text-slate-500 mt-1">{label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Auth breakdown */}
-      <div className="card">
-        <h3 className="font-semibold text-slate-700 mb-3 text-sm">User Breakdown</h3>
-        <div className="flex gap-6 text-sm">
-          <div><span className="font-semibold text-brand-600">{stats.authenticated}</span> <span className="text-slate-500">authenticated</span></div>
-          <div><span className="font-semibold text-slate-600">{stats.anonymous}</span> <span className="text-slate-500">anonymous</span></div>
-        </div>
-      </div>
-
-      {/* Category averages */}
-      <div className="card">
-        <h3 className="font-semibold text-slate-700 mb-4 text-sm">Average Score by Category</h3>
-        <div className="space-y-3">
-          {stats.category_averages.map(({ key, avg_score }) => (
-            <div key={key} className="flex items-center gap-3">
-              <span className="text-xs text-slate-500 w-24 shrink-0">{CATEGORY_LABELS[key] ?? key}</span>
-              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${barColor(avg_score)}`} style={{ width: `${avg_score}%` }} />
-              </div>
-              <span className={`text-xs font-semibold w-10 text-right ${scoreColor(avg_score)}`}>{avg_score}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Recent checks */}
-      <div className="card">
-        <h3 className="font-semibold text-slate-700 mb-3 text-sm">Recent Checks</h3>
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-100">
-              {["Date", "Score", "Format", "User"].map(h => (
-                <th key={h} className="pb-2 text-left text-xs font-semibold text-slate-400 uppercase">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {stats.recent.map(r => (
-              <tr key={r.id} className="border-b border-slate-50">
-                <td className="py-2 text-slate-500 text-xs">{new Date(r.created_at).toLocaleDateString()}</td>
-                <td className={`py-2 font-semibold ${scoreColor(r.overall_score)}`}>{r.overall_score}</td>
-                <td className="py-2 text-slate-500 uppercase text-xs">{r.file_ext}</td>
-                <td className="py-2 text-xs">{r.authenticated ? <span className="text-brand-600">Auth</span> : <span className="text-slate-400">Anon</span>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 export default function AdminPage() {
   const { data: session, status } = useAuth();
   const router = useRouter();
@@ -1814,9 +1899,8 @@ export default function AdminPage() {
   const [auditData, setAuditData] = useState<AuditPage | null>(null);
   const [prompts, setPrompts] = useState<PromptOverride[]>([]);
   const [professions, setProfessions] = useState<AdminProfession[]>([]);
-  const [templates, setTemplates] = useState<AdminTemplate[]>([]);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, professions: false, templates: false, tier_config: false, cv_score: false });
-  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, professions: null, templates: null, tier_config: null, cv_score: null });
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, cv_score_prompts: false, professions: false, manage_templates: false, tier_config: false, system: false });
+  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, cv_score_prompts: null, professions: null, manage_templates: null, tier_config: null, system: null });
 
   function setLoad(t: Tab, v: boolean) { setLoading(prev => ({ ...prev, [t]: v })); }
   function setFetched(t: Tab, d: Date) { setFetchedAt(prev => ({ ...prev, [t]: d })); }
@@ -1886,22 +1970,6 @@ export default function AdminPage() {
     } finally { setLoad("professions", false); }
   }, []);
 
-  const fetchTemplates = useCallback(async (force = false) => {
-    if (!force && cache.current.templates) {
-      setTemplates(cache.current.templates.data);
-      setFetchedAt(prev => ({ ...prev, templates: cache.current.templates!.fetchedAt }));
-      return;
-    }
-    setLoad("templates", true);
-    try {
-      const data = await adminListTemplates();
-      const entry = { data, fetchedAt: new Date() };
-      cache.current.templates = entry;
-      setTemplates(data);
-      setFetched("templates", entry.fetchedAt);
-    } finally { setLoad("templates", false); }
-  }, []);
-
   // Per-user stats — fetched on expand, cached in a Map
   const fetchUserStats = useCallback(async (userId: string) => {
     if (userStatsCache.current.has(userId)) return;
@@ -1917,18 +1985,16 @@ export default function AdminPage() {
   function refreshTab(t: Tab) {
     if (t === "users")       { cache.current.users       = undefined; fetchUsers(true); }
     if (t === "audit")       { cache.current.audit       = undefined; fetchAudit(true); }
-    if (t === "prompts")     { cache.current.prompts     = undefined; fetchPrompts(true); }
+    if (t === "prompts" || t === "cv_score_prompts") { cache.current.prompts = undefined; fetchPrompts(true); }
     if (t === "professions") { cache.current.professions = undefined; fetchProfessions(true); }
-    if (t === "templates")   { cache.current.templates   = undefined; fetchTemplates(true); }
   }
 
   function handleTabSelect(t: Tab) {
     setTab(t);
     if (t === "users")       fetchUsers();
     if (t === "audit")       fetchAudit();
-    if (t === "prompts")     fetchPrompts();
+    if (t === "prompts" || t === "cv_score_prompts") fetchPrompts();
     if (t === "professions") fetchProfessions();
-    if (t === "templates")   fetchTemplates();
   }
 
   // Fetch users only after auth is confirmed — prevents blank tab on first load
@@ -1957,24 +2023,51 @@ export default function AdminPage() {
           <p className="text-sm text-slate-500 mt-1">Superadmin only. Tabs load on first click and cache until you refresh.</p>
         </div>
 
-        {/* Tab bar */}
-        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 mb-6 w-fit">
-          {TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => handleTabSelect(t.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ${
-                tab === t.id ? "bg-brand-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              {t.icon}
-              {t.label}
-              {fetchedAt[t.id] && tab !== t.id && (
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-400" title="Cached" />
-              )}
-            </button>
-          ))}
+        {/* Top-level group bar (by feature) */}
+        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 mb-3 w-fit">
+          {GROUPS.map(g => {
+            const isActive = g.tabs.includes(tab);
+            return (
+              <button
+                key={g.id}
+                onClick={() => handleTabSelect(g.tabs[0])}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                  isActive ? "bg-brand-600 text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {g.icon}
+                {g.label}
+              </button>
+            );
+          })}
         </div>
+
+        {/* Sub-section bar (tabs within the active group) */}
+        {(() => {
+          const activeGroup = GROUPS.find(g => g.tabs.includes(tab)) ?? GROUPS[0];
+          if (activeGroup.tabs.length < 2) return <div className="mb-6" />;
+          return (
+            <div className="flex gap-1 mb-6 flex-wrap">
+              {activeGroup.tabs.map(tid => (
+                <button
+                  key={tid}
+                  onClick={() => handleTabSelect(tid)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
+                    tab === tid
+                      ? "bg-brand-50 text-brand-700 border-brand-200"
+                      : "text-slate-500 border-transparent hover:bg-slate-50 hover:text-slate-700"
+                  }`}
+                >
+                  {TAB_META[tid].icon}
+                  {TAB_META[tid].label}
+                  {fetchedAt[tid] && tab !== tid && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-400" title="Cached" />
+                  )}
+                </button>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Tab content */}
         <div>
@@ -1998,10 +2091,20 @@ export default function AdminPage() {
           )}
           {tab === "prompts" && (
             <PromptsTab
-              prompts={prompts}
+              prompts={prompts.filter(p => p.category !== "cv_score")}
               loading={loading.prompts}
               fetchedAt={fetchedAt.prompts}
               onRefresh={() => refreshTab("prompts")}
+              headerLabel="Edit CV builder prompts below"
+            />
+          )}
+          {tab === "cv_score_prompts" && (
+            <PromptsTab
+              prompts={prompts.filter(p => p.category === "cv_score")}
+              loading={loading.prompts}
+              fetchedAt={fetchedAt.prompts}
+              onRefresh={() => refreshTab("prompts")}
+              headerLabel="Edit CV score prompts below"
             />
           )}
           {tab === "professions" && (
@@ -2012,16 +2115,9 @@ export default function AdminPage() {
               onRefresh={() => refreshTab("professions")}
             />
           )}
-          {tab === "templates" && (
-            <TemplatesTab
-              templates={templates}
-              loading={loading.templates}
-              fetchedAt={fetchedAt.templates}
-              onRefresh={() => refreshTab("templates")}
-            />
-          )}
+          {tab === "manage_templates" && <ManageTemplatesTab />}
           {tab === "tier_config" && <TierConfigTab />}
-          {tab === "cv_score"    && <CvScoreTab />}
+          {tab === "system" && <SystemTab />}
         </div>
       </div>
     </main>

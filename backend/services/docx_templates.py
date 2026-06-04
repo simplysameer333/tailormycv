@@ -783,16 +783,41 @@ def _render_left_bar(r: dict, cfg: TemplateConfig) -> bytes:
 KNOWN_TEMPLATE_KEYS: frozenset[str] = frozenset(_CONFIGS.keys())
 
 
+def _config_from_dict(d: dict) -> TemplateConfig:
+    """Build a TemplateConfig from a stored `docx_config` dict (tolerant of
+    missing keys — falls back to the Cambridge defaults per field). This is what
+    lets an admin-managed / AI-generated CV template download as a real DOCX with
+    no code change: the knobs live in MongoDB, the renderers stay here."""
+    base = _CONFIGS["Cambridge"]
+    return TemplateConfig(
+        accent=str(d.get("accent") or base.accent).lstrip("#"),
+        header=str(d.get("header") or base.header),
+        font=str(d.get("font") or base.font),
+        heading=str(d.get("heading") or base.heading),
+        compact=bool(d.get("compact", base.compact)),
+        layout=str(d.get("layout") or base.layout),
+        sidebar_color=str(d.get("sidebar_color") or "").lstrip("#"),
+        sidebar_ratio=float(d.get("sidebar_ratio") or 0.0),
+        banner_bg=str(d.get("banner_bg") or "").lstrip("#"),
+    )
+
+
 def generate_docx_from_key(
     resume_data: dict,
     template_key: str,
     bold_keywords: list[str] | None = None,   # reserved — future keyword bolding
+    docx_config: dict | None = None,
 ) -> bytes:
     """Generate a styled DOCX for the given template key.
 
-    Falls back to the single-column Cambridge style when the key is unknown.
+    When `docx_config` is supplied (from the `cv_templates` MongoDB doc) it drives
+    the layout — so admin-managed / AI-generated templates render with no code
+    change. Otherwise falls back to the in-code `_CONFIGS`, then to Cambridge.
     """
-    cfg = _CONFIGS.get(template_key, _CONFIGS["Cambridge"])
+    if docx_config:
+        cfg = _config_from_dict(docx_config)
+    else:
+        cfg = _CONFIGS.get(template_key, _CONFIGS["Cambridge"])
 
     if cfg.layout == "sidebar":
         return _render_sidebar(resume_data, cfg)

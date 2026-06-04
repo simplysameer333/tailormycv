@@ -32,6 +32,7 @@ from services.resume_checker_service import (
     check_resume as _check_resume,
     extract_resume_for_preview,
     extract_contact_regex,
+    check_grammar,
 )
 from services.email_service import send_error_alert
 from config import settings
@@ -239,9 +240,10 @@ async def check_resume_quality(
     # extraction fidelity (every role separated, every bullet captured, all
     # sections preserved) with no added latency.
     try:
-        result, extracted_llm = await asyncio.gather(
+        result, extracted_llm, grammar = await asyncio.gather(
             _check_resume(parsed["raw_text"], settings.anthropic_api_key),
             extract_resume_for_preview(parsed["raw_text"], settings.anthropic_api_key),
+            check_grammar(parsed["raw_text"], settings.anthropic_api_key),
             return_exceptions=True,
         )
     except Exception as exc:
@@ -260,6 +262,23 @@ async def check_resume_quality(
     if isinstance(extracted_llm, Exception):
         logger.warning("[cv_score] LLM extraction failed, using regex fallback: %s", extracted_llm)
         extracted_llm = None
+
+    # Grammar & spelling is best-effort — append it as an extra category when it
+    # succeeds so it shows in the CV-Score results (and persists with the rest).
+    if not isinstance(grammar, Exception) and isinstance(grammar, dict) and grammar.get("key"):
+        result.setdefault("categories", []).append(grammar)
+        # Factor grammar into the headline score — it's the 8th scored category.
+        # Blended (not a full re-weight) so the existing 7-category behaviour is
+        # preserved and grammar adds a clear, bounded influence.
+        try:
+            base = float(result.get("overall_score", 0) or 0)
+            g = float(grammar.get("score", base))
+            _GRAMMAR_WEIGHT = 0.15
+            result["overall_score"] = round((1 - _GRAMMAR_WEIGHT) * base + _GRAMMAR_WEIGHT * g)
+        except (TypeError, ValueError):
+            pass
+    elif isinstance(grammar, Exception):
+        logger.warning("[cv_score] Grammar check failed: %s", grammar)
 
     # Build the extracted profile: LLM extraction primary, regex as field-level
     # fallback for anything the LLM left empty (or if the LLM call failed entirely).

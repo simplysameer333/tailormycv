@@ -11,9 +11,9 @@ from contextlib import asynccontextmanager
 from config import settings
 from database import connect_db, disconnect_db
 from routers import (
-    resume, profile, job_description, templates, generate, export,
+    resume, profile, job_description, generate, export,
     professions, auth, jobs, account, catalog, resume_library, job_alerts, admin, linkedin,
-    config as config_router,
+    config as config_router, cv_templates, admin_cv_templates,
 )
 from services.alert_scheduler import start_scheduler, stop_scheduler
 from services import tier_config_service
@@ -29,6 +29,8 @@ async def lifespan(app: FastAPI):
     from services.profession_service import seed_professions
     await seed_professions(get_db())
     await tier_config_service.load_config(get_db())
+    from services.cv_template_service import seed_cv_templates
+    await seed_cv_templates(get_db())
     start_scheduler()
     yield
     stop_scheduler()
@@ -97,7 +99,6 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(resume.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
 app.include_router(job_description.router, prefix="/api")
-app.include_router(templates.router, prefix="/api")
 app.include_router(generate.router, prefix="/api")
 app.include_router(export.router, prefix="/api")
 app.include_router(professions.router, prefix="/api")
@@ -109,6 +110,8 @@ app.include_router(job_alerts.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(linkedin.router, prefix="/api")
 app.include_router(config_router.router, prefix="/api")
+app.include_router(cv_templates.router, prefix="/api")
+app.include_router(admin_cv_templates.router, prefix="/api")
 
 
 @app.get("/health")

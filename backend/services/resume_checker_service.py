@@ -7,6 +7,29 @@ import re
 
 from anthropic import AsyncAnthropic
 
+from services.prompt_store import get_override
+
+logger = logging.getLogger("tailormycv.cv_score")
+
+
+async def _resolved(key: str, default: str) -> str:
+    """Return the admin override for a prompt key, else the hardcoded default."""
+    try:
+        return (await get_override(key)) or default
+    except Exception:
+        return default
+
+
+def _safe_format(key: str, template: str, default_template: str, **kwargs) -> str:
+    """Format a (possibly admin-overridden) prompt template. If a broken override
+    fails to format (e.g. missing/extra placeholders), fall back to the default so
+    CV scoring can never be taken down by a bad prompt edit."""
+    try:
+        return template.format(**kwargs)
+    except (KeyError, IndexError, ValueError) as exc:
+        logger.warning("CV-score prompt override %r failed to format (%s) — using default", key, exc)
+        return default_template.format(**kwargs)
+
 
 # ── Shared regex constants ─────────────────────────────────────────────────────
 
@@ -422,12 +445,17 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
     """Analyse CV text and return structured quality check results."""
     client = AsyncAnthropic(api_key=anthropic_key)
 
-    prompt = _PROMPT.format(resume_text=resume_text[:8000])
+    system = await _resolved("cv_score_quality_system", _SYSTEM)
+    prompt = _safe_format(
+        "cv_score_quality_prompt",
+        await _resolved("cv_score_quality_prompt", _PROMPT), _PROMPT,
+        resume_text=resume_text[:8000],
+    )
 
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=6000,
-        system=_SYSTEM,
+        system=system,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -522,12 +550,17 @@ async def extract_resume_for_preview(resume_text: str, anthropic_key: str) -> di
     """
     client = AsyncAnthropic(api_key=anthropic_key)
 
-    prompt = _EXTRACT_PROMPT.format(resume_text=resume_text[:12000])
+    system = await _resolved("cv_score_extract_system", _EXTRACT_SYSTEM)
+    prompt = _safe_format(
+        "cv_score_extract_prompt",
+        await _resolved("cv_score_extract_prompt", _EXTRACT_PROMPT), _EXTRACT_PROMPT,
+        resume_text=resume_text[:12000],
+    )
 
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=8000,
-        system=_EXTRACT_SYSTEM,
+        system=system,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -638,7 +671,10 @@ async def validate_resume_layout(
     if source_resume_text:
         source_block = f"SOURCE RESUME (the candidate's original — for completeness check):\n{source_resume_text[:6000]}\n\n"
 
-    prompt = _VALIDATE_PROMPT.format(
+    system = await _resolved("cv_score_validate_system", _VALIDATE_SYSTEM)
+    prompt = _safe_format(
+        "cv_score_validate_prompt",
+        await _resolved("cv_score_validate_prompt", _VALIDATE_PROMPT), _VALIDATE_PROMPT,
         page_count=page_count,
         targets=targets,
         source_block=source_block,
@@ -648,7 +684,7 @@ async def validate_resume_layout(
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1500,
-        system=_VALIDATE_SYSTEM,
+        system=system,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -677,3 +713,108 @@ async def validate_resume_layout(
         "missing_sections":  data.get("missing_sections") or [],
         "suggestions":       data.get("suggestions") or [],
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dedicated grammar & spelling check — its own focused LLM call (runs in parallel
+# with check_resume). Finds genuine spelling/grammar errors and proposes the exact
+# correction for each, returned as a CV-Score category so it renders in the UI.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_GRAMMAR_SYSTEM = (
+    "You are a meticulous proofreader for professional CVs. You find spelling, grammar, "
+    "punctuation, capitalisation and verb-tense errors and propose the exact correction "
+    "for each. You are precise and never invent errors — when in doubt, leave it out. "
+    "Always return valid JSON only."
+)
+
+_GRAMMAR_PROMPT = """\
+Proofread this CV for spelling and grammar mistakes. Respond with ONLY the JSON object.
+
+CV:
+{resume_text}
+
+Report GENUINE errors only. Do NOT flag: valid technical terms, programming languages,
+frameworks, brand/company names, acronyms, intentional capitalisation, or stylistic choices.
+For each error, give the smallest exact original snippet and its correction.
+
+Return EXACTLY this structure:
+{{
+  "score": <integer 0-100 — 100 = flawless; deduct ~5 per error, more for careless ones>,
+  "summary": "<one sentence on overall language quality>",
+  "issues": [
+    {{"type": "spelling"|"grammar"|"punctuation",
+      "original": "<exact incorrect text>",
+      "suggestion": "<corrected text>",
+      "where": "<section/role it appears in, e.g. 'Summary' or 'Experience – Acme Corp'>"}}
+  ]
+}}
+
+RULES:
+- Empty "issues" array if the CV is clean.
+- List at most 25 issues, most important first.
+- "original" must be copied verbatim from the CV so it can be located.
+"""
+
+
+def _grammar_to_category(data: dict) -> dict:
+    """Shape the grammar LLM output into a standard CV-Score category so the
+    existing UI renders it (score, status, checks, improvements)."""
+    issues = [i for i in (data.get("issues") or []) if isinstance(i, dict)]
+    try:
+        score = int(data.get("score", 100))
+    except (TypeError, ValueError):
+        score = 100
+    score = max(0, min(100, score))
+    spelling = [i for i in issues if i.get("type") == "spelling"]
+    grammar = [i for i in issues if i.get("type") in ("grammar", "punctuation")]
+    status = ("excellent" if score >= 85 else "good" if score >= 65
+              else "needs_work" if score >= 40 else "missing")
+
+    def _fmt(i: dict) -> str:
+        kind = (i.get("type") or "issue").capitalize()
+        orig = i.get("original", "")
+        sugg = i.get("suggestion", "")
+        where = i.get("where", "")
+        loc = f"  ({where})" if where else ""
+        return f"{kind}: “{orig}” → “{sugg}”{loc}"
+
+    return {
+        "key": "grammar",
+        "name": "Grammar & Spelling",
+        "score": score,
+        "status": status,
+        "checks": [
+            {"label": "No spelling mistakes", "passed": len(spelling) == 0},
+            {"label": "No grammar errors", "passed": len(grammar) == 0},
+            {"label": "Clean punctuation & capitalisation", "passed": len(issues) == 0},
+        ],
+        "improvements": [_fmt(i) for i in issues[:25]],
+    }
+
+
+async def check_grammar(resume_text: str, anthropic_key: str) -> dict:
+    """Dedicated grammar/spelling proofreading call. Returns a CV-Score category
+    dict (key='grammar') with the specific corrections in `improvements`."""
+    client = AsyncAnthropic(api_key=anthropic_key)
+
+    system = await _resolved("cv_score_grammar_system", _GRAMMAR_SYSTEM)
+    prompt = _safe_format(
+        "cv_score_grammar_prompt",
+        await _resolved("cv_score_grammar_prompt", _GRAMMAR_PROMPT), _GRAMMAR_PROMPT,
+        resume_text=resume_text[:9000],
+    )
+
+    message = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=2500,
+        system=system,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+
+    return _grammar_to_category(json.loads(raw))

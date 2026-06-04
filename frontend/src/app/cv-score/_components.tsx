@@ -8,7 +8,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   FiCheckCircle, FiXCircle, FiLock, FiArrowRight, FiAlertCircle,
-  FiUser, FiFileText, FiBriefcase, FiTag, FiAward, FiCpu, FiLayout,
+  FiUser, FiFileText, FiBriefcase, FiTag, FiAward, FiCpu, FiLayout, FiEdit3,
   FiChevronDown, FiChevronUp,
 } from "react-icons/fi";
 import type { CheckCategory } from "@/lib/api";
@@ -51,6 +51,7 @@ export function ScoreCircle({ score }: { score: number }) {
 export const CATEGORY_ICONS: Record<string, React.ElementType> = {
   contact: FiUser, summary: FiFileText, experience: FiBriefcase,
   skills: FiTag, education: FiAward, ats: FiCpu, design: FiLayout,
+  grammar: FiEdit3,
 };
 
 // ── Category descriptions (shown in expanded card on main page) ───────────────
@@ -63,6 +64,7 @@ export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
   education:  "We confirm your degrees, institutions, graduation years, and relevant certifications are clearly listed — certifications are increasingly important for ATS matching.",
   ats:        "We analyse structure, section headings, date formatting, and keyword density to ensure your CV passes applicant tracking systems used by 98% of major employers.",
   design:     "We assess your CV's structure, length, visual hierarchy, and formatting consistency — and suggest which of our templates would best suit your profile.",
+  grammar:    "We proofread your CV for spelling, grammar, punctuation, and tense errors — and suggest the exact correction for each, since a single typo can cost you an interview.",
 };
 
 // ── Category card (expandable) ────────────────────────────────────────────────
