@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getSession } from "next-auth/react";
 import type { CvTemplate, DocxConfig } from "@/lib/cvTemplates";
 
 export const SESSION_KEYS = [
@@ -33,6 +34,30 @@ export function setApiToken(token: string | null) {
     delete api.defaults.headers.common["Authorization"];
   }
 }
+
+// Fallback auth: if a request fires before AuthProvider's TokenSync has attached
+// the Bearer token (e.g. the admin page's first fetch on a hard page load /
+// refresh), pull the token straight from the NextAuth session so the call isn't
+// sent unauthenticated — which on production 401'd and left admin tabs empty.
+// Once attached, it's also written to the instance default so later calls skip
+// the getSession() round-trip. Skipped entirely in dev-bypass mode.
+api.interceptors.request.use(async (config) => {
+  if (
+    process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH !== "true" &&
+    typeof window !== "undefined" &&
+    !config.headers?.Authorization
+  ) {
+    try {
+      const session = await getSession();
+      const token = (session as { accessToken?: string } | null)?.accessToken;
+      if (token) {
+        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        config.headers.set("Authorization", `Bearer ${token}`);
+      }
+    } catch { /* ignore — request proceeds unauthenticated */ }
+  }
+  return config;
+});
 
 export default api;
 
