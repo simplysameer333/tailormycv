@@ -25,6 +25,16 @@ import { getTierLimitDynamic } from "@/lib/tierConfig";
 
 const DEV = process.env.NEXT_PUBLIC_DEV_BYPASS_AUTH === "true";
 
+// Rotating status messages shown while a job search is in flight (it can take a
+// while — the backend hits a live job-search API across multiple boards).
+const JOB_LOADING_MESSAGES = [
+  { title: "Searching live job boards…",      sub: "Indeed, LinkedIn, Glassdoor and more" },
+  { title: "Matching roles to your search…",  sub: "Filtering by title, skills and location" },
+  { title: "Pulling salaries & job details…", sub: "Compensation, employment type and posting dates" },
+  { title: "Checking your saved jobs…",        sub: "Syncing so we can mark ones you've kept" },
+  { title: "Almost there…",                    sub: "Assembling and ranking your results" },
+];
+
 // ── Mock data — shown on localhost before first search ────────────────────────
 const MOCK_JOBS: Job[] = [
   {
@@ -417,6 +427,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [loadingMsg, setLoadingMsg] = useState(0);
   const [searched, setSearched] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -432,6 +443,16 @@ export default function JobsPage() {
   const [alertsLoaded, setAlertsLoaded] = useState(false);
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   const [editingAlert, setEditingAlert] = useState<JobAlert | undefined>();
+
+  // Rotate the loading messages while a search is in flight.
+  useEffect(() => {
+    if (!loading) { setLoadingMsg(0); return; }
+    const id = setInterval(
+      () => setLoadingMsg((m) => (m + 1) % JOB_LOADING_MESSAGES.length),
+      2200,
+    );
+    return () => clearInterval(id);
+  }, [loading]);
 
   // ── Search ──────────────────────────────────────────────────────────────────
   const runSearch = useCallback(async (q: string, loc: string, p: number, ps: number) => {
@@ -723,7 +744,19 @@ export default function JobsPage() {
             <>
               {loading && (
                 <div className="flex flex-col gap-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
+                  {/* Spinner + rotating status — search hits a live API and can take a while */}
+                  <div className="card flex items-center gap-4 py-5 border-brand-100 bg-gradient-to-br from-brand-50/60 to-white">
+                    <div className="relative w-10 h-10 shrink-0">
+                      <div className="absolute inset-0 rounded-full border-4 border-brand-100" />
+                      <div className="absolute inset-0 rounded-full border-4 border-brand-600 border-t-transparent animate-spin" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-800 text-sm leading-snug">{JOB_LOADING_MESSAGES[loadingMsg].title}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{JOB_LOADING_MESSAGES[loadingMsg].sub}</p>
+                    </div>
+                  </div>
+                  {/* Skeleton placeholders for the incoming results */}
+                  {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="card flex items-start gap-4 animate-pulse">
                       <div className="w-12 h-12 rounded-xl bg-slate-200 shrink-0" />
                       <div className="flex-1 flex flex-col gap-2.5">
