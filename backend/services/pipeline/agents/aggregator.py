@@ -26,11 +26,14 @@ class AggregatorAgent(BaseAgent):
         evaluator_results: list[dict],
         profession_config: dict,
         pass_threshold: int | None = None,
+        prior_seen_suggestions: list[str] | None = None,
     ) -> dict:
         threshold = pass_threshold if pass_threshold is not None else settings.pass_threshold
-        scores = [r["score"] for r in evaluator_results]
+        # Skip evaluators that returned None (infrastructure failure — not a quality signal).
+        valid_results = [r for r in evaluator_results if r.get("score") is not None]
+        scores = [r["score"] for r in valid_results]
         min_score = min(scores) if scores else 0
-        all_passed = all(s >= threshold for s in scores)
+        all_passed = bool(scores) and all(s >= threshold for s in scores)
 
         lines = []
 
@@ -40,12 +43,15 @@ class AggregatorAgent(BaseAgent):
             lines.append(f"## PROFESSION-SPECIFIC IMPROVEMENT PRIORITIES\n{agg_ctx}\n")
 
         lines.append("## EVALUATOR FEEDBACK")
-        seen: set[str] = set()
+        prior_seen: set[str] = set(prior_seen_suggestions or [])
+        new_seen: list[str] = []
         for r in evaluator_results:
-            lines.append(f"\n**{r['model'].upper()} (score: {r['score']}/100):**")
+            score_display = r["score"] if r.get("score") is not None else "error"
+            lines.append(f"\n**{r['model'].upper()} (score: {score_display}/100):**")
             for suggestion in r.get("suggestions", []):
-                if suggestion not in seen:
-                    seen.add(suggestion)
+                if suggestion not in prior_seen:
+                    prior_seen.add(suggestion)
+                    new_seen.append(suggestion)
                     lines.append(f"- {suggestion}")
 
         return {
@@ -53,4 +59,5 @@ class AggregatorAgent(BaseAgent):
             "min_score": min_score,
             "feedback_prompt": "\n".join(lines),
             "evaluator_results": evaluator_results,
+            "new_seen_suggestions": new_seen,
         }

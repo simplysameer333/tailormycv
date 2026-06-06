@@ -33,7 +33,9 @@ from services.resume_checker_service import (
     extract_resume_for_preview,
     extract_contact_regex,
     check_grammar,
+    extract_weak_categories,
 )
+from services.cv_refinement_service import refine_cv_text
 from services.email_service import send_error_alert
 from services.audit import log_audit
 from config import settings
@@ -209,15 +211,13 @@ async def check_resume_quality(
     """
     parsed, _ = await _validate_and_parse(file, label="CV", require_text=True)
 
-    # ── Cache check — DISABLED during active development ──────────────────────
-    # Re-enable by removing the `and False` once template preview quality is stable.
     text_hash = hashlib.sha256(parsed["raw_text"][:8000].encode()).hexdigest()
     db = get_db()
     cached = await db.cv_check_results.find_one(
         {"text_hash": text_hash, "created_at": {"$gt": datetime.utcnow() - timedelta(days=7)}},
         sort=[("created_at", -1)],
     )
-    if cached and cached.get("result") and False:  # noqa: SIM210 — cache disabled
+    if cached and cached.get("result"):
         logger.info("[cv_score] Cache hit for hash %s…", text_hash[:8])
         # Issue a new permalink UUID so the user gets a fresh shareable link
         new_id = str(uuid.uuid4())
@@ -236,41 +236,89 @@ async def check_resume_quality(
             new_id = cached["_id"]
         return {**cached["result"], "result_id": new_id, "extracted_profile": full_profile_c, "cached": True}
 
-    # Run quality analysis and resume extraction concurrently — two focused LLM
-    # calls. Decoupling extraction from the 51-check analysis gives far higher
-    # extraction fidelity (every role separated, every bullet captured, all
-    # sections preserved) with no added latency.
+    # ── Step 1: Quality check — the gate that decides how much more work is needed ──
     try:
-        result, extracted_llm, grammar = await asyncio.gather(
-            _check_resume(parsed["raw_text"], settings.anthropic_api_key),
+        result = await _check_resume(parsed["raw_text"], settings.anthropic_api_key)
+    except Exception as exc:
+        logger.exception("[cv_score] Quality check failed")
+        await send_error_alert("POST", "/api/resume/check", exc, traceback.format_exc())
+        raise HTTPException(502, "CV analysis failed. Please try again.")
+
+    initial_score = int(result.get("overall_score", 0) or 0)
+    lazy_threshold = settings.cv_score_lazy_threshold
+    ran_grammar = False
+    refine_cycles = 0
+
+    # ── Step 2: Ralph Loop — refine if score is below the lazy threshold ──────
+    # Each cycle applies targeted fixes from weak categories and re-scores. Exits
+    # when score >= threshold, plateau is detected, or max cycles is reached.
+    # We always return best_result (highest-scoring cycle), never just the last.
+    if lazy_threshold > 0 and initial_score < lazy_threshold:
+        best_result = result
+        best_score = initial_score
+        prev_score = initial_score
+
+        for _cycle in range(settings.cv_score_max_refine_cycles):
+            issues = extract_weak_categories(best_result)
+            if not issues:
+                break
+            try:
+                refined_text = await refine_cv_text(
+                    parsed["raw_text"], issues, lazy_threshold, settings.anthropic_api_key
+                )
+                new_result = await _check_resume(refined_text, settings.anthropic_api_key)
+                refine_cycles += 1
+            except Exception as exc:
+                logger.warning("[cv_score] Refinement cycle %d failed: %s", _cycle + 1, exc)
+                break
+
+            new_score = int(new_result.get("overall_score", 0) or 0)
+            if new_score > best_score:
+                best_result = new_result
+                best_score = new_score
+
+            gain = new_score - prev_score
+            logger.info(
+                "[cv_score] Refinement cycle %d: score %d → %d (gain=%d, best=%d)",
+                _cycle + 1, prev_score, new_score, gain, best_score,
+            )
+            if gain < settings.cv_score_plateau_margin:
+                break
+            if best_score >= lazy_threshold:
+                break
+            prev_score = new_score
+
+        result = best_result
+
+    # ── Step 3: Extraction + grammar — run concurrently; grammar only when needed ──
+    # Extraction always runs (needed for template preview display).
+    # Grammar only runs when score is below threshold — high-scoring CVs skip it.
+    current_score = int(result.get("overall_score", 0) or 0)
+    run_grammar = lazy_threshold == 0 or current_score < lazy_threshold
+
+    if run_grammar:
+        extracted_llm_raw, grammar_raw = await asyncio.gather(
             extract_resume_for_preview(parsed["raw_text"], settings.anthropic_api_key),
             check_grammar(parsed["raw_text"], settings.anthropic_api_key),
             return_exceptions=True,
         )
-    except Exception as exc:
-        logger.exception("[cv_score] Unexpected error")
-        await send_error_alert("POST", "/api/resume/check", exc, traceback.format_exc())
-        raise HTTPException(502, "CV analysis failed. Please try again.")
+        ran_grammar = True
+    else:
+        extracted_llm_raw = await asyncio.gather(
+            extract_resume_for_preview(parsed["raw_text"], settings.anthropic_api_key),
+            return_exceptions=True,
+        )
+        extracted_llm_raw = extracted_llm_raw[0]
+        grammar_raw = None
 
-    # The quality check is the critical result — fail the request if it errored.
-    if isinstance(result, Exception):
-        logger.exception("[cv_score] Quality check failed", exc_info=result)
-        await send_error_alert("POST", "/api/resume/check", result, "".join(
-            traceback.format_exception(type(result), result, result.__traceback__)))
-        raise HTTPException(502, "CV analysis failed. Please try again.")
+    extracted_llm = None if isinstance(extracted_llm_raw, Exception) else extracted_llm_raw
+    if isinstance(extracted_llm_raw, Exception):
+        logger.warning("[cv_score] LLM extraction failed, using regex fallback: %s", extracted_llm_raw)
 
-    # Extraction is best-effort — fall back to the regex parser if the LLM failed.
-    if isinstance(extracted_llm, Exception):
-        logger.warning("[cv_score] LLM extraction failed, using regex fallback: %s", extracted_llm)
-        extracted_llm = None
-
-    # Grammar & spelling is best-effort — append it as an extra category when it
-    # succeeds so it shows in the CV-Score results (and persists with the rest).
-    if not isinstance(grammar, Exception) and isinstance(grammar, dict) and grammar.get("key"):
+    # Grammar & spelling is best-effort — append as extra category when it succeeds.
+    grammar = grammar_raw
+    if ran_grammar and not isinstance(grammar, Exception) and isinstance(grammar, dict) and grammar.get("key"):
         result.setdefault("categories", []).append(grammar)
-        # Factor grammar into the headline score — it's the 8th scored category.
-        # Blended (not a full re-weight) so the existing 7-category behaviour is
-        # preserved and grammar adds a clear, bounded influence.
         try:
             base = float(result.get("overall_score", 0) or 0)
             g = float(grammar.get("score", base))
@@ -278,7 +326,7 @@ async def check_resume_quality(
             result["overall_score"] = round((1 - _GRAMMAR_WEIGHT) * base + _GRAMMAR_WEIGHT * g)
         except (TypeError, ValueError):
             pass
-    elif isinstance(grammar, Exception):
+    elif ran_grammar and isinstance(grammar, Exception):
         logger.warning("[cv_score] Grammar check failed: %s", grammar)
 
     # Build the extracted profile: LLM extraction primary, regex as field-level
@@ -334,14 +382,15 @@ async def check_resume_quality(
         logger.warning("[cv_score] Failed to persist result: %s", exc)
         result_id = None
 
-    # Audit the CV-Score check so it shows in the admin audit log alongside builder
-    # runs. (3 focused LLM calls: quality analysis + extraction + grammar.)
+    # Audit: 1 quality check + refine_cycles×2 (refine+re-score) + 1 extraction + grammar
+    llm_calls = 1 + refine_cycles * 2 + 1 + (1 if ran_grammar else 0)
     if user:
         log_audit(user, "resume.cv_score", {
             "result_id": result_id,
             "overall_score": result.get("overall_score", 0),
             "file_ext": (file.filename or "").rsplit(".", 1)[-1].lower() if file.filename else "unknown",
-            "llm_calls": 3,
+            "llm_calls": llm_calls,
+            "refine_cycles": refine_cycles,
         })
 
     return {**result, "result_id": result_id, "extracted_profile": extracted_profile}

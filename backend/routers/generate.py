@@ -213,13 +213,16 @@ async def generate(
     has_jd = bool(job_description.strip())
     job_analyzer_calls = 1 if has_jd else 0
 
-    # Tier-aware pass threshold — on the SAME CV-Score scale the user sees, and we
-    # never ship below what they uploaded: target = max(tier bar, original CV-Score).
-    # Free's lower bar (70) is the deliberate upsell; paid tiers are pushed to 80/90.
+    # Tier-aware pass threshold — on the SAME CV-Score scale the user sees.
+    # We target slightly above what they uploaded (90% of original) so strong CVs
+    # still improve, but anchoring to 100% original_score made the bar unreachable
+    # for already-good CVs (e.g. original=85 with Free tier → effective bar was 85,
+    # higher than Pro's 80 bar). The 0.90 factor creates a reachable target while
+    # still pushing the generator to improve on the input.
     _TIER_THRESHOLDS = {"free": 70, "plus": 80, "pro": 90}
     tier_bar = _TIER_THRESHOLDS.get((user or {}).get("tier", "free"), settings.pass_threshold)
     original_score = await _original_cv_score(db, resume_text)
-    pass_threshold = min(100, max(tier_bar, original_score))
+    pass_threshold = min(100, max(tier_bar, int(original_score * 0.90)))
     # Tier-aware refinement budget — higher tiers get more attempts at the higher
     # bar. Calls per run ≈ 1 + (1 + N_evaluators) × cycles (Pro N=3 → 1+4×cycles),
     # bounded by MAX_AI_CALLS_PER_SESSION (30). We return the BEST cycle, so extra
@@ -351,6 +354,7 @@ async def generate(
         "resume_json": None,
         "eval_results": [],
         "eval_history": [],
+        "seen_suggestions": [],
         "best_resume_json": None,
         "best_min_score": 0,
         "last_gain": 0,

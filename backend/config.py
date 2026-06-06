@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     #   Free  = 3  |  Plus = 5  |  Pro = 10
     skill_extraction_count: int = 3
 
+    # ── CV Score lazy evaluation + refinement loop ────────────────────────────
+    # If check_resume() returns overall_score >= this threshold, skip grammar and
+    # return immediately (extraction still runs for template display). Set to 0 to
+    # always run all three calls (legacy behaviour — useful for debugging).
+    cv_score_lazy_threshold: int = 75
+    # Maximum refinement cycles in the CV Score Ralph Loop.
+    cv_score_max_refine_cycles: int = 3
+    # Minimum score gain per refinement cycle to justify another pass.
+    cv_score_plateau_margin: int = 3
+
     # ── Feature flags ─────────────────────────────────────────────────────────
     # PDF export runs LibreOffice headless — disable on environments without it.
     pdf_export_enabled: bool = False
