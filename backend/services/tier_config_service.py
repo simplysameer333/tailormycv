@@ -70,6 +70,11 @@ DEFAULT_LIMITS: dict[str, dict[str, int | None]] = {
     "job_alerts":      {"free": 0,  "plus": 5,   "pro": None},
     "evaluators":      {"free": 1,  "plus": 2,   "pro": 3},
     "key_skills":      {"free": 3,  "plus": 5,   "pro": 10},
+    # Account-level daily budgets (per UTC day) — backstop the per-session cap.
+    # daily_ai_calls counts LLM sub-calls (a full generation ≈ 7/13/21 calls).
+    # daily_cost_cents bounds estimated spend in US cents. None = unlimited.
+    "daily_ai_calls":   {"free": 60,  "plus": 400,  "pro": None},
+    "daily_cost_cents": {"free": 100, "plus": 1000, "pro": 5000},
 }
 
 # Human-readable labels — used by the admin UI
@@ -94,6 +99,8 @@ LIMIT_LABELS: dict[str, str] = {
     "job_alerts":      "Job Alerts",
     "evaluators":      "AI Evaluators",
     "key_skills":      "Key Skills extracted from JD",
+    "daily_ai_calls":   "Daily AI Call Budget",
+    "daily_cost_cents": "Daily AI Cost Budget (US¢)",
 }
 
 # ── In-memory cache ────────────────────────────────────────────────────────────
@@ -131,6 +138,28 @@ async def load_config(db=None) -> None:
     _limits         = doc.get("limits")         or {k: dict(v) for k, v in DEFAULT_LIMITS.items()}
     _pricing        = doc.get("pricing")        or {k: dict(v) for k, v in DEFAULT_PRICING.items()}
     _currency_zones = doc.get("currency_zones") or [dict(z) for z in DEFAULT_CURRENCY_ZONES]
+
+    # Forward-compatible merge: an existing doc won't contain feature/limit keys
+    # added in a later release. Backfill any missing keys from defaults so new
+    # gates (e.g. daily budgets) resolve correctly instead of falling through to
+    # 0 (= blocked). Persist the backfill so the admin UI shows the new rows too.
+    added_features = {k: list(v) for k, v in DEFAULT_FEATURES.items() if k not in _features}
+    added_limits   = {k: dict(v) for k, v in DEFAULT_LIMITS.items()   if k not in _limits}
+    if added_features or added_limits:
+        _features.update(added_features)
+        _limits.update(added_limits)
+        try:
+            await db[_COLLECTION].update_one(
+                {"_id": _DOC_ID},
+                {"$set": {"features": _features, "limits": _limits, "updated_at": datetime.utcnow()}},
+            )
+            logger.info(
+                "[tier-config] Backfilled new defaults — features: %s, limits: %s",
+                sorted(added_features), sorted(added_limits),
+            )
+        except Exception as exc:  # in-memory merge already applied; persistence is best-effort
+            logger.warning("[tier-config] Backfill persist failed (using merged cache): %s", exc)
+
     logger.info(
         "[tier-config] Loaded from MongoDB — %d features, %d limits, %d currencies",
         len(_features), len(_limits), len(_pricing),

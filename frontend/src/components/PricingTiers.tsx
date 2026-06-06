@@ -30,6 +30,7 @@ export function buildFeatures(tierId: Tier): string[] {
         "3 resume templates",
         `${lim("evaluators", "free")} AI quality evaluator`,
         `${lim("key_skills", "free")} key skills extracted from JD`,
+        `Daily AI budget: ${lim("daily_ai_calls", "free")} builder calls`,
         "Job search (browse only)",
       ];
     case "plus":
@@ -38,6 +39,7 @@ export function buildFeatures(tierId: Tier): string[] {
         "PDF export",
         `${lim("evaluators", "plus")} AI quality evaluators`,
         `${lim("key_skills", "plus")} key skills extracted`,
+        `Daily AI budget: ${lim("daily_ai_calls", "plus")} builder calls`,
         `Save up to ${lim("saved_jobs", "plus")} jobs`,
         `Resume Library (${lim("resume_library", "plus")} resumes)`,
         "One-click Tailor from job listings",
@@ -54,6 +56,7 @@ export function buildFeatures(tierId: Tier): string[] {
         "Unlimited Resume Library",
         "Unlimited saved jobs",
         "Unlimited daily job alerts",
+        "Unlimited daily AI usage (fair use)",
       ];
   }
 }

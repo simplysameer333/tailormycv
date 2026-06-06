@@ -3,6 +3,7 @@ import asyncio
 from .base import BaseEvaluatorAgent
 from ...prompts.google import google_evaluator_messages
 from ...utils import parse_json_response
+from ...telemetry import record as record_usage
 from config import settings
 
 _TIMEOUT = 30  # seconds per Google evaluator call
@@ -31,13 +32,14 @@ class GoogleEvaluatorAgent(BaseEvaluatorAgent):
             max_retries=0,
         )
 
-    async def run(self, resume_json: dict, job_description: str, profession_config: dict) -> dict:
+    async def run(self, resume_json: dict, job_description: str, profession_config: dict, source_resume_text: str = "") -> dict:
         try:
-            messages = await google_evaluator_messages(resume_json, job_description, profession_config)
+            messages = await google_evaluator_messages(resume_json, job_description, profession_config, source_resume_text)
             response = await asyncio.wait_for(
                 self._model().ainvoke(messages),
                 timeout=_TIMEOUT,
             )
+            record_usage(settings.google_evaluator_model, self.name, response)
             result = parse_json_response(response.content)
             return {"model": self.name, "score": int(result["score"]), "suggestions": result.get("suggestions", [])}
         except asyncio.TimeoutError:

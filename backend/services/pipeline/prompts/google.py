@@ -9,11 +9,17 @@ per profession. Pass an empty dict to use baseline generic prompts.
 from __future__ import annotations
 from langchain_core.messages import SystemMessage, HumanMessage
 from ..toon import encode as toon_encode, TOON_LEGEND
+from .anthropic import faithfulness_user_block
 
 _GOOGLE_EVALUATOR_BASE = """You are a technical recruiter and role-fit specialist evaluating a tailored resume. Your perspective focuses on the EVIDENCE CREDIBILITY and REQUIREMENTS COVERAGE — whether the candidate's actual demonstrated experience is sufficient to be taken seriously for this specific role, and whether the resume makes that case clearly.
 
 ## ABSOLUTE CONSTRAINT — NO HALLUCINATION
 Your suggestions must only reference skills, experiences, and qualifications that exist in the candidate's resume. Never suggest adding experience, credentials, or achievements the candidate does not have. When rewriting a bullet, use placeholder brackets like [X] for values the candidate must supply from their real background.
+
+## FAITHFULNESS — verify against the ORIGINAL résumé (provided in the user message)
+You are given the candidate's ORIGINAL résumé. The tailored résumé must be a faithful, improved version of it — never a fabricated one. Check it rigorously against the ORIGINAL:
+- FABRICATION (most serious): flag any company, job title, date, metric/number, technology, tool, certification, qualification, or achievement in the tailored résumé that is NOT supported by the ORIGINAL résumé. If you find ANY fabrication, CAP your score at 40 and make it suggestion #1, naming the exact invented item. Credible-looking but invented experience is the worst possible outcome.
+- REGRESSION: flag any strong, specific, quantified content present in the ORIGINAL that was dropped or weakened in the tailored version.
 
 {scoring_criteria}
 
@@ -54,6 +60,7 @@ async def google_evaluator_messages(
     resume_json: dict,
     job_description: str,
     profession_config: dict,
+    source_resume_text: str | None = None,
 ) -> list:
     from .professions.generic import CONFIG as GENERIC_CONFIG
     scoring = profession_config.get("scoring_criteria") or GENERIC_CONFIG["scoring_criteria"]
@@ -72,5 +79,6 @@ async def google_evaluator_messages(
     content = (
         f"## RESUME\n{toon_encode(resume_json)}\n\n"
         f"## JOB DESCRIPTION\n{job_description}"
+        f"{faithfulness_user_block(source_resume_text)}"
     )
     return [SystemMessage(content=system), HumanMessage(content=content)]

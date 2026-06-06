@@ -2,6 +2,7 @@ from __future__ import annotations
 from .base import BaseAgent
 from ..prompts.anthropic import generator_messages, section_messages
 from ..utils import parse_json_response
+from ..telemetry import record as record_usage
 from config import settings
 
 
@@ -49,6 +50,7 @@ class GeneratorAgent(BaseAgent):
             template_pages=template_pages,
         )
         response = await self._model().ainvoke(messages)
+        record_usage(settings.generator_model, self.name, response)
         return parse_json_response(response.content)
 
     async def run_section(
@@ -70,4 +72,5 @@ class GeneratorAgent(BaseAgent):
             sample_cv_text,
         )
         response = await self._model().ainvoke(messages)
+        record_usage(settings.generator_model, self.name, response)
         return parse_json_response(response.content)

@@ -13,6 +13,20 @@ from __future__ import annotations
 from langchain_core.messages import SystemMessage, HumanMessage
 from ..toon import encode as toon_encode, TOON_LEGEND
 
+
+def _cached_system(text: str) -> SystemMessage:
+    """Build a SystemMessage whose content is marked for Anthropic prompt caching.
+
+    The builder system prompts are large and STATIC across refine cycles within a
+    request (and identical across requests with the same tone/profession/pages), so
+    caching the prefix gives a ~90% input-token discount on cache hits — the main
+    cost lever for multi-cycle Plus/Pro runs. Anthropic silently ignores the marker
+    when the prefix is below the cache minimum (~1024 tokens), so this is always safe.
+    Only used on Anthropic calls (generator, job analyzer, Anthropic evaluator) —
+    OpenAI/Google providers ignore this block shape via their own message builders.
+    """
+    return SystemMessage(content=[{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}])
+
 # ── Generator ─────────────────────────────────────────────────────────────────
 
 _GENERATOR_SYSTEM_BASE = """You are an expert resume writer for TailorMyCv. Your sole purpose is to produce the strongest possible tailored resume for this specific candidate applying to this specific role.
@@ -92,6 +106,17 @@ Exact per-role bullet counts are specified in the PAGE COUNT rules below — fol
 - Select ONLY the most relevant skills for THIS target role — prioritise in this order: (1) skills that appear in the JD and the candidate can credibly claim, (2) key_skills from the candidate profile, (3) the candidate's strongest differentiating technical skills.
 - Drop generic/obvious skills (e.g. "Microsoft Word", "Email", "Teamwork") and anything not relevant to the target role.
 - Exact skill counts are specified in the PAGE COUNT rules below — treat them as a hard cap, not a target to pad toward.
+
+## SELF-SCORING TARGET — this resume will be graded across 8 quality dimensions
+The result is scored by our own automated CV scorer. Build it to land in the top band on EVERY dimension — a resume we generate that fails our own score is a poor advertisement:
+1. Contact — name, professional email, phone, LinkedIn URL and location all present (plus GitHub/portfolio if the source has them). Copy every URL verbatim.
+2. Professional summary — present, the specified sentence count, names years of experience + target role/domain, includes one concrete achievement, and contains zero clichés.
+3. Experience — reverse-chronological; every role has company + dates; bullets open with strong ownership verbs; a high share of bullets carry a quantified result.
+4. Skills — focused and JD-relevant within the cap; no generic filler.
+5. Education — every entry preserved with institution, degree and year.
+6. ATS — exact JD terminology used where the candidate's background supports it; clean standard section headings; consistent date formatting.
+7. Design/length — fits the page budget cleanly (see PAGE-BREAK HYGIENE); clear hierarchy; no padding.
+8. Grammar & spelling — flawless. Re-read every line: no spelling mistakes, no grammar or verb-tense errors, consistent punctuation and capitalisation. A single typo is a visible defect.
 
 ## PAGE-BREAK HYGIENE — content must break cleanly across pages
 The resume renders onto fixed A4 pages. Size content so no block is ever split awkwardly across a page boundary (one line on a page, the rest on the next):
@@ -187,53 +212,65 @@ async def _get_anthropic_evaluator_base() -> str:
         return _ANTHROPIC_EVALUATOR_BASE
 
 
-def _page_rules(pages: int) -> str:
-    """Return hard page-count rules for the resume GENERATOR (the builder).
+# Hard page-count rules for the resume GENERATOR (the builder).
+# Counts reflect senior resume-writing best practice: tight skills lists,
+# inverted-pyramid bullet weighting (recent roles get more, older taper), and
+# never dropping a section to fit — compress within sections instead.
+#
+# NOTE: This is the GENERATOR ruleset, SEPARATE BY DESIGN from the CV-score
+# PREVIEW ruleset (frontend: components/TemplatePreviews.tsx → PREVIEW_RULES).
+# The two are decoupled — even for the same template, the preview may curate
+# content differently from the generated resume. Tune them independently.
+#
+# Both are Mongo-overridable (prompt keys generator_page_rules_1page /
+# generator_page_rules_2page) so admins can retune counts with no deploy.
+_PAGE_RULES_1PAGE = (
+    "The selected template fits exactly **1 A4 page**. This is a non-negotiable hard limit.\n"
+    "You are a senior CV writer. NEVER remove a section (Education, Certifications, Awards, Languages, etc.) "
+    "to save space — compress content WITHIN sections instead. Apply these exact counts:\n\n"
+    "- Summary: 2 sentences maximum — the single most impactful positioning only.\n"
+    "- Skills: 6–8 maximum. Hard cap. Only the most JD-relevant and differentiating skills. Never pad toward the cap.\n"
+    "- Experience: show the 3 most recent / most relevant roles. Older roles → one summary line each, or omit if irrelevant.\n"
+    "- Bullets (inverted pyramid): most recent role 3–4 bullets · 2nd role 2–3 · 3rd role 1–2.\n"
+    "- Each bullet: 1 line, maximum 18 words. Cut filler words ruthlessly.\n"
+    "- Education: all entries, one line each (degree · institution · year).\n"
+    "- Other sections (Certifications, Awards, Languages): include but keep to 1 line per entry; most relevant only.\n\n"
+    "All sections appear; only the content density changes to fit one page."
+)
 
-    Counts reflect senior resume-writing best practice: tight skills lists,
-    inverted-pyramid bullet weighting (recent roles get more, older taper),
-    and never dropping a section to fit — compress within sections instead.
+_PAGE_RULES_2PAGE = (
+    "The selected template fits exactly **2 A4 pages**. This is a non-negotiable hard limit — fill 2 pages well, never spill to a 3rd.\n"
+    "You are a senior CV writer. NEVER remove a section to save space — a missing section is always worse than a compressed one. "
+    "Apply these exact counts:\n\n"
+    "- Summary: 3 sentences (4 only if the candidate has 15+ years and each sentence earns its place).\n"
+    "- Skills: 8–10 maximum. Hard cap. Prioritise JD-relevant + key_skills + strongest differentiators. A long dump signals keyword-stuffing — keep it tight.\n"
+    "- Experience: show the 4–5 most recent / most relevant roles; for 6+ role careers keep the best 5.\n"
+    "- Bullets (inverted pyramid): most recent role 4–5 bullets · mid roles 3 · oldest shown roles 2 · roles >12 years 1–2 (never remove the role).\n"
+    "- Each bullet: maximum 22 words — concise and impactful.\n"
+    "- Education: all entries, 1–2 lines each.\n"
+    "- Other sections (Certifications, Awards, Languages, Projects): include all; keep each entry concise (1–2 lines).\n\n"
+    "All sections appear. A tight, well-curated 2-page CV always beats a padded 3-page one."
+)
 
-    NOTE: This is the GENERATOR ruleset, SEPARATE BY DESIGN from the CV-score
-    PREVIEW ruleset (frontend: components/TemplatePreviews.tsx → PREVIEW_RULES).
-    The two are decoupled — even for the same template, the preview may curate
-    content differently from the generated resume. Tune them independently.
-    """
-    if pages == 1:
-        return (
-            "The selected template fits exactly **1 A4 page**. This is a non-negotiable hard limit.\n"
-            "You are a senior CV writer. NEVER remove a section (Education, Certifications, Awards, Languages, etc.) "
-            "to save space — compress content WITHIN sections instead. Apply these exact counts:\n\n"
-            "- Summary: 2 sentences maximum — the single most impactful positioning only.\n"
-            "- Skills: 6–8 maximum. Hard cap. Only the most JD-relevant and differentiating skills. Never pad toward the cap.\n"
-            "- Experience: show the 3 most recent / most relevant roles. Older roles → one summary line each, or omit if irrelevant.\n"
-            "- Bullets (inverted pyramid): most recent role 3–4 bullets · 2nd role 2–3 · 3rd role 1–2.\n"
-            "- Each bullet: 1 line, maximum 18 words. Cut filler words ruthlessly.\n"
-            "- Education: all entries, one line each (degree · institution · year).\n"
-            "- Other sections (Certifications, Awards, Languages): include but keep to 1 line per entry; most relevant only.\n\n"
-            "All sections appear; only the content density changes to fit one page."
-        )
-    else:
-        return (
-            "The selected template fits exactly **2 A4 pages**. This is a non-negotiable hard limit — fill 2 pages well, never spill to a 3rd.\n"
-            "You are a senior CV writer. NEVER remove a section to save space — a missing section is always worse than a compressed one. "
-            "Apply these exact counts:\n\n"
-            "- Summary: 3 sentences (4 only if the candidate has 15+ years and each sentence earns its place).\n"
-            "- Skills: 8–10 maximum. Hard cap. Prioritise JD-relevant + key_skills + strongest differentiators. A long dump signals keyword-stuffing — keep it tight.\n"
-            "- Experience: show the 4–5 most recent / most relevant roles; for 6+ role careers keep the best 5.\n"
-            "- Bullets (inverted pyramid): most recent role 4–5 bullets · mid roles 3 · oldest shown roles 2 · roles >12 years 1–2 (never remove the role).\n"
-            "- Each bullet: maximum 22 words — concise and impactful.\n"
-            "- Education: all entries, 1–2 lines each.\n"
-            "- Other sections (Certifications, Awards, Languages, Projects): include all; keep each entry concise (1–2 lines).\n\n"
-            "All sections appear. A tight, well-curated 2-page CV always beats a padded 3-page one."
-        )
+
+async def _page_rules(pages: int) -> str:
+    """Resolve the generator page-count rules, Mongo override winning over the default."""
+    key = "generator_page_rules_1page" if pages == 1 else "generator_page_rules_2page"
+    default = _PAGE_RULES_1PAGE if pages == 1 else _PAGE_RULES_2PAGE
+    try:
+        from services.prompt_store import get_override
+        override = await get_override(key)
+        return override if override else default
+    except Exception:
+        return default
 
 
 async def _build_generator_system(tone: str, profession_config: dict, locked_facts: list,
                                    template_pages: int = 2) -> str:
     """Compose the full generator system prompt from base + profession context + locked facts."""
     base = await _get_generator_base()
-    system = TOON_LEGEND + "\n\n" + base.replace("{tone}", tone).replace("{page_rules}", _page_rules(template_pages))
+    page_rules = await _page_rules(template_pages)
+    system = TOON_LEGEND + "\n\n" + base.replace("{tone}", tone).replace("{page_rules}", page_rules)
     ctx = profession_config.get("generator_context", "")
     if ctx:
         system += f"\n\n## {ctx}"
@@ -286,7 +323,7 @@ async def generator_messages(
     # Dynamic output schema — always last before the generation trigger
     parts.append(_build_output_schema_instruction(has_reference_cv=bool(sample_cv_text)))
     parts.append("Generate the tailored resume JSON now.")
-    return [SystemMessage(content=system), HumanMessage(content="\n\n".join(parts))]
+    return [_cached_system(system), HumanMessage(content="\n\n".join(parts))]
 
 
 async def section_messages(
@@ -323,7 +360,7 @@ async def section_messages(
         f"Return the complete resume JSON with the regenerated section replacing the existing one. "
         f"Preserve all other sections exactly as they are in the CURRENT FULL RESUME."
     )
-    return [SystemMessage(content=system), HumanMessage(content="\n\n".join(parts))]
+    return [_cached_system(system), HumanMessage(content="\n\n".join(parts))]
 
 
 # ── Job Analyzer ──────────────────────────────────────────────────────────────
@@ -380,7 +417,7 @@ async def job_analyzer_messages(
         f"Only include skills the candidate has genuine evidence for. "
         f"Return a JSON array of strings."
     )
-    return [SystemMessage(content=system), HumanMessage(content=content)]
+    return [_cached_system(system), HumanMessage(content=content)]
 
 
 # ── Anthropic Evaluator ───────────────────────────────────────────────────────
@@ -389,6 +426,12 @@ _ANTHROPIC_EVALUATOR_BASE = """You are a senior hiring manager and career narrat
 
 ## ABSOLUTE CONSTRAINT — NO HALLUCINATION
 Your suggestions must only reference skills, experiences, and qualifications that exist in the candidate's resume. Never suggest adding fabricated experience, invented metrics, or qualifications the candidate does not demonstrably have. If you suggest a rewrite, use placeholder brackets like [X] for values the candidate should fill in from their real experience.
+
+## FAITHFULNESS — verify against the ORIGINAL résumé (provided in the user message)
+You are given the candidate's ORIGINAL résumé. The tailored résumé must be a faithful, improved version of it — never a fabricated one. Check it rigorously against the ORIGINAL:
+- FABRICATION (most serious): flag any company, job title, date, metric/number, technology, tool, certification, qualification, or achievement in the tailored résumé that is NOT supported by the ORIGINAL résumé or candidate background. If you find ANY fabrication, CAP your score at 40 and make it suggestion #1, naming the exact invented item. A faithful but plain résumé must always outrank an impressive but fabricated one.
+- REGRESSION: flag any strong, specific, quantified content present in the ORIGINAL that was dropped, genericised, or weakened in the tailored version (e.g. "implemented FIX/JSON gateway for 15+ institutional clients" reduced to "built trading platform").
+Faithfulness takes priority over keyword optimisation — gaming the JD by inventing experience is the worst possible outcome.
 
 {scoring_criteria}
 
@@ -421,10 +464,25 @@ Return ONLY a valid JSON object — no preamble, no markdown:
 {{"score": 0, "suggestions": ["string"]}}"""
 
 
+# Data helper shared by all three evaluators: supplies the candidate's ORIGINAL
+# résumé into the evaluator's human message so it can verify faithfulness. The
+# faithfulness INSTRUCTION lives in each evaluator's (Mongo-overridable) base
+# prompt — this only plumbs the source data, like the RESUME / JD sections.
+def faithfulness_user_block(source_resume_text: str | None) -> str:
+    """The ORIGINAL résumé section appended to an evaluator's human message."""
+    if not source_resume_text:
+        return ""
+    return (
+        "\n\n## ORIGINAL RÉSUMÉ (the candidate's source of truth — verify the tailored "
+        f"résumé against this; anything not supported here is a fabrication)\n{source_resume_text[:8000]}"
+    )
+
+
 async def anthropic_evaluator_messages(
     resume_json: dict,
     job_description: str,
     profession_config: dict,
+    source_resume_text: str | None = None,
 ) -> list:
     from .professions.generic import CONFIG as GENERIC_CONFIG
     scoring = profession_config.get("scoring_criteria") or GENERIC_CONFIG["scoring_criteria"]
@@ -438,5 +496,6 @@ async def anthropic_evaluator_messages(
     content = (
         f"## RESUME\n{toon_encode(resume_json)}\n\n"
         f"## JOB DESCRIPTION\n{job_description}"
+        f"{faithfulness_user_block(source_resume_text)}"
     )
-    return [SystemMessage(content=system), HumanMessage(content=content)]
+    return [_cached_system(system), HumanMessage(content=content)]

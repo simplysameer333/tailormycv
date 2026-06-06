@@ -13,6 +13,8 @@ from database import get_db
 PROMPT_KEYS: dict[str, str] = {
     # ── CV Builder pipeline (services/pipeline/prompts/*) ──────────────────────
     "generator_system": "Generator — System Prompt",
+    "generator_page_rules_1page": "Generator — 1-Page Length Rules",
+    "generator_page_rules_2page": "Generator — 2-Page Length Rules",
     "job_analyzer_system": "Job Analyzer — System Prompt",
     "anthropic_evaluator_base": "Anthropic Evaluator — Base Prompt",
     "openai_evaluator_base": "OpenAI Evaluator — Base Prompt",
@@ -31,6 +33,8 @@ PROMPT_KEYS: dict[str, str] = {
 # Which feature each prompt belongs to — drives the admin sub-tabs.
 PROMPT_CATEGORIES: dict[str, str] = {
     "generator_system": "builder",
+    "generator_page_rules_1page": "builder",
+    "generator_page_rules_2page": "builder",
     "job_analyzer_system": "builder",
     "anthropic_evaluator_base": "builder",
     "openai_evaluator_base": "builder",

@@ -21,6 +21,10 @@ from .agents.evaluators import EVALUATOR_REGISTRY
 _generator = GeneratorAgent()
 _aggregator = AggregatorAgent()
 
+# Minimum score gain a cycle must deliver to justify running another one. Below
+# this, the refine loop is treated as plateaued and exits early (see should_continue).
+_PLATEAU_MARGIN = 2
+
 # Global fallback evaluator flags — used only when no per-request tier is set.
 # In practice every authenticated request now passes enabled_evaluators via state.
 _EVALUATOR_ENABLED_FALLBACK: dict[str, bool] = {
@@ -71,7 +75,10 @@ async def evaluate_node(state: PipelineState) -> dict:
     ]
     eval_results = list(
         await asyncio.gather(*[
-            e.run(state["resume_json"], state["job_description"], state["profession_config"])
+            e.run(
+                state["resume_json"], state["job_description"], state["profession_config"],
+                source_resume_text=state.get("resume_text", ""),
+            )
             for e in active
         ])
     )
@@ -93,21 +100,41 @@ async def aggregate_node(state: PipelineState) -> dict:
         "all_passed": aggregated["all_passed"],
         "timestamp": datetime.utcnow().isoformat(),
     }
-    return {
+    min_score = aggregated["min_score"]
+    prev_best = state.get("best_min_score", 0)
+    update = {
         "cycle": state["cycle"] + 1,
         "all_passed": aggregated["all_passed"],
-        "min_score": aggregated["min_score"],
+        "min_score": min_score,
+        # How much this cycle improved on the best so far (can be negative on a
+        # regression). should_continue uses it for plateau early-exit.
+        "last_gain": min_score - prev_best,
         "feedback": aggregated["feedback_prompt"] if not aggregated["all_passed"] else None,
         "eval_history": [cycle_record],
     }
+    # Keep the highest-scoring cycle — the loop is non-monotonic, so the LAST
+    # cycle is not always the best. We return best_resume_json at the end.
+    if min_score > prev_best:
+        update["best_min_score"] = min_score
+        update["best_resume_json"] = state["resume_json"]
+    return update
 
 
 def should_continue(state: PipelineState) -> str:
     """Routing function: loop back to generator or exit the graph.
 
-    Exits when all evaluators pass OR the per-session max cycles is reached.
-    MAX_EVAL_CYCLES comes from settings so it can be tuned in .env.
+    Exits when all evaluators pass OR the per-request max cycles is reached.
+    max_cycles is tier-aware (set by the generate router); falls back to
+    settings.max_eval_cycles so it can also be tuned in .env.
     """
-    if state["all_passed"] or state["cycle"] >= settings.max_eval_cycles:
+    max_cycles = state.get("max_cycles") or settings.max_eval_cycles
+    if state["all_passed"] or state["cycle"] >= max_cycles:
+        return "end"
+    # Plateau early-exit (cost lever): after at least 2 cycles, if the latest
+    # cycle failed to improve the best score by a meaningful margin, stop. The
+    # refine loop has stalled — more Sonnet cycles aren't paying off, and we
+    # already return the BEST cycle, so quitting here can only save spend, not
+    # lower quality. Gives the feedback loop one real attempt before triggering.
+    if state["cycle"] >= 2 and state.get("last_gain", 99) < _PLATEAU_MARGIN:
         return "end"
     return "generate"

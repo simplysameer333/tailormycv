@@ -33,7 +33,8 @@ from database import get_db
 from config import settings
 from dependencies.auth import get_optional_user
 from services.audit import log_audit
-from services.pipeline import pipeline, generator
+from services.pipeline import pipeline, generator, telemetry
+from services.usage_service import check_daily_budget, increment_daily_usage
 from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
 from services.resume_checker_service import validate_resume_layout
 
@@ -187,13 +188,27 @@ async def generate(
     job_analyzer_calls = 1 if has_jd else 0
 
     # Tier-aware pass threshold — higher tiers demand more refinement cycles
-    _TIER_THRESHOLDS = {"free": 75, "plus": 83, "pro": 92}
+    # Minimum score every evaluator must reach before the loop exits. A resume we
+    # build should comfortably pass our own CV Score, so higher tiers demand more:
+    # Plus must reach 80+, Pro 90+.
+    _TIER_THRESHOLDS = {"free": 75, "plus": 80, "pro": 90}
     pass_threshold = _TIER_THRESHOLDS.get((user or {}).get("tier", "free"), settings.pass_threshold)
+    # Tier-aware refinement budget — higher tiers get more attempts at the higher
+    # bar. Calls per run ≈ 1 + (1 + N_evaluators) × cycles (Pro N=3 → 1+4×cycles),
+    # bounded by MAX_AI_CALLS_PER_SESSION (30). We return the BEST cycle, so extra
+    # cycles can only help. Pro 5 cycles ≈ 21 calls.
+    _TIER_MAX_CYCLES = {"free": 3, "plus": 4, "pro": 5}
+    max_cycles = _TIER_MAX_CYCLES.get((user or {}).get("tier", "free"), settings.max_eval_cycles)
 
     profession_config = await _resolve_profession(db, target_role)
 
     # ── Resolve user tier for per-tier feature enforcement ────────────────────
     user_tier = (user or {}).get("tier", "free")
+
+    # ── Per-user daily budget — account-level backstop to the per-session cap ──
+    # Checked before any LLM cost is incurred (covers section regen + full run).
+    if user:
+        await check_daily_budget(db, user, user_tier)
 
     # ── Job analysis — only runs when a job description is provided ───────────
     from services.tier_config_service import get_limit as _get_limit
@@ -222,6 +237,7 @@ async def generate(
                 "Section-level regeneration is not available on your plan. Visit /settings/plan to upgrade.",
             )
         await _check_cost_limit(db, session_id)
+        telemetry.start_capture()
         try:
             result = await generator.run_section(
                 resume_text=resume_text,
@@ -238,6 +254,8 @@ async def generate(
         except Exception as exc:
             raise HTTPException(500, f"Section regeneration failed: {exc}")
         await _increment_call_count(db, session_id, 1)
+        if user:
+            await increment_daily_usage(db, str(user.get("_id", "")), 1, telemetry.summary()["est_cost_usd"])
         await db.sessions.update_one(
             {"_id": ObjectId(session_id)},
             {"$set": {"generated_resume": result}},
@@ -299,20 +317,25 @@ async def generate(
         "sample_cv_text": sample_cv_text,
         "enabled_evaluators": enabled_evaluators,
         "pass_threshold": pass_threshold,
+        "max_cycles": max_cycles,
         "template_pages": template_pages,
         "cycle": 0,
         "feedback": None,
         "resume_json": None,
         "eval_results": [],
         "eval_history": [],
+        "best_resume_json": None,
+        "best_min_score": 0,
+        "last_gain": 0,
         "all_passed": False,
         "min_score": 0,
     }
 
+    telemetry.start_capture()  # accumulate per-call tokens/cost across the whole run
     try:
         final_state = await asyncio.wait_for(
             pipeline.ainvoke(initial_state),
-            timeout=240.0,  # 4 min — Plus/Pro with 3 evaluators × 3 cycles can need ~200s
+            timeout=300.0,  # 5 min — Pro runs up to 5 cycles × 3 evaluators (~40s/cycle)
         )
     except asyncio.TimeoutError:
         logger.error("[generate] Pipeline timed out for session %s", session_id)
@@ -321,9 +344,31 @@ async def generate(
         logger.exception("[generate] Pipeline failed for session %s: %s", session_id, exc)
         raise HTTPException(500, f"Resume generation failed: {exc}")
 
+    # Return the BEST cycle, not the last. The refine loop is non-monotonic — a
+    # later cycle can regress below an earlier one (observed: min_score [72,82,75]).
+    # aggregate_node tracks the highest-scoring cycle; collapse final_state onto it
+    # so every downstream consumer (cache, validator, response) uses the best.
+    if final_state.get("best_resume_json") is not None:
+        final_state["resume_json"] = final_state["best_resume_json"]
+        final_state["min_score"] = final_state["best_min_score"]
+        final_state["all_passed"] = final_state["best_min_score"] >= pass_threshold
+
     # Actual calls used: 1 job-analyzer + (generator + evaluators) * completed cycles
     actual_calls = job_analyzer_calls + (1 + active_evaluator_count) * final_state["cycle"]
     await _increment_call_count(db, session_id, actual_calls)
+
+    # ── Telemetry — measured tokens + estimated cost across every LLM call ─────
+    # Answers "how many calls / how much did this run cost" with real usage data
+    # (not the formula above). Logged, persisted on the session, and surfaced in
+    # the admin audit log per action so cost-per-tier is observable.
+    usage = telemetry.summary()
+    logger.info(
+        "[generate] TELEMETRY session=%s tier=%s cycles=%d min_score=%d passed=%s | "
+        "llm_calls=%d in_tok=%d out_tok=%d cache_read=%d est_cost=$%.4f",
+        session_id, user_tier, final_state["cycle"], final_state["min_score"],
+        final_state["all_passed"], usage["llm_calls"], usage["input_tokens"],
+        usage["output_tokens"], usage["cache_read_tokens"], usage["est_cost_usd"],
+    )
 
     await db.sessions.update_one(
         {"_id": ObjectId(session_id)},
@@ -335,8 +380,27 @@ async def generate(
             "profession_slug": profession_config.get("slug", "generic"),
             "final_min_score": final_state["min_score"],
             "final_all_passed": final_state["all_passed"],
+            "llm_usage": usage,
         }},
     )
+
+    # Charge the run against the user's account-level daily budget.
+    if user:
+        await increment_daily_usage(db, str(user.get("_id", "")), actual_calls, usage["est_cost_usd"])
+
+    # Audit entry with the cost signals the admin dashboard surfaces per action.
+    if user:
+        log_audit(user, "resume.generate.complete", {
+            "tier": user_tier,
+            "cycles": final_state["cycle"],   # cycles actually run
+            "max_cycles": max_cycles,         # tier's cycle budget
+            "min_score": final_state["min_score"],
+            "passed": final_state["all_passed"],
+            "llm_calls": usage["llm_calls"],
+            "tokens": usage["input_tokens"] + usage["output_tokens"],
+            "cache_read_tokens": usage["cache_read_tokens"],
+            "est_cost_usd": usage["est_cost_usd"],
+        })
 
     if not final_state["all_passed"]:
         alert_payload = {

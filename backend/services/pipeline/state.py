@@ -34,6 +34,15 @@ class PipelineState(TypedDict):
     # ── per-cycle outputs (replaced each cycle) ───────────────────────────────
     resume_json: Optional[dict]
     eval_results: list
+    # ── best-so-far across cycles ─────────────────────────────────────────────
+    # The refinement loop is NON-MONOTONIC — a later cycle can score lower than an
+    # earlier one. We track the highest-scoring cycle and return THAT, never the
+    # last cycle, so more cycles can only help, never hurt.
+    best_resume_json: Optional[dict]
+    best_min_score: int
+    # Score gain of the most recent cycle over the prior best (can be negative).
+    # Drives the plateau early-exit in should_continue.
+    last_gain: int
     # ── accumulated across cycles (operator.add auto-appends) ─────────────────
     eval_history: Annotated[list, operator.add]
     # ── aggregated decision ───────────────────────────────────────────────────
@@ -47,9 +56,15 @@ class PipelineState(TypedDict):
     enabled_evaluators: dict
     # ── tier-aware pass threshold ─────────────────────────────────────────────
     # Minimum score all evaluators must reach before exiting the loop.
-    # Free=75, Plus=83, Pro=92 — higher tiers run more refinement cycles.
+    # Free=75, Plus=80, Pro=90 — higher tiers run more refinement cycles so a
+    # built resume comfortably passes our own CV Score.
     pass_threshold: int
     # ── template page constraint ──────────────────────────────────────────────
     # Number of A4 pages the selected template is designed for (1 or 2).
     # The generator uses this as a hard content-length constraint.
     template_pages: int
+    # ── per-request max refinement cycles (tier-aware) ────────────────────────
+    # Set by the generate router from the user's tier so higher tiers get more
+    # attempts to reach their (higher) pass threshold. Falls back to
+    # settings.max_eval_cycles when absent.
+    max_cycles: int

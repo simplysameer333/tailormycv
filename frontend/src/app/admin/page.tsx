@@ -14,7 +14,7 @@ import {
   FiUsers, FiActivity, FiCpu, FiRefreshCw, FiSave, FiRotateCcw,
   FiChevronLeft, FiChevronRight, FiBriefcase, FiPlus, FiTrash2,
   FiChevronDown, FiChevronUp, FiToggleLeft, FiToggleRight, FiClock,
-  FiDownload, FiEdit2, FiX, FiSliders, FiAlertCircle, FiSearch,
+  FiDownload, FiEdit2, FiX, FiSliders, FiAlertCircle,
   FiGrid, FiCopy, FiZap, FiEye, FiBell,
 } from "react-icons/fi";
 import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
@@ -54,6 +54,7 @@ const ACTION_LABELS: Record<string, string> = {
   "user.delete":            "Deleted user",
   "profile.save":           "Saved profile",
   "resume.generate":        "Generated resume",
+  "resume.generate.complete": "Generated resume (AI)",
   "resume.export":          "Exported resume",
   "resume_library.upload":  "Uploaded to library",
   "job_alert.create":       "Created alert",
@@ -64,6 +65,44 @@ const ACTION_LABELS: Record<string, string> = {
   "cv_template.generate":   "AI-generated template",
   "system_config.update":   "Changed system settings",
 };
+
+// ── Reusable per-column table filters ──────────────────────────────────────────
+// Rendered in a second header row so each column filters itself, instead of a
+// separate filter bar above the table. Shared across admin tables (Users, Audit).
+const COL_FILTER_INPUT =
+  "w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-normal normal-case " +
+  "text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-brand-300";
+
+function ColFilterText({ value, onChange, placeholder }: {
+  value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder ?? "Filter…"}
+        className={`${COL_FILTER_INPUT} pr-6`}
+      />
+      {value && (
+        <button onClick={() => onChange("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600">
+          <FiX className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ColFilterSelect({ value, onChange, options }: {
+  value: string; onChange: (v: string) => void; options: { value: string; label: string }[];
+}) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)} className={COL_FILTER_INPUT}>
+      {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  );
+}
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
@@ -364,69 +403,27 @@ function UsersTab({
   statsCache: Map<string, UserStats>;
   fetchStats: (id: string) => Promise<void>;
 }) {
-  const [search, setSearch] = useState("");
+  const [nameFilter, setNameFilter] = useState("");
+  const [emailFilter, setEmailFilter] = useState("");
   const [tierFilter, setTierFilter] = useState<"" | "free" | "plus" | "pro">("");
   const [statusFilter, setStatusFilter] = useState<"" | "active" | "inactive">("");
+  const anyFilter = !!(nameFilter || emailFilter || tierFilter || statusFilter);
 
   const filtered = users.filter(u => {
-    const q = search.trim().toLowerCase();
-    const matchSearch = !q || u.email.toLowerCase().includes(q) || u.name.toLowerCase().includes(q);
+    const matchName = !nameFilter || u.name.toLowerCase().includes(nameFilter.trim().toLowerCase());
+    const matchEmail = !emailFilter || u.email.toLowerCase().includes(emailFilter.trim().toLowerCase());
     const matchTier = !tierFilter || u.tier === tierFilter;
     const matchStatus = !statusFilter || (statusFilter === "active" ? u.is_active : !u.is_active);
-    return matchSearch && matchTier && matchStatus;
+    return matchName && matchEmail && matchTier && matchStatus;
   });
+
+  const clearAll = () => { setNameFilter(""); setEmailFilter(""); setTierFilter(""); setStatusFilter(""); };
 
   return (
     <div className="space-y-3">
       <TabHeader count={filtered.length === users.length ? users.length : undefined} label={
         filtered.length === users.length ? "total users" : `${filtered.length} of ${users.length} users`
       } fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
-
-      {/* Search + filters */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-[180px]">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by name or email…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="input pl-8 text-sm h-9 w-full"
-          />
-          {search && (
-            <button onClick={() => setSearch("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <FiX className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-        <select
-          value={tierFilter}
-          onChange={e => setTierFilter(e.target.value as typeof tierFilter)}
-          className="input text-sm h-9 w-auto pr-8"
-        >
-          <option value="">All tiers</option>
-          <option value="free">Free</option>
-          <option value="plus">Plus</option>
-          <option value="pro">Pro</option>
-        </select>
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
-          className="input text-sm h-9 w-auto pr-8"
-        >
-          <option value="">All statuses</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        {(search || tierFilter || statusFilter) && (
-          <button
-            onClick={() => { setSearch(""); setTierFilter(""); setStatusFilter(""); }}
-            className="text-xs text-slate-400 hover:text-slate-700 underline underline-offset-2"
-          >
-            Clear filters
-          </button>
-        )}
-      </div>
 
       {loading && !users.length ? <Spinner text="Loading users…" /> : (
         <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -441,8 +438,38 @@ function UsersTab({
                   { label: "Status",  cls: "hidden sm:table-cell" },
                   { label: "Actions", cls: "text-right" },
                 ].map(({ label, cls }) => (
-                  <th key={label} className={`px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${cls}`}>{label}</th>
+                  <th key={label} className={`px-4 pt-3 pb-1.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${cls}`}>{label}</th>
                 ))}
+              </tr>
+              {/* Per-column filter row */}
+              <tr className="border-t border-slate-100">
+                <th className="px-3 pb-2 align-top">
+                  <ColFilterText value={nameFilter} onChange={setNameFilter} placeholder="Filter name…" />
+                </th>
+                <th className="px-3 pb-2 align-top hidden sm:table-cell">
+                  <ColFilterText value={emailFilter} onChange={setEmailFilter} placeholder="Filter email…" />
+                </th>
+                <th className="px-3 pb-2 align-top">
+                  <ColFilterSelect value={tierFilter} onChange={v => setTierFilter(v as typeof tierFilter)} options={[
+                    { value: "", label: "All tiers" },
+                    { value: "free", label: "Free" },
+                    { value: "plus", label: "Plus" },
+                    { value: "pro", label: "Pro" },
+                  ]} />
+                </th>
+                <th className="px-3 pb-2 align-top hidden md:table-cell" />
+                <th className="px-3 pb-2 align-top hidden sm:table-cell">
+                  <ColFilterSelect value={statusFilter} onChange={v => setStatusFilter(v as typeof statusFilter)} options={[
+                    { value: "", label: "All statuses" },
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                  ]} />
+                </th>
+                <th className="px-3 pb-2 align-top text-right">
+                  {anyFilter && (
+                    <button onClick={clearAll} className="text-xs text-slate-400 hover:text-slate-700 underline underline-offset-2 whitespace-nowrap">Clear</button>
+                  )}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -451,7 +478,7 @@ function UsersTab({
               ))}
               {!filtered.length && (
                 <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">
-                  {search || tierFilter || statusFilter ? "No users match the current filters." : "No users found."}
+                  {anyFilter ? "No users match the current filters." : "No users found."}
                 </td></tr>
               )}
             </tbody>
@@ -498,6 +525,23 @@ function AuditTab({
   const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 1;
   const busy = loading || pageLoading;
 
+  // Per-column filters (applied to the current page — the log is server-paginated).
+  const [userF, setUserF] = useState("");
+  const [actionF, setActionF] = useState("");
+  const items = data?.items ?? [];
+  const actionOptions = [
+    { value: "", label: "All actions" },
+    ...Array.from(new Set(items.map(i => i.action))).map(a => ({ value: a, label: ACTION_LABELS[a] ?? a })),
+  ];
+  const shown = items.filter(e =>
+    (!userF || e.user_email.toLowerCase().includes(userF.trim().toLowerCase())) &&
+    (!actionF || e.action === actionF)
+  );
+  const num = (v: unknown) =>
+    typeof v === "number" ? v.toLocaleString()
+      : (v != null && !isNaN(Number(v)) ? Number(v).toLocaleString() : "—");
+  const cost = (v: unknown) => typeof v === "number" ? `$${v.toFixed(4)}` : "—";
+
   return (
     <div>
       <TabHeader
@@ -515,32 +559,64 @@ function AuditTab({
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   {[
-                    { label: "Time",    cls: "" },
-                    { label: "User",    cls: "hidden sm:table-cell" },
-                    { label: "Action",  cls: "" },
-                    { label: "Details", cls: "hidden md:table-cell" },
+                    { label: "Time",      cls: "" },
+                    { label: "User",      cls: "hidden sm:table-cell" },
+                    { label: "Action",    cls: "" },
+                    { label: "Cycles",    cls: "text-right whitespace-nowrap" },
+                    { label: "LLM Calls", cls: "text-right" },
+                    { label: "Tokens",    cls: "text-right hidden sm:table-cell" },
+                    { label: "Est. Cost", cls: "text-right" },
+                    { label: "Details",   cls: "hidden lg:table-cell" },
                   ].map(({ label, cls }) => (
-                    <th key={label} className={`px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${cls}`}>{label}</th>
+                    <th key={label} className={`px-4 pt-3 pb-1.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap ${cls}`}>{label}</th>
                   ))}
+                </tr>
+                {/* Per-column filter row */}
+                <tr className="border-t border-slate-100">
+                  <th className="px-3 pb-2 align-top" />
+                  <th className="px-3 pb-2 align-top hidden sm:table-cell">
+                    <ColFilterText value={userF} onChange={setUserF} placeholder="Filter user…" />
+                  </th>
+                  <th className="px-3 pb-2 align-top">
+                    <ColFilterSelect value={actionF} onChange={setActionF} options={actionOptions} />
+                  </th>
+                  <th className="px-3 pb-2 align-top" />
+                  <th className="px-3 pb-2 align-top" />
+                  <th className="px-3 pb-2 align-top hidden sm:table-cell" />
+                  <th className="px-3 pb-2 align-top" />
+                  <th className="px-3 pb-2 align-top hidden lg:table-cell" />
                 </tr>
               </thead>
               <tbody className={`divide-y divide-slate-100 ${busy ? "opacity-50" : ""}`}>
-                {(data?.items ?? []).map(e => (
-                  <tr key={e.id} className="hover:bg-slate-50 transition">
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{formatDateTime(e.created_at)}</td>
-                    <td className="px-4 py-3 text-slate-700 whitespace-nowrap hidden sm:table-cell">{e.user_email}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="text-xs font-medium bg-slate-100 text-slate-700 rounded px-2 py-0.5">
-                        {ACTION_LABELS[e.action] ?? e.action}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs max-w-xs truncate hidden md:table-cell">
-                      {Object.entries(e.metadata).map(([k, v]) => `${k}: ${v}`).join(" · ") || "—"}
-                    </td>
-                  </tr>
-                ))}
-                {!(data?.items?.length) && (
-                  <tr><td colSpan={4} className="px-4 py-10 text-center text-slate-400">No audit entries yet.</td></tr>
+                {shown.map(e => {
+                  const md = e.metadata as Record<string, unknown>;
+                  return (
+                    <tr key={e.id} className="hover:bg-slate-50 transition">
+                      <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{formatDateTime(e.created_at)}</td>
+                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap hidden sm:table-cell">{e.user_email}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs font-medium bg-slate-100 text-slate-700 rounded px-2 py-0.5">
+                          {ACTION_LABELS[e.action] ?? e.action}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-slate-600 tabular-nums whitespace-nowrap">
+                        {typeof md.cycles === "number" ? `${md.cycles} / ${num(md.max_cycles)}` : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs text-slate-600 tabular-nums">{num(md.llm_calls)}</td>
+                      <td className="px-4 py-3 text-right text-xs text-slate-600 tabular-nums hidden sm:table-cell">{num(md.tokens)}</td>
+                      <td className="px-4 py-3 text-right text-xs text-slate-600 tabular-nums">{cost(md.est_cost_usd)}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs max-w-xs truncate hidden lg:table-cell">
+                        {Object.entries(e.metadata)
+                          .filter(([k]) => !["cycles", "max_cycles", "llm_calls", "tokens", "est_cost_usd", "cache_read_tokens"].includes(k))
+                          .map(([k, v]) => `${k}: ${v}`).join(" · ") || "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!shown.length && (
+                  <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">
+                    {items.length ? "No entries match the current filters." : "No audit entries yet."}
+                  </td></tr>
                 )}
               </tbody>
             </table>

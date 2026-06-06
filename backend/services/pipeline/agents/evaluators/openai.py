@@ -2,6 +2,7 @@ from __future__ import annotations
 from .base import BaseEvaluatorAgent
 from ...prompts.openai import openai_evaluator_messages
 from ...utils import parse_json_response
+from ...telemetry import record as record_usage
 from config import settings
 
 
@@ -29,10 +30,11 @@ class OpenAIEvaluatorAgent(BaseEvaluatorAgent):
             timeout=30,
         )
 
-    async def run(self, resume_json: dict, job_description: str, profession_config: dict) -> dict:
+    async def run(self, resume_json: dict, job_description: str, profession_config: dict, source_resume_text: str = "") -> dict:
         try:
-            messages = await openai_evaluator_messages(resume_json, job_description, profession_config)
+            messages = await openai_evaluator_messages(resume_json, job_description, profession_config, source_resume_text)
             response = await self._model().ainvoke(messages)
+            record_usage(settings.openai_evaluator_model, self.name, response)
             result = parse_json_response(response.content)
             return {"model": self.name, "score": int(result["score"]), "suggestions": result.get("suggestions", [])}
         except Exception as exc:

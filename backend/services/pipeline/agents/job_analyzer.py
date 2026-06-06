@@ -14,6 +14,7 @@ from __future__ import annotations
 from .base import BaseAgent
 from ..prompts.anthropic import job_analyzer_messages
 from ..utils import parse_json_response
+from ..telemetry import record as record_usage
 from config import settings
 
 
@@ -54,6 +55,7 @@ class JobAnalyzerAgent(BaseAgent):
         try:
             messages = await job_analyzer_messages(resume_text, user_profile, job_description, count)
             response = await self._model().ainvoke(messages)
+            record_usage(settings.generator_model, self.name, response)
             skills = parse_json_response(response.content)
             if isinstance(skills, list):
                 return [str(s) for s in skills[:count]]
