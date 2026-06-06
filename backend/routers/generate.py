@@ -363,10 +363,11 @@ async def generate(
         "min_score": 0,
     }
 
-    # Tier-aware timeout. Cycle latency ≈ 40–60 s (generator + evaluator in parallel).
-    # Free: 3 cycles → 180 s cap. Plus: 4 cycles → 300 s. Pro: 5 cycles → 420 s.
-    _TIER_TIMEOUTS = {"free": 180, "plus": 300, "pro": 420}
-    pipeline_timeout = float(_TIER_TIMEOUTS.get(user_tier, 300))
+    # Flat 300 s cap for all tiers. With streaming recovery, a timeout no longer
+    # means total loss — we return the best completed cycle instead of a 504.
+    # Tier-specific caps are unnecessary: if Pro's 5th cycle is cut off, the user
+    # still gets the 4-cycle result, which is the same outcome as finishing 4 cycles.
+    pipeline_timeout = 300.0
 
     # Stream instead of ainvoke so we capture the full state after EVERY node.
     # _snap[0] is updated on each yielded value; if wait_for cancels the coroutine
