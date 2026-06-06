@@ -687,8 +687,9 @@ export interface TemplateInfo {
   bestFor: string;
   description: string;
   pages: PageCount;
-  tier: "free" | "plus";
+  tier: "free" | "plus" | "pro";
   accentColor: string;
+  quality_score?: number;
 }
 
 export const ALL_TEMPLATES: TemplateInfo[] = [
@@ -732,6 +733,7 @@ function toTemplateInfo(t: CvTemplate): TemplateInfo {
     key: t.key, name: t.name, component: COMPONENT_REGISTRY[t.key] ?? Cambridge,
     category: t.category, traits: t.traits, bestFor: t.bestFor,
     description: t.description, pages: t.pages, tier: t.tier, accentColor: t.accentColor,
+    quality_score: t.quality_score,
   };
 }
 

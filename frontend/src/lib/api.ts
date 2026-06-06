@@ -905,6 +905,20 @@ export async function adminDeleteCvTemplate(key: string): Promise<void> {
   await api.delete(`/api/admin/cv-templates/${key}`);
 }
 
+export interface TemplateScoreResult {
+  key: string;
+  name?: string;
+  quality_score?: number;
+  tier?: string;
+  error?: string;
+}
+
+/** Admin — score every template (gold résumé → CV-Score) and store quality_score + tier. */
+export async function adminRecomputeTemplateScores(): Promise<{ results: TemplateScoreResult[]; scored: number; total: number }> {
+  const { data } = await api.post("/api/admin/cv-templates/recompute-scores");
+  return data;
+}
+
 export interface GeneratedTemplate {
   html: string;
   docx_config: DocxConfig;

@@ -99,3 +99,16 @@ async def generate(body: GenerateBody, user: dict = Depends(require_superadmin))
         raise HTTPException(422, str(e))
     log_audit(user, "cv_template.generate", {"base_key": body.base_key, "prompt_len": len(body.prompt)})
     return result
+
+
+@router.post("/admin/cv-templates/recompute-scores")
+async def recompute_scores(user: dict = Depends(require_superadmin)):
+    """Score every template (gold résumé → CV-Score) and store quality_score + tier.
+
+    Pays one CV-Score LLM call per template — admin-triggered, not per user.
+    """
+    from config import settings
+    results = await svc.recompute_quality_scores(get_db(), settings.anthropic_api_key)
+    scored = [r for r in results if "quality_score" in r]
+    log_audit(user, "cv_template.recompute_scores", {"templates": len(results), "scored": len(scored)})
+    return {"results": results, "scored": len(scored), "total": len(results)}

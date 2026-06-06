@@ -235,12 +235,41 @@ async def generate_template(prompt: str, base_html: str | None = None) -> dict:
 _PUBLIC_FIELDS = (
     "key", "name", "category", "traits", "bestFor", "description", "pages", "tier",
     "accentColor", "html", "docx_config", "source", "is_active", "show_in_cv_score",
-    "sort_order",
+    "sort_order", "quality_score", "quality_scored_at",
 )
 
 
 def _serialize(doc: dict) -> dict:
     return {k: doc.get(k) for k in _PUBLIC_FIELDS}
+
+
+async def recompute_quality_scores(db, anthropic_key: str) -> list[dict]:
+    """Score every template against the gold résumé and store the result.
+
+    Each template's `quality_score` is the CV-Score of a fixed strong résumé
+    rendered into it; `tier` (the minimum tier allowed to use it) is derived from
+    that score. Admin-triggered — pays one CV-Score LLM call per template, not per
+    user. Returns a summary list for the admin UI.
+    """
+    from services.template_scoring import score_template_html, tier_for_score
+    now = datetime.utcnow()
+    results: list[dict] = []
+    docs = await db.cv_templates.find({}).to_list(length=200)
+    for doc in docs:
+        try:
+            score = await score_template_html(doc.get("html", ""), anthropic_key)
+            tier = tier_for_score(score)
+            await db.cv_templates.update_one(
+                {"key": doc["key"]},
+                {"$set": {"quality_score": score, "tier": tier, "quality_scored_at": now, "updated_at": now}},
+            )
+            results.append({"key": doc["key"], "name": doc.get("name"), "quality_score": score, "tier": tier})
+        except Exception as exc:
+            logger.warning("cv_template.score failed key=%s: %s", doc.get("key"), exc)
+            results.append({"key": doc["key"], "name": doc.get("name"), "error": str(exc)})
+    results.sort(key=lambda r: r.get("quality_score", -1), reverse=True)
+    logger.info("cv_template.recompute_scores scored=%s", len([r for r in results if "quality_score" in r]))
+    return results
 
 
 async def seed_cv_templates(db) -> int:

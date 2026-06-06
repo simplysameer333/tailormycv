@@ -54,7 +54,7 @@ export interface CvTemplate {
   bestFor: string;
   description: string;
   pages: PageCount;
-  tier: "free" | "plus";
+  tier: "free" | "plus" | "pro";
   accentColor: string;
   html: string;
   docx_config: DocxConfig;
@@ -62,6 +62,9 @@ export interface CvTemplate {
   is_active: boolean;
   show_in_cv_score: boolean;
   sort_order?: number;
+  /** CV-Score of the gold résumé rendered in this template (its quality ceiling). */
+  quality_score?: number;
+  quality_scored_at?: string | null;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

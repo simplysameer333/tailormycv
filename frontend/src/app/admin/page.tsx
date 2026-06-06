@@ -21,7 +21,7 @@ import {
 import { adminUpdateTierConfig, fetchTierConfig, type TierConfigPayload } from "@/lib/api";
 import {
   adminListCvTemplates, adminCreateCvTemplate, adminUpdateCvTemplate,
-  adminDeleteCvTemplate, adminGenerateCvTemplate,
+  adminDeleteCvTemplate, adminGenerateCvTemplate, adminRecomputeTemplateScores,
   fetchSystemConfig, updateSystemConfig, type SystemConfig,
 } from "@/lib/api";
 import { render as renderTpl, renderCtx, type CvTemplate, type DocxConfig, type PreviewData } from "@/lib/cvTemplates";
@@ -57,7 +57,9 @@ const ACTION_LABELS: Record<string, string> = {
   "profile.save":           "Saved profile",
   "resume.generate":        "Generated resume",
   "resume.generate.complete": "Generated resume (AI)",
+  "resume.cv_score":        "Checked CV Score",
   "resume.export":          "Exported resume",
+  "cv_template.recompute_scores": "Recomputed template scores",
   "resume_library.upload":  "Uploaded to library",
   "job_alert.create":       "Created alert",
   "job_alert.delete":       "Deleted alert",
@@ -1281,6 +1283,18 @@ function CvTemplateCard({ tmpl, onChanged }: { tmpl: CvTemplate; onChanged: () =
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">{tmpl.category}</span>
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600">{tmpl.pages}-page</span>
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-teal-50 text-teal-700">{tmpl.tier}</span>
+            {typeof tmpl.quality_score === "number" && (
+              <span
+                title="CV-Score of a gold résumé rendered in this template (its quality ceiling) — drives the tier"
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  tmpl.quality_score >= 85 ? "bg-emerald-100 text-emerald-700"
+                    : tmpl.quality_score >= 78 ? "bg-amber-100 text-amber-700"
+                    : "bg-rose-100 text-rose-700"
+                }`}
+              >
+                Score {tmpl.quality_score}
+              </span>
+            )}
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500">{tmpl.source}</span>
             {!tmpl.is_active && <span className="text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">Inactive</span>}
           </div>
@@ -1414,6 +1428,7 @@ function ManageTemplatesTab() {
   const [templates, setTemplates] = useState<CvTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchedAt, setFetchedAt] = useState<Date | null>(null);
+  const [scoring, setScoring] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1422,11 +1437,35 @@ function ManageTemplatesTab() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
+  async function recomputeScores() {
+    if (!confirm("Score every template against the gold résumé? This runs one CV-Score LLM call per template.")) return;
+    setScoring(true);
+    try {
+      const res = await adminRecomputeTemplateScores();
+      toast.success(`Scored ${res.scored}/${res.total} templates.`);
+      await load();
+    } catch (e: unknown) {
+      toast.error((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Scoring failed.");
+    } finally { setScoring(false); }
+  }
+
   const activeInScore = templates.filter(t => t.show_in_cv_score && t.is_active).length;
+  const scoredCount = templates.filter(t => typeof t.quality_score === "number").length;
 
   return (
     <div className="space-y-4">
-      <TabHeader count={templates.length} label="resume templates" fetchedAt={fetchedAt} loading={loading} onRefresh={load} />
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <TabHeader count={templates.length} label="resume templates" fetchedAt={fetchedAt} loading={loading} onRefresh={load} />
+        <button
+          onClick={recomputeScores}
+          disabled={scoring}
+          title="Render a gold résumé into each template and store its CV-Score + derived tier"
+          className="btn-secondary text-sm gap-1.5 shrink-0 disabled:opacity-50"
+        >
+          <FiZap className="w-4 h-4" />
+          {scoring ? "Scoring…" : `Recompute scores${scoredCount ? ` (${scoredCount} scored)` : ""}`}
+        </button>
+      </div>
       <div className="rounded-xl border border-brand-200 bg-brand-50/50 px-4 py-3.5 text-sm text-slate-700">
         <p className="font-semibold text-slate-900 mb-2">
           These templates power the live preview gallery in CV Score and the resume builder.
