@@ -35,6 +35,7 @@ from dependencies.auth import get_optional_user
 from services.audit import log_audit
 from services.pipeline import pipeline, generator, telemetry
 from services.usage_service import check_budget, increment_usage
+from services.agent_memory import record_generation_outcome
 from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
 from services.resume_checker_service import validate_resume_layout
 
@@ -387,6 +388,18 @@ async def generate(
     # Charge the run against the user's account-level daily + monthly budget.
     if user:
         await increment_usage(db, str(user.get("_id", "")), actual_calls, usage["est_cost_usd"])
+
+    # Feed the outcome into agent memory (background) so the generator learns which
+    # weaknesses cost cycles and pre-empts them next time. Best-effort, non-blocking.
+    eval_hist = final_state.get("eval_history") or []
+    background_tasks.add_task(record_generation_outcome, {
+        "first_score": (eval_hist[0]["min_score"] if eval_hist else final_state["min_score"]),
+        "cycles": final_state["cycle"],
+        "cost_usd": usage["est_cost_usd"],
+        "passed": final_state["all_passed"],
+        "tier": user_tier,
+        "evaluators": final_state.get("eval_results") or [],
+    })
 
     # Audit entry with the cost signals the admin dashboard surfaces per action.
     if user:

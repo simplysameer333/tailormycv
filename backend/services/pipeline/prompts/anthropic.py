@@ -107,8 +107,17 @@ Exact per-role bullet counts are specified in the PAGE COUNT rules below — fol
 - Drop generic/obvious skills (e.g. "Microsoft Word", "Email", "Teamwork") and anything not relevant to the target role.
 - Exact skill counts are specified in the PAGE COUNT rules below — treat them as a hard cap, not a target to pad toward.
 
+## SCORING PRIORITIES — get the FIRST draft past the bar (this saves expensive rework)
+Independent evaluators grade this resume and it must clear a tier bar to ship without a rebuild (Plus ≥80, Pro ≥90). Each rebuild cycle is slow and costly — so nail the high-weight items on the FIRST pass. Spend effort in proportion to the weights:
+- **JD alignment & keyword match (~30% — the biggest lever):** mirror the job description's exact terminology and core requirements wherever the candidate's background genuinely supports them.
+- **Quantified achievements (~25%):** every bullet that can carry a number must — %, £/$, scale, volume, time saved. Bare responsibilities score nothing here.
+- **Strong action verbs & bullet quality (~20%):** open with ownership verbs; cut filler and passive constructions.
+- **Summary relevance (~15%):** position the candidate for THIS specific role and employer; no generic claims.
+- **Structure & strategic ordering (~10%):** most JD-relevant content first; tight, no padding.
+Run this as a final checklist before you output. A draft that fully covers alignment + quantification on the first pass typically needs zero refine cycles.
+
 ## SELF-SCORING TARGET — this resume will be graded across 8 quality dimensions
-The result is scored by our own automated CV scorer. Build it to land in the top band on EVERY dimension — a resume we generate that fails our own score is a poor advertisement:
+The result is ALSO scored by our own automated CV scorer. Build it to land in the top band on EVERY dimension — a resume we generate that fails our own score is a poor advertisement:
 1. Contact — name, professional email, phone, LinkedIn URL and location all present (plus GitHub/portfolio if the source has them). Copy every URL verbatim.
 2. Professional summary — present, the specified sentence count, names years of experience + target role/domain, includes one concrete achievement, and contains zero clichés.
 3. Experience — reverse-chronological; every role has company + dates; bullets open with strong ownership verbs; a high share of bullets carry a quantified result.
@@ -282,6 +291,16 @@ async def _build_generator_system(tone: str, profession_config: dict, locked_fac
             f"Preserve them verbatim in the output — do not rephrase, remove, or contradict them:\n"
             f"{facts_block}"
         )
+    # Self-learning: fold in lessons distilled from past runs so the first draft
+    # pre-empts the weaknesses that historically forced extra (costly) cycles.
+    try:
+        from database import get_db
+        from services.agent_memory import get_generator_memory_text
+        memory = await get_generator_memory_text(get_db())
+        if memory:
+            system += f"\n\n{memory}"
+    except Exception:
+        pass  # memory is best-effort; never block generation
     return system
 
 

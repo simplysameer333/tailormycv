@@ -226,6 +226,15 @@ async def list_audit(
     }
 
 
+# ── Agent memory (read-only) ────────────────────────────────────────────────────
+
+@router.get("/admin/agent-memory")
+async def get_agent_memory(_: dict = Depends(require_superadmin)):
+    """Read-only per-agent learnings: stats, recurring weaknesses, and lessons."""
+    from services.agent_memory import list_agent_memory
+    return {"agents": await list_agent_memory(get_db())}
+
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 @router.get("/admin/prompts")

@@ -54,6 +54,8 @@ async def lifespan(app: FastAPI):
     await seed_cv_templates(get_db())
     from services.usage_service import ensure_indexes as ensure_usage_indexes
     await ensure_usage_indexes(get_db())
+    from services.agent_memory import ensure_seed as ensure_agent_memory
+    await ensure_agent_memory(get_db())
     start_scheduler()
     yield
     stop_scheduler()

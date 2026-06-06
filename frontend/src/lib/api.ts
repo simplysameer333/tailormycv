@@ -802,6 +802,27 @@ export async function adminListAudit(page = 1, pageSize = 50): Promise<AuditPage
   return data;
 }
 
+export interface AgentMemory {
+  agent: string;
+  description: string;
+  stats: {
+    runs: number;
+    avg_first_score?: number;
+    avg_cycles?: number;
+    avg_cost_usd?: number;
+    pass_rate_pct?: number;
+    avg_score?: number;
+  };
+  weaknesses: [string, number][];
+  lessons: { kind: string; text: string }[];
+  updated_at: string | null;
+}
+
+export async function adminGetAgentMemory(): Promise<AgentMemory[]> {
+  const { data } = await api.get("/api/admin/agent-memory");
+  return data.agents ?? [];
+}
+
 export async function adminListPrompts(): Promise<PromptOverride[]> {
   const { data } = await api.get("/api/admin/prompts");
   return data;

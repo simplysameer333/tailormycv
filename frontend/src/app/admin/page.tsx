@@ -8,7 +8,8 @@ import {
   adminListAudit, adminListPrompts,
   adminUpdatePrompt, adminResetPrompt,
   adminListProfessions, adminCreateProfession, adminUpdateProfession, adminDeleteProfession,
-  AdminUser, UserStats, AuditPage, PromptOverride, AdminProfession,
+  adminGetAgentMemory,
+  AdminUser, UserStats, AuditPage, PromptOverride, AdminProfession, AgentMemory,
 } from "@/lib/api";
 import {
   FiUsers, FiActivity, FiCpu, FiRefreshCw, FiSave, FiRotateCcw,
@@ -27,7 +28,7 @@ import { render as renderTpl, renderCtx, type CvTemplate, type DocxConfig, type 
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-type Tab = "users" | "audit" | "prompts" | "cv_score_prompts" | "professions" | "manage_templates" | "tier_config" | "system";
+type Tab = "users" | "audit" | "agent_memory" | "prompts" | "cv_score_prompts" | "professions" | "manage_templates" | "tier_config" | "system";
 
 interface CacheEntry<T> {
   data: T;
@@ -37,6 +38,7 @@ interface CacheEntry<T> {
 interface PageCache {
   users?: CacheEntry<AdminUser[]>;
   audit?: CacheEntry<AuditPage>;
+  agent_memory?: CacheEntry<AgentMemory[]>;
   prompts?: CacheEntry<PromptOverride[]>;
   professions?: CacheEntry<AdminProfession[]>;
 }
@@ -661,6 +663,102 @@ function AuditTab({
             </div>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+// ── Agent Memory tab (read-only) ────────────────────────────────────────────────
+
+const LESSON_STYLE: Record<string, { label: string; cls: string }> = {
+  worked:  { label: "What worked",   cls: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+  didnt:   { label: "What fell short", cls: "border-rose-200 bg-rose-50 text-rose-800" },
+  improve: { label: "Improve next time", cls: "border-amber-200 bg-amber-50 text-amber-800" },
+};
+
+function AgentMemoryTab({
+  data, loading, fetchedAt, onRefresh,
+}: {
+  data: AgentMemory[];
+  loading: boolean;
+  fetchedAt: Date | null;
+  onRefresh: () => void;
+}) {
+  const fmtCost = (v?: number) => (typeof v === "number" ? `$${v.toFixed(3)}` : "—");
+  const fmt = (v?: number) => (typeof v === "number" ? v.toLocaleString() : "—");
+
+  return (
+    <div className="space-y-3">
+      <TabHeader count={data.length} label="agents" fetchedAt={fetchedAt} loading={loading} onRefresh={onRefresh} />
+      <p className="text-sm text-slate-500">
+        Read-only. Each agent learns from its own past runs — what worked, what fell short, and how to do better next
+        time for both quality and cost. The generator folds its <span className="font-medium">Improve next time</span> hints
+        back into its prompt so first drafts pre-empt known weaknesses and need fewer (cheaper) refine cycles.
+      </p>
+
+      {loading && !data.length ? <Spinner text="Loading agent memory…" /> : (
+        <div className="space-y-4">
+          {data.map(a => (
+            <div key={a.agent} className="rounded-xl border border-slate-200 p-4">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <FiCpu className="w-4 h-4 text-brand-500" />
+                    <h3 className="font-semibold text-slate-900 capitalize">{a.agent}</h3>
+                    <span className="text-xs text-slate-400">{a.stats.runs} run{a.stats.runs === 1 ? "" : "s"}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">{a.description}</p>
+                </div>
+                {/* Stat chips */}
+                <div className="flex flex-wrap gap-1.5 text-xs">
+                  {a.stats.avg_first_score !== undefined && (
+                    <span className="rounded bg-slate-100 text-slate-700 px-2 py-0.5">First draft {a.stats.avg_first_score}</span>
+                  )}
+                  {a.stats.avg_cycles !== undefined && (
+                    <span className="rounded bg-slate-100 text-slate-700 px-2 py-0.5">{a.stats.avg_cycles} cycles avg</span>
+                  )}
+                  {a.stats.pass_rate_pct !== undefined && (
+                    <span className="rounded bg-slate-100 text-slate-700 px-2 py-0.5">{a.stats.pass_rate_pct}% pass</span>
+                  )}
+                  {a.stats.avg_cost_usd !== undefined && (
+                    <span className="rounded bg-slate-100 text-slate-700 px-2 py-0.5">{fmtCost(a.stats.avg_cost_usd)}/run</span>
+                  )}
+                  {a.stats.avg_score !== undefined && (
+                    <span className="rounded bg-slate-100 text-slate-700 px-2 py-0.5">avg score {a.stats.avg_score}</span>
+                  )}
+                </div>
+              </div>
+
+              {a.stats.runs === 0 ? (
+                <p className="text-xs text-slate-400 mt-3 italic">No runs recorded yet — lessons appear once this agent has done some work.</p>
+              ) : (
+                <>
+                  {a.weaknesses.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs font-medium text-slate-500">Recurring weaknesses:</span>
+                      {a.weaknesses.slice(0, 5).map(([w, n]) => (
+                        <span key={w} className="text-xs rounded bg-rose-50 text-rose-700 border border-rose-100 px-1.5 py-0.5">{w} · {fmt(n)}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 space-y-2">
+                    {a.lessons.map((l, i) => {
+                      const s = LESSON_STYLE[l.kind] ?? LESSON_STYLE.worked;
+                      return (
+                        <div key={i} className={`rounded-lg border px-3 py-2 text-xs ${s.cls}`}>
+                          <span className="font-semibold">{s.label}: </span>{l.text}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+          {!data.length && (
+            <div className="rounded-xl border border-slate-200 px-4 py-10 text-center text-slate-400">No agent memory yet.</div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -1423,6 +1521,7 @@ function SystemTab() {
 const TAB_META: Record<Tab, { label: string; icon: React.ReactNode }> = {
   users:            { label: "Users",         icon: <FiUsers className="w-4 h-4" /> },
   audit:            { label: "Audit Log",     icon: <FiActivity className="w-4 h-4" /> },
+  agent_memory:     { label: "Agent Memory",  icon: <FiCpu className="w-4 h-4" /> },
   prompts:          { label: "CV Builder Prompts", icon: <FiCpu className="w-4 h-4" /> },
   cv_score_prompts: { label: "CV Score Prompts",   icon: <FiActivity className="w-4 h-4" /> },
   professions:      { label: "Professions",   icon: <FiBriefcase className="w-4 h-4" /> },
@@ -1433,7 +1532,7 @@ const TAB_META: Record<Tab, { label: string; icon: React.ReactNode }> = {
 
 // Top-level groups arranged by feature; each renders its tabs as sub-sections.
 const GROUPS: { id: string; label: string; icon: React.ReactNode; tabs: Tab[] }[] = [
-  { id: "people",  label: "User Management",     icon: <FiUsers className="w-4 h-4" />,   tabs: ["users", "audit"] },
+  { id: "people",  label: "User Management",     icon: <FiUsers className="w-4 h-4" />,   tabs: ["users", "audit", "agent_memory"] },
   { id: "content", label: "Prompts & Templates", icon: <FiCpu className="w-4 h-4" />,     tabs: ["prompts", "cv_score_prompts", "professions", "manage_templates"] },
   { id: "config",  label: "Feature Controls",    icon: <FiSliders className="w-4 h-4" />, tabs: ["tier_config", "system"] },
 ];
@@ -1992,10 +2091,11 @@ export default function AdminPage() {
   // ── Displayed state (drives the UI) ───────────────────────────────────────
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [auditData, setAuditData] = useState<AuditPage | null>(null);
+  const [agentMemory, setAgentMemory] = useState<AgentMemory[]>([]);
   const [prompts, setPrompts] = useState<PromptOverride[]>([]);
   const [professions, setProfessions] = useState<AdminProfession[]>([]);
-  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, prompts: false, cv_score_prompts: false, professions: false, manage_templates: false, tier_config: false, system: false });
-  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, prompts: null, cv_score_prompts: null, professions: null, manage_templates: null, tier_config: null, system: null });
+  const [loading, setLoading] = useState<Record<Tab, boolean>>({ users: false, audit: false, agent_memory: false, prompts: false, cv_score_prompts: false, professions: false, manage_templates: false, tier_config: false, system: false });
+  const [fetchedAt, setFetchedAt] = useState<Record<Tab, Date | null>>({ users: null, audit: null, agent_memory: null, prompts: null, cv_score_prompts: null, professions: null, manage_templates: null, tier_config: null, system: null });
 
   function setLoad(t: Tab, v: boolean) { setLoading(prev => ({ ...prev, [t]: v })); }
   function setFetched(t: Tab, d: Date) { setFetchedAt(prev => ({ ...prev, [t]: d })); }
@@ -2031,6 +2131,22 @@ export default function AdminPage() {
       setAuditData(data);
       setFetched("audit", entry.fetchedAt);
     } finally { setLoad("audit", false); }
+  }, []);
+
+  const fetchAgentMemory = useCallback(async (force = false) => {
+    if (!force && cache.current.agent_memory) {
+      setAgentMemory(cache.current.agent_memory.data);
+      setFetchedAt(prev => ({ ...prev, agent_memory: cache.current.agent_memory!.fetchedAt }));
+      return;
+    }
+    setLoad("agent_memory", true);
+    try {
+      const data = await adminGetAgentMemory();
+      const entry = { data, fetchedAt: new Date() };
+      cache.current.agent_memory = entry;
+      setAgentMemory(data);
+      setFetched("agent_memory", entry.fetchedAt);
+    } finally { setLoad("agent_memory", false); }
   }, []);
 
   const fetchPrompts = useCallback(async (force = false) => {
@@ -2080,6 +2196,7 @@ export default function AdminPage() {
   function refreshTab(t: Tab) {
     if (t === "users")       { cache.current.users       = undefined; fetchUsers(true); }
     if (t === "audit")       { cache.current.audit       = undefined; fetchAudit(true); }
+    if (t === "agent_memory") { cache.current.agent_memory = undefined; fetchAgentMemory(true); }
     if (t === "prompts" || t === "cv_score_prompts") { cache.current.prompts = undefined; fetchPrompts(true); }
     if (t === "professions") { cache.current.professions = undefined; fetchProfessions(true); }
   }
@@ -2088,6 +2205,7 @@ export default function AdminPage() {
     setTab(t);
     if (t === "users")       fetchUsers();
     if (t === "audit")       fetchAudit();
+    if (t === "agent_memory") fetchAgentMemory();
     if (t === "prompts" || t === "cv_score_prompts") fetchPrompts();
     if (t === "professions") fetchProfessions();
   }
@@ -2182,6 +2300,14 @@ export default function AdminPage() {
               loading={loading.audit}
               fetchedAt={fetchedAt.audit}
               onRefresh={() => refreshTab("audit")}
+            />
+          )}
+          {tab === "agent_memory" && (
+            <AgentMemoryTab
+              data={agentMemory}
+              loading={loading.agent_memory}
+              fetchedAt={fetchedAt.agent_memory}
+              onRefresh={() => refreshTab("agent_memory")}
             />
           )}
           {tab === "prompts" && (
