@@ -70,11 +70,12 @@ DEFAULT_LIMITS: dict[str, dict[str, int | None]] = {
     "job_alerts":      {"free": 0,  "plus": 5,   "pro": None},
     "evaluators":      {"free": 1,  "plus": 2,   "pro": 3},
     "key_skills":      {"free": 3,  "plus": 5,   "pro": 10},
-    # Account-level daily budgets (per UTC day) — backstop the per-session cap.
-    # daily_ai_calls counts LLM sub-calls (a full generation ≈ 7/13/21 calls).
-    # daily_cost_cents bounds estimated spend in US cents. None = unlimited.
-    "daily_ai_calls":   {"free": 60,  "plus": 400,  "pro": None},
-    "daily_cost_cents": {"free": 100, "plus": 1000, "pro": 5000},
+    # Account-level cost guardrails — estimated AI spend in US cents, per UTC day
+    # and per UTC calendar month. A request is refused (429) once either is hit.
+    # Monthly cap ≈ the subscription price (never spend more than the user paid);
+    # the daily cap rations it so one day can't burn the month. None = unlimited.
+    "daily_cost_cents":   {"free": 25, "plus": 100,  "pro": 200},
+    "monthly_cost_cents": {"free": 50, "plus": 1000, "pro": 2000},
 }
 
 # Human-readable labels — used by the admin UI
@@ -99,8 +100,8 @@ LIMIT_LABELS: dict[str, str] = {
     "job_alerts":      "Job Alerts",
     "evaluators":      "AI Evaluators",
     "key_skills":      "Key Skills extracted from JD",
-    "daily_ai_calls":   "Daily AI Call Budget",
-    "daily_cost_cents": "Daily AI Cost Budget (US¢)",
+    "daily_cost_cents":   "Daily AI Cost Budget (US¢)",
+    "monthly_cost_cents": "Monthly AI Cost Budget (US¢)",
 }
 
 # ── In-memory cache ────────────────────────────────────────────────────────────

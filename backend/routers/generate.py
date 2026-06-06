@@ -34,7 +34,7 @@ from config import settings
 from dependencies.auth import get_optional_user
 from services.audit import log_audit
 from services.pipeline import pipeline, generator, telemetry
-from services.usage_service import check_daily_budget, increment_daily_usage
+from services.usage_service import check_budget, increment_usage
 from services.pipeline.agents.job_analyzer import JobAnalyzerAgent
 from services.resume_checker_service import validate_resume_layout
 
@@ -205,10 +205,10 @@ async def generate(
     # ── Resolve user tier for per-tier feature enforcement ────────────────────
     user_tier = (user or {}).get("tier", "free")
 
-    # ── Per-user daily budget — account-level backstop to the per-session cap ──
+    # ── Per-user daily + monthly cost budget — account-level cost guardrail ───
     # Checked before any LLM cost is incurred (covers section regen + full run).
     if user:
-        await check_daily_budget(db, user, user_tier)
+        await check_budget(db, user, user_tier)
 
     # ── Job analysis — only runs when a job description is provided ───────────
     from services.tier_config_service import get_limit as _get_limit
@@ -255,7 +255,7 @@ async def generate(
             raise HTTPException(500, f"Section regeneration failed: {exc}")
         await _increment_call_count(db, session_id, 1)
         if user:
-            await increment_daily_usage(db, str(user.get("_id", "")), 1, telemetry.summary()["est_cost_usd"])
+            await increment_usage(db, str(user.get("_id", "")), 1, telemetry.summary()["est_cost_usd"])
         await db.sessions.update_one(
             {"_id": ObjectId(session_id)},
             {"$set": {"generated_resume": result}},
@@ -384,9 +384,9 @@ async def generate(
         }},
     )
 
-    # Charge the run against the user's account-level daily budget.
+    # Charge the run against the user's account-level daily + monthly budget.
     if user:
-        await increment_daily_usage(db, str(user.get("_id", "")), actual_calls, usage["est_cost_usd"])
+        await increment_usage(db, str(user.get("_id", "")), actual_calls, usage["est_cost_usd"])
 
     # Audit entry with the cost signals the admin dashboard surfaces per action.
     if user:

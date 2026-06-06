@@ -52,9 +52,9 @@ export const TIER_LIMITS = {
   job_alerts:      { free: 0,  plus: 5,   pro: null } as const,
   evaluators:      { free: 1,  plus: 2,   pro: 3    } as const,
   key_skills:      { free: 3,  plus: 5,   pro: 10   } as const,
-  // Account-level daily budgets (per UTC day). null = unlimited.
-  daily_ai_calls:   { free: 60,  plus: 400,  pro: null } as const,
-  daily_cost_cents: { free: 100, plus: 1000, pro: 5000 } as const,
+  // Account-level cost budgets in US cents. null = unlimited.
+  daily_cost_cents:   { free: 25, plus: 100,  pro: 200  } as const,
+  monthly_cost_cents: { free: 50, plus: 1000, pro: 2000 } as const,
 } as const;
 
 export type LimitKey = keyof typeof TIER_LIMITS;

@@ -104,6 +104,20 @@ function ColFilterSelect({ value, onChange, options }: {
   );
 }
 
+// Small coloured chip for the account type shown next to a user in the audit log.
+const ACCOUNT_BADGE: Record<string, { label: string; cls: string }> = {
+  free:      { label: "Free",      cls: "bg-slate-100 text-slate-600" },
+  plus:      { label: "Plus",      cls: "bg-blue-100 text-blue-700" },
+  pro:       { label: "Pro",       cls: "bg-amber-100 text-amber-700" },
+  anonymous: { label: "Anonymous", cls: "bg-slate-100 text-slate-400 italic" },
+};
+
+function AccountTypeBadge({ tier }: { tier?: string }) {
+  const t = (tier || "free").toLowerCase();
+  const b = ACCOUNT_BADGE[t] ?? ACCOUNT_BADGE.free;
+  return <span className={`text-[10px] font-semibold rounded px-1.5 py-0.5 whitespace-nowrap ${b.cls}`}>{b.label}</span>;
+}
+
 function formatDate(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -593,7 +607,12 @@ function AuditTab({
                   return (
                     <tr key={e.id} className="hover:bg-slate-50 transition">
                       <td className="px-4 py-3 text-slate-500 whitespace-nowrap text-xs">{formatDateTime(e.created_at)}</td>
-                      <td className="px-4 py-3 text-slate-700 whitespace-nowrap hidden sm:table-cell">{e.user_email}</td>
+                      <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-700">{e.user_email || "—"}</span>
+                          <AccountTypeBadge tier={e.user_tier} />
+                        </div>
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs font-medium bg-slate-100 text-slate-700 rounded px-2 py-0.5">
                           {ACTION_LABELS[e.action] ?? e.action}

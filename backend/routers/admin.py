@@ -197,6 +197,16 @@ async def list_audit(
     skip = (page - 1) * page_size
     total = await db.audit_log.count_documents({})
     docs = await db.audit_log.find({}).sort("created_at", -1).skip(skip).limit(page_size).to_list(length=page_size)
+
+    def _account_type(d: dict) -> str:
+        # Point-in-time tier recorded at write. Fall back to metadata.tier for
+        # older entries; anonymous when there was no signed-in user.
+        return (
+            d.get("user_tier")
+            or (d.get("metadata", {}) or {}).get("tier")
+            or ("anonymous" if not d.get("user_email") else "free")
+        )
+
     return {
         "total": total,
         "page": page,
@@ -206,6 +216,7 @@ async def list_audit(
                 "id": str(d["_id"]),
                 "user_id": d.get("user_id", ""),
                 "user_email": d.get("user_email", ""),
+                "user_tier": _account_type(d),
                 "action": d.get("action", ""),
                 "metadata": d.get("metadata", {}),
                 "created_at": d.get("created_at"),

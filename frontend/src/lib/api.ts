@@ -729,6 +729,7 @@ export interface AuditEntry {
   id: string;
   user_id: string;
   user_email: string;
+  user_tier?: string;
   action: string;
   metadata: Record<string, unknown>;
   created_at: string | null;

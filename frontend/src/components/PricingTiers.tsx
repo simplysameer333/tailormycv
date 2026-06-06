@@ -17,10 +17,20 @@ export const TIERS: {
 ];
 
 /** Build the feature bullet list for a tier using the live dynamic config. */
+// Rough cost of one tailored resume, for display only — turns the monthly cost
+// budget into an approximate generation count. Conservative (a floor): real
+// usage after caching/optimization is cheaper, so users get at least this many.
+const EST_TAILOR_COST_CENTS = 15;
+
 export function buildFeatures(tierId: Tier): string[] {
   const lim = (key: string, tier: string): number | string => {
     const v = getTierLimitDynamic(tier, key);
     return v === null ? "Unlimited" : (v ?? 0);
+  };
+  const estTailors = (tier: string): string => {
+    const cents = getTierLimitDynamic(tier, "monthly_cost_cents");
+    if (cents === null) return "Unlimited";
+    return `~${Math.max(1, Math.floor((cents ?? 0) / EST_TAILOR_COST_CENTS))}`;
   };
   switch (tierId) {
     case "free":
@@ -30,7 +40,7 @@ export function buildFeatures(tierId: Tier): string[] {
         "3 resume templates",
         `${lim("evaluators", "free")} AI quality evaluator`,
         `${lim("key_skills", "free")} key skills extracted from JD`,
-        `Daily AI budget: ${lim("daily_ai_calls", "free")} builder calls`,
+        `${estTailors("free")} AI resume tailors / month`,
         "Job search (browse only)",
       ];
     case "plus":
@@ -39,7 +49,7 @@ export function buildFeatures(tierId: Tier): string[] {
         "PDF export",
         `${lim("evaluators", "plus")} AI quality evaluators`,
         `${lim("key_skills", "plus")} key skills extracted`,
-        `Daily AI budget: ${lim("daily_ai_calls", "plus")} builder calls`,
+        `${estTailors("plus")} AI resume tailors / month`,
         `Save up to ${lim("saved_jobs", "plus")} jobs`,
         `Resume Library (${lim("resume_library", "plus")} resumes)`,
         "One-click Tailor from job listings",
@@ -56,7 +66,7 @@ export function buildFeatures(tierId: Tier): string[] {
         "Unlimited Resume Library",
         "Unlimited saved jobs",
         "Unlimited daily job alerts",
-        "Unlimited daily AI usage (fair use)",
+        `${estTailors("pro")} AI resume tailors / month`,
       ];
   }
 }
