@@ -363,18 +363,46 @@ async def generate(
         "min_score": 0,
     }
 
-    telemetry.start_capture()  # accumulate per-call tokens/cost across the whole run
+    # Tier-aware timeout. Cycle latency ≈ 40–60 s (generator + evaluator in parallel).
+    # Free: 3 cycles → 180 s cap. Plus: 4 cycles → 300 s. Pro: 5 cycles → 420 s.
+    _TIER_TIMEOUTS = {"free": 180, "plus": 300, "pro": 420}
+    pipeline_timeout = float(_TIER_TIMEOUTS.get(user_tier, 300))
+
+    # Stream instead of ainvoke so we capture the full state after EVERY node.
+    # _snap[0] is updated on each yielded value; if wait_for cancels the coroutine
+    # the outer list reference still holds the last snapshot, giving us the best
+    # result from all completed cycles rather than losing everything to the timeout.
+    _snap: list[dict] = [dict(initial_state)]
+    _timed_out = False
+
+    async def _stream() -> None:
+        async for state in pipeline.astream(initial_state, stream_mode="values"):
+            _snap[0] = state
+
+    telemetry.start_capture()
     try:
-        final_state = await asyncio.wait_for(
-            pipeline.ainvoke(initial_state),
-            timeout=300.0,  # 5 min — Pro runs up to 5 cycles × 3 evaluators (~40s/cycle)
-        )
+        await asyncio.wait_for(_stream(), timeout=pipeline_timeout)
     except asyncio.TimeoutError:
-        logger.error("[generate] Pipeline timed out for session %s", session_id)
-        raise HTTPException(504, "Resume generation timed out. Please try again — it usually completes in 60–120 seconds.")
+        _timed_out = True
+        logger.warning(
+            "[generate] Pipeline timed out after %ds (tier=%s) — "
+            "returning best intermediate result. session=%s cycles_completed=%d best_score=%d",
+            pipeline_timeout, user_tier, session_id,
+            _snap[0].get("cycle", 0), _snap[0].get("best_min_score", 0),
+        )
     except Exception as exc:
         logger.exception("[generate] Pipeline failed for session %s: %s", session_id, exc)
         raise HTTPException(500, f"Resume generation failed: {exc}")
+
+    final_state = _snap[0]
+
+    # Timeout before the first generate→evaluate→aggregate cycle finished → nothing to show.
+    if _timed_out and not final_state.get("best_resume_json") and not final_state.get("resume_json"):
+        raise HTTPException(
+            504,
+            "Resume generation timed out before producing a result. "
+            "Please try again — it usually completes in 60–120 seconds.",
+        )
 
     # Return the BEST cycle, not the last. The refine loop is non-monotonic — a
     # later cycle can regress below an earlier one (observed: min_score [72,82,75]).
@@ -522,11 +550,13 @@ async def generate(
         "key_skills": key_skills,
         "layout_validation": layout_validation,
         "user_actions_needed": user_actions,
+        "timed_out": _timed_out,
     }
 
     # ── Store successful result in generation cache ───────────────────────────
-    # Only cache valid, completed runs (not timeouts / exceptions — those never reach here).
-    if final_state.get("resume_json"):
+    # Skip cache on timed-out runs — partial results may be sub-threshold and
+    # would poison the cache for the same input on the next (full) attempt.
+    if final_state.get("resume_json") and not _timed_out:
         try:
             await db.generation_cache.update_one(
                 {"input_hash": input_hash},
