@@ -45,6 +45,9 @@ class PipelineState(TypedDict):
     last_gain: int
     # ── accumulated across cycles (operator.add auto-appends) ─────────────────
     eval_history: Annotated[list, operator.add]
+    # Suggestions already surfaced to the generator in prior cycles. operator.add
+    # accumulates them so the aggregator can skip repeats across cycles.
+    seen_suggestions: Annotated[list, operator.add]
     # ── aggregated decision ───────────────────────────────────────────────────
     all_passed: bool
     min_score: int

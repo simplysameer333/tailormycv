@@ -12,6 +12,11 @@ from services.prompt_store import get_override
 logger = logging.getLogger("tailormycv.cv_score")
 
 
+def _cache_system(text: str) -> list[dict]:
+    """Wrap a system prompt in an Anthropic cache_control block for prompt caching."""
+    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
+
+
 async def _resolved(key: str, default: str) -> str:
     """Return the admin override for a prompt key, else the hardcoded default."""
     try:
@@ -455,7 +460,7 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=6000,
-        system=system,
+        system=_cache_system(system),
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -466,6 +471,29 @@ async def check_resume(resume_text: str, anthropic_key: str) -> dict:
         raw = re.sub(r"\s*```$", "", raw)
 
     return json.loads(raw)
+
+
+def extract_weak_categories(check_result: dict, score_threshold: int = 85) -> list[dict]:
+    """Return categories below score_threshold with their improvement hints.
+
+    Pure function — no LLM call. Used by both the CvScoreEvaluatorAgent and the
+    CV Score refinement loop to build structured issue lists for the next pass.
+    """
+    categories = check_result.get("categories") or []
+    weak = []
+    for cat in sorted(categories, key=lambda c: int(c.get("score", 100) or 100)):
+        score = int(cat.get("score", 100) or 100)
+        if score >= score_threshold:
+            continue
+        improvements = (cat.get("improvements") or [])[:3]
+        if improvements:
+            weak.append({
+                "key": cat.get("key") or cat.get("name") or "category",
+                "name": cat.get("name") or cat.get("key") or "category",
+                "score": score,
+                "improvements": improvements,
+            })
+    return weak
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -560,7 +588,7 @@ async def extract_resume_for_preview(resume_text: str, anthropic_key: str) -> di
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=8000,
-        system=system,
+        system=_cache_system(system),
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -808,7 +836,7 @@ async def check_grammar(resume_text: str, anthropic_key: str) -> dict:
     message = await client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=2500,
-        system=system,
+        system=_cache_system(system),
         messages=[{"role": "user", "content": prompt}],
     )
 

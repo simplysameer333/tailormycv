@@ -38,4 +38,4 @@ class OpenAIEvaluatorAgent(BaseEvaluatorAgent):
             result = parse_json_response(response.content)
             return {"model": self.name, "score": int(result["score"]), "suggestions": result.get("suggestions", [])}
         except Exception as exc:
-            return {"model": self.name, "score": 0, "suggestions": [f"Evaluator error: {exc}"]}
+            return {"model": self.name, "score": None, "suggestions": [f"Evaluator error: {exc}"]}

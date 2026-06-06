@@ -23,7 +23,7 @@ _aggregator = AggregatorAgent()
 
 # Minimum score gain a cycle must deliver to justify running another one. Below
 # this, the refine loop is treated as plateaued and exits early (see should_continue).
-_PLATEAU_MARGIN = 2
+_PLATEAU_MARGIN = 4
 
 # Global fallback evaluator flags — used only when no per-request tier is set.
 # In practice every authenticated request now passes enabled_evaluators via state.
@@ -91,6 +91,7 @@ async def aggregate_node(state: PipelineState) -> dict:
         state["eval_results"],
         state["profession_config"],
         pass_threshold=state.get("pass_threshold"),
+        prior_seen_suggestions=state.get("seen_suggestions") or [],
     )
     cycle_record = {
         "cycle": state["cycle"] + 1,
@@ -111,6 +112,8 @@ async def aggregate_node(state: PipelineState) -> dict:
         "last_gain": min_score - prev_best,
         "feedback": aggregated["feedback_prompt"] if not aggregated["all_passed"] else None,
         "eval_history": [cycle_record],
+        # Accumulate new suggestions seen this cycle (operator.add in state appends).
+        "seen_suggestions": aggregated.get("new_seen_suggestions") or [],
     }
     # Keep the highest-scoring cycle — the loop is non-monotonic, so the LAST
     # cycle is not always the best. We return best_resume_json at the end.

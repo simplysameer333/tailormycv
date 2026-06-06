@@ -77,24 +77,19 @@ class CvScoreEvaluatorAgent(BaseEvaluatorAgent):
 
     async def run(self, resume_json: dict, job_description: str, profession_config: dict,
                   source_resume_text: str = "") -> dict:
-        from services.resume_checker_service import check_resume
+        from services.resume_checker_service import check_resume, extract_weak_categories
         try:
             text = resume_json_to_text(resume_json)
             result = await check_resume(text, settings.anthropic_api_key)
             score = int(result.get("overall_score", 0) or 0)
-            # Feedback = improvement hints from the categories that are dragging the
-            # score, so the next cycle fixes exactly what CV-Score penalised.
-            suggestions: list[str] = []
-            cats = sorted(
-                (result.get("categories") or []),
-                key=lambda c: int(c.get("score", 100) or 100),
-            )
-            for c in cats:
-                if int(c.get("score", 100) or 100) >= 85:
-                    continue
-                label = c.get("name") or c.get("key") or "category"
-                for imp in (c.get("improvements") or [])[:2]:
-                    suggestions.append(f"[{label}] {imp}")
+            # Feedback = improvement hints from weak categories, shared with the
+            # refinement loop via extract_weak_categories for consistency.
+            weak = extract_weak_categories(result)
+            suggestions = [
+                f"[{c['name']}] {imp}"
+                for c in weak
+                for imp in c["improvements"][:2]
+            ]
             return {"model": self.name, "score": score, "suggestions": suggestions[:8]}
         except Exception as exc:
-            return {"model": self.name, "score": 0, "suggestions": [f"CV-Score error: {exc}"]}
+            return {"model": self.name, "score": None, "suggestions": [f"CV-Score error: {exc}"]}
