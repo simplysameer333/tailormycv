@@ -345,6 +345,80 @@ async def generator_messages(
     return [_cached_system(system), HumanMessage(content="\n\n".join(parts))]
 
 
+def _build_patch_schema(patch_keys: list[str]) -> str:
+    """Build a minimal JSON schema string for only the requested patch keys."""
+    schema_parts = []
+    for k in patch_keys:
+        if k == "contact":
+            schema_parts.append(
+                '  "contact": {"email": "string", "phone": "string", "linkedin": "string",'
+                ' "github": "string", "website": "string", "location": "string"}'
+            )
+        elif k == "summary":
+            schema_parts.append('  "summary": "string"')
+        elif k == "experience":
+            schema_parts.append(
+                '  "experience": [{"company": "string", "role": "string",'
+                ' "dates": "string", "bullets": ["string"]}]'
+            )
+        elif k == "education":
+            schema_parts.append(
+                '  "education": [{"institution": "string", "degree": "string", "dates": "string"}]'
+            )
+        elif k == "sections":
+            schema_parts.append('  "sections": [{"title": "string", "items": ["string"]}]')
+        else:
+            schema_parts.append(f'  "{k}": <value>')
+    return "{\n" + ",\n".join(schema_parts) + "\n}"
+
+
+async def patch_messages(
+    resume_text: str,
+    user_profile: dict,
+    job_description: str,
+    tone: str,
+    feedback: str,
+    current_resume: dict,
+    patch_keys: list[str],
+    profession_config: dict,
+    locked_facts: list,
+    key_skills: list,
+    template_pages: int = 2,
+) -> list:
+    """Build the message list for a targeted section patch (cycles 2+).
+
+    Outputs a partial JSON containing only patch_keys — ~200–600 tokens instead
+    of 2000–3000 for a full resume, so each patch cycle runs in ~8 s vs ~30 s.
+    The caller merges the result back into the current resume.
+    Reuses the same cached system prompt as generator_messages for cache hits.
+    """
+    system = await _build_generator_system(tone, profession_config, locked_facts, template_pages)
+    current_subset = {k: current_resume[k] for k in patch_keys if k in current_resume}
+    parts = [
+        f"## EXISTING RESUME (source of truth — never fabricate)\n{resume_text}",
+        f"## CANDIDATE PROFILE\n{toon_encode(user_profile)}",
+        f"## JOB DESCRIPTION\n{job_description}",
+    ]
+    if key_skills:
+        skills_block = "\n".join(f"- {s}" for s in key_skills)
+        parts.append(f"## KEY SKILLS TO EMPHASISE\n{skills_block}")
+    parts.append(
+        f"## CURRENT SECTIONS TO FIX (improve these; do not regress what is already strong)\n"
+        f"{toon_encode(current_subset)}"
+    )
+    parts.append(f"## EVALUATOR FEEDBACK (address every suggestion below)\n{feedback}")
+    keys_str = ", ".join(f'"{k}"' for k in patch_keys)
+    schema = _build_patch_schema(patch_keys)
+    parts.append(
+        f"## OUTPUT FORMAT\n\n"
+        f"Return ONLY a valid JSON object with exactly these keys: {keys_str}.\n"
+        f"Do NOT include any other resume sections — the output is merged with the unchanged sections.\n\n"
+        f"{schema}"
+    )
+    parts.append(f"Rewrite {keys_str} to address the feedback above. Return only those keys.")
+    return [_cached_system(system), HumanMessage(content="\n\n".join(parts))]
+
+
 async def section_messages(
     resume_text: str,
     user_profile: dict,
