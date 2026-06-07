@@ -45,7 +45,7 @@ class AggregatorAgent(BaseAgent):
         lines.append("## EVALUATOR FEEDBACK")
         prior_seen: set[str] = set(prior_seen_suggestions or [])
         new_seen: list[str] = []
-        for r in evaluator_results:
+        for r in valid_results:
             score_display = r["score"] if r.get("score") is not None else "error"
             lines.append(f"\n**{r['model'].upper()} (score: {score_display}/100):**")
             for suggestion in r.get("suggestions", []):

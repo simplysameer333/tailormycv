@@ -26,7 +26,7 @@ class OpenAIEvaluatorAgent(BaseEvaluatorAgent):
             model=settings.openai_evaluator_model,
             api_key=settings.openai_api_key,
             max_tokens=1024,
-            max_retries=0,
+            max_retries=2,
             timeout=30,
         )
 

@@ -29,7 +29,7 @@ class GoogleEvaluatorAgent(BaseEvaluatorAgent):
             model=settings.google_evaluator_model,
             google_api_key=settings.google_api_key,
             max_output_tokens=1024,
-            max_retries=0,
+            max_retries=2,
         )
 
     async def run(self, resume_json: dict, job_description: str, profession_config: dict, source_resume_text: str = "") -> dict:

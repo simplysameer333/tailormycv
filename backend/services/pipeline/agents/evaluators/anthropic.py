@@ -26,7 +26,7 @@ class AnthropicEvaluatorAgent(BaseEvaluatorAgent):
             model=settings.anthropic_evaluator_model,
             api_key=settings.anthropic_api_key,
             max_tokens=1024,
-            max_retries=0,
+            max_retries=2,
             timeout=30,
         )
 
