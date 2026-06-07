@@ -372,6 +372,25 @@ async def generate(
         final_state["min_score"] = final_state["best_min_score"]
         final_state["all_passed"] = final_state["best_min_score"] >= pass_threshold
 
+    # ── Reviewer sub-agent — post-loop polish pass ────────────────────────────
+    # A second focused Sonnet call reviews the finished draft against the JD with
+    # fresh eyes: framing, emphasis, verb precision, JD keyword alignment.
+    # Runs only when a JD is present (tailored run). Non-fatal: keeps loop output
+    # on any failure. Skipped on timed-out runs to avoid extending a slow request.
+    if not _timed_out and final_state.get("resume_json") and job_description.strip():
+        try:
+            from services.pipeline.agents.reviewer import ReviewerAgent
+            reviewed = await ReviewerAgent().run(
+                resume_json=final_state["resume_json"],
+                job_description=job_description,
+            )
+            if reviewed:
+                final_state["resume_json"] = reviewed
+                logger.info("[generate] Reviewer pass applied for session %s.", session_id)
+        except Exception as _rev_exc:
+            logger.warning("[generate] Reviewer pass skipped (non-fatal): %s", _rev_exc)
+
+    # Actual calls used: 1 job-analyzer + (generator + evaluators) * completed cycles
     actual_calls = job_analyzer_calls + (1 + active_evaluator_count) * final_state["cycle"]
     await _increment_call_count(db, session_id, actual_calls)
 
