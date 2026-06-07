@@ -8,11 +8,68 @@ cycle, so it replaces the 3-evaluator panel at lower cost.
 
 The evaluator returns the CV-Score as `score` and the weak-category improvement
 hints as `suggestions`, which the aggregator turns into the next cycle's feedback.
+
+Patch-key selection is relevance-weighted: weak categories are ranked by a combined
+score of (100 - category_score) + jd_weight * 0.5, where jd_weight counts how many
+JD-specific keywords for that category appear in the job description. This biases
+feedback toward sections that are BOTH weak AND highly relevant to the specific JD,
+so the generator spends its next cycle on the highest-impact improvements.
 """
 from __future__ import annotations
 
 from .base import BaseEvaluatorAgent
 from config import settings
+
+# Maps each CV-Score category key to JD keyword signals for that section.
+# A higher hit count means the JD cares more about that section → apply a
+# relevance boost so the section ranks higher in the feedback even when its
+# raw CV-score gap is similar to other sections.
+_SECTION_JD_KEYWORDS: dict[str, list[str]] = {
+    "experience": [
+        "experience", "worked", "managed", "led", "delivered", "drove",
+        "built", "launched", "owned", "responsible", "background",
+        "track record", "proven", "demonstrated",
+    ],
+    "skills": [
+        "proficient", "knowledge of", "familiar with", "expertise",
+        "technical skills", "stack", "technologies", "tools", "frameworks",
+        "languages", "platforms",
+    ],
+    "summary": [
+        "summary", "profile", "about you", "who you are", "objective",
+        "overview", "introduction",
+    ],
+    "ats": [
+        "keyword", "ats", "applicant tracking", "search", "matching",
+        "screening", "filter",
+    ],
+    "education": [
+        "degree", "bachelor", "master", "phd", "mba", "qualification",
+        "certified", "certification", "accredited", "graduate",
+    ],
+    "contact": [
+        "linkedin", "portfolio", "github", "location", "remote", "hybrid",
+        "on-site", "relocation",
+    ],
+    "design": [
+        "format", "layout", "presentation", "one page", "two page",
+        "concise", "clear", "structured",
+    ],
+}
+
+
+def _jd_section_boost(category_key: str, job_description: str) -> int:
+    """Count JD keyword hits for a given CV-Score category key.
+
+    Returns a non-negative integer. Used as a tie-breaker / boost when ranking
+    weak categories: a section that is weak AND heavily signalled by the JD
+    should be addressed first in the next generator cycle.
+    """
+    if not job_description:
+        return 0
+    jd_lower = job_description.lower()
+    keywords = _SECTION_JD_KEYWORDS.get(category_key, [])
+    return sum(1 for kw in keywords if kw in jd_lower)
 
 
 def resume_json_to_text(rj: dict) -> str:
@@ -85,6 +142,19 @@ class CvScoreEvaluatorAgent(BaseEvaluatorAgent):
             # Feedback = improvement hints from weak categories, shared with the
             # refinement loop via extract_weak_categories for consistency.
             weak = extract_weak_categories(result)
+            # Re-rank by relevance-weighted priority: sections that are weak AND
+            # heavily signalled by the JD surface first in the feedback prompt so
+            # the generator addresses them on the next cycle.
+            # Sort key: higher combined score = higher priority.
+            #   base_gap   = 100 - category_score  (0–100, larger = weaker)
+            #   jd_weight  = keyword hits in the JD (0–N, larger = more JD-relevant)
+            #   combined   = base_gap + jd_weight * 0.5
+            # This preserves the existing score-based ordering when the JD adds no
+            # signal (jd_weight=0 for all), and boosts JD-relevant sections otherwise.
+            weak.sort(
+                key=lambda c: (100 - c["score"]) + _jd_section_boost(c["key"], job_description) * 0.5,
+                reverse=True,
+            )
             suggestions = [
                 f"[{c['name']}] {imp}"
                 for c in weak

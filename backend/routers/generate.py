@@ -579,6 +579,44 @@ async def set_locked_facts(
     return {"locked_facts": locked}
 
 
+@router.get("/sessions/{session_id}/skill-gaps")
+async def skill_gaps(session_id: str):
+    """Skill gap analysis — matched vs missing JD skills for this session.
+
+    Requires a session with a parsed resume + job description.
+    Single Haiku call (~$0.001). Result cached on session.
+    """
+    db = get_db()
+    session = await db.sessions.find_one({"_id": ObjectId(session_id)})
+    if not session:
+        raise HTTPException(404, "Session not found.")
+
+    # Return cached result if present
+    cached = session.get("skill_gaps")
+    if cached:
+        return cached
+
+    resume_text = (session.get("resume_parsed") or {}).get("raw_text", "")
+    job_description = session.get("job_description") or ""
+
+    if not resume_text:
+        raise HTTPException(422, "No resume found in session.")
+    if not job_description.strip():
+        raise HTTPException(422, "No job description in session.")
+
+    try:
+        from services.skill_gap_service import analyze_skill_gaps
+        result = await analyze_skill_gaps(resume_text, job_description)
+        await db.sessions.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$set": {"skill_gaps": result}},
+        )
+        return result
+    except Exception as exc:
+        logger.warning("[skill_gaps] Failed for session %s: %s", session_id, exc)
+        raise HTTPException(500, f"Skill gap analysis failed: {exc}")
+
+
 @router.post("/sessions/{session_id}/fit-score")
 async def fit_score(session_id: str):
     """Pre-generation fit assessment — scores candidate-job match before running the pipeline.
