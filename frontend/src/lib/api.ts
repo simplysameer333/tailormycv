@@ -942,6 +942,41 @@ export async function adminGenerateCvTemplate(
   return data as GeneratedTemplate;
 }
 
+// ── Fit Score ─────────────────────────────────────────────────────────────────
+
+export interface FitScoreResult {
+  overall: number;
+  verdict: "Strong Fit" | "Good Fit" | "Moderate Fit" | "Weak Fit";
+  skills_match: number;
+  experience_match: number;
+  career_alignment: number;
+  matched_skills: string[];
+  missing_required: string[];
+  summary: string;
+}
+
+export async function checkFit(sessionId: string): Promise<FitScoreResult> {
+  const res = await api.post(`/api/sessions/${sessionId}/fit-score`);
+  return res.data as FitScoreResult;
+}
+
+// ── Cover Letter ───────────────────────────────────────────────────────────────
+
+export interface CoverLetterResult {
+  subject: string;
+  body: string;
+}
+
+export async function generateCoverLetter(sessionId: string): Promise<CoverLetterResult> {
+  const res = await api.post(`/api/sessions/${sessionId}/cover-letter`);
+  return res.data as CoverLetterResult;
+}
+
+export async function getCoverLetter(sessionId: string): Promise<CoverLetterResult | null> {
+  const res = await api.get(`/api/sessions/${sessionId}/cover-letter`);
+  return res.data as CoverLetterResult | null;
+}
+
 // ── System config (global admin master switches) ────────────────────────────────
 
 export interface SystemConfig {
