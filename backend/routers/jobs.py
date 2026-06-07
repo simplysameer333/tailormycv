@@ -6,6 +6,8 @@ GET    /api/jobs/quota               — current monthly usage stats
 POST   /api/jobs/save                — save a job to the user's list
 GET    /api/jobs/saved               — list saved jobs
 DELETE /api/jobs/saved/{job_id}      — remove a saved job
+POST   /api/jobs/mark-seen           — mark a job as viewed (deduplication)
+GET    /api/jobs/seen                — return list of seen job IDs for this user
 
 Caching strategy:
   Search results are cached in MongoDB for CACHE_TTL_S seconds.
@@ -240,3 +242,29 @@ async def unsave_job(job_id: str, user: dict = Depends(get_current_user)):
     result = await db.saved_jobs.delete_one({"user_id": user["_id"], "job_id": job_id})
     if result.deleted_count == 0:
         raise HTTPException(404, "Saved job not found.")
+
+
+# ── Seen jobs (deduplication) ──────────────────────────────────────────────────
+
+class MarkSeenBody(BaseModel):
+    job_id: str
+
+
+@router.post("/jobs/mark-seen", status_code=204)
+async def mark_job_seen(body: MarkSeenBody, user: dict = Depends(get_current_user)):
+    """Record that the user has viewed this job. Idempotent upsert."""
+    db = get_db()
+    await db.seen_jobs.update_one(
+        {"user_id": user["_id"], "job_id": body.job_id},
+        {"$setOnInsert": {"user_id": user["_id"], "job_id": body.job_id, "seen_at": datetime.utcnow()}},
+        upsert=True,
+    )
+
+
+@router.get("/jobs/seen")
+async def get_seen_job_ids(user: dict = Depends(get_current_user)):
+    """Return the list of job IDs this user has already viewed."""
+    db = get_db()
+    cursor = db.seen_jobs.find({"user_id": user["_id"]}, {"job_id": 1, "_id": 0})
+    docs = await cursor.to_list(length=2000)
+    return [d["job_id"] for d in docs]

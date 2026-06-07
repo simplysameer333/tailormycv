@@ -538,6 +538,15 @@ export async function unsaveJob(jobId: string): Promise<void> {
   await api.delete(`/api/jobs/saved/${jobId}`);
 }
 
+export async function markJobSeen(jobId: string): Promise<void> {
+  await api.post("/api/jobs/mark-seen", { job_id: jobId });
+}
+
+export async function getSeenJobIds(): Promise<string[]> {
+  const res = await api.get("/api/jobs/seen");
+  return res.data as string[];
+}
+
 // ── Account profile ───────────────────────────────────────────────────────────
 
 export interface AccountProfile {

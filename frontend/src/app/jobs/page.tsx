@@ -10,6 +10,7 @@ import {
 } from "react-icons/fi";
 import {
   searchJobs, saveJob, unsaveJob, getSavedJobs,
+  markJobSeen, getSeenJobIds,
   getAccountProfile, createSessionFromProfileWithJob,
   getJobsQuota, searchCatalogRoles,
   listJobAlerts, deleteJobAlert, toggleJobAlert,
@@ -158,17 +159,21 @@ const EMPLOYMENT_LABEL: Record<string, string> = {
 function JobCard({
   job,
   saved,
+  seen,
   isFree,
   onSave,
   onTailor,
   onUseSaved,
+  onApply,
 }: {
   job: Job;
   saved: boolean;
+  seen: boolean;
   isFree: boolean;
   onSave: (job: Job) => void;
   onTailor: (job: Job) => void;
   onUseSaved: (job: Job) => void;
+  onApply: (job: Job) => void;
 }) {
   const salary = formatSalary(job);
   const posted = timeAgo(job.job_posted_at_datetime_utc);
@@ -199,20 +204,28 @@ function JobCard({
       {/* Main info */}
       <div className="flex-1 min-w-0">
 
-        {/* Row 1 — title (left) + location/type/remote (right) */}
+        {/* Row 1 — title (left) + badges + location/type/remote (right) */}
         <div className="flex items-start justify-between gap-3">
-          {job.job_apply_link && job.job_apply_link !== "#" ? (
-            <a
-              href={job.job_apply_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-slate-900 text-base leading-snug hover:text-brand-600 hover:underline underline-offset-2 transition-colors"
-            >
-              {job.job_title}
-            </a>
-          ) : (
-            <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
-          )}
+          <div className="flex items-center gap-2 min-w-0">
+            {job.job_apply_link && job.job_apply_link !== "#" ? (
+              <a
+                href={job.job_apply_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => onApply(job)}
+                className="font-semibold text-slate-900 text-base leading-snug hover:text-brand-600 hover:underline underline-offset-2 transition-colors"
+              >
+                {job.job_title}
+              </a>
+            ) : (
+              <h3 className="font-semibold text-slate-900 text-base leading-snug">{job.job_title}</h3>
+            )}
+            {seen && (
+              <span className="shrink-0 text-[10px] font-semibold text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+                Viewed
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
             {location && (
               <span className="flex items-center gap-1 text-xs text-slate-500">
@@ -426,6 +439,8 @@ export default function JobsPage() {
   const [hasProfileResume, setHasProfileResume] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+  const [hideViewed, setHideViewed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMsg, setLoadingMsg] = useState(0);
   const [searched, setSearched] = useState(false);
@@ -476,8 +491,9 @@ export default function JobsPage() {
         );
       }
       try {
-        const saved = await getSavedJobs();
+        const [saved, seen] = await Promise.all([getSavedJobs(), getSeenJobIds()]);
         setSavedIds(new Set(saved.map((j) => j.job_id)));
+        setSeenIds(new Set(seen));
       } catch { /* non-fatal */ }
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status;
@@ -549,24 +565,28 @@ export default function JobsPage() {
   }
 
   function handleTailor(job: Job) {
+    markJobSeen(job.job_id).catch(() => {});
+    setSeenIds((prev) => new Set(prev).add(job.job_id));
     const jd = [
       `${job.job_title} at ${job.employer_name}`,
       job.job_description ?? "",
     ].filter(Boolean).join("\n\n");
     localStorage.setItem("tailormycv_prefill_jd", jd);
-    // Persist tailor context for the JobContextBanner shown on every builder step.
     localStorage.setItem("tailormycv_tailor_context", JSON.stringify({
       title:      job.job_title,
       employer:   job.employer_name,
       apply_link: job.job_apply_link || "",
     }));
-    // Also pass via URL params so the upload page badge is correct even if
-    // localStorage hasn't flushed yet.
     const params = new URLSearchParams({
       tailor_title:    job.job_title,
       tailor_employer: job.employer_name,
     });
     router.push(`/builder/upload?${params.toString()}`);
+  }
+
+  function handleApply(job: Job) {
+    markJobSeen(job.job_id).catch(() => {});
+    setSeenIds((prev) => new Set(prev).add(job.job_id));
   }
 
   // ── Alert handlers ──────────────────────────────────────────────────────────
@@ -792,7 +812,9 @@ export default function JobsPage() {
                     <div className="flex flex-col gap-3">
                       {MOCK_JOBS.map((job) => (
                         <JobCard key={job.job_id} job={job} saved={savedIds.has(job.job_id)}
-                          isFree={isFree} onSave={handleSave} onTailor={handleTailor} onUseSaved={(j) => setPickerJob(j)} />
+                          seen={seenIds.has(job.job_id)} isFree={isFree}
+                          onSave={handleSave} onTailor={handleTailor}
+                          onUseSaved={(j) => setPickerJob(j)} onApply={handleApply} />
                       ))}
                     </div>
                   </>
@@ -807,47 +829,66 @@ export default function JobsPage() {
 
               {!loading && jobs.length > 0 && (
                 <>
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>{jobs.length} result{jobs.length !== 1 ? "s" : ""} · page {page}</span>
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={() => { setEditingAlert(undefined); setAlertModalOpen(true); }}
-                        className="flex items-center gap-1 font-semibold text-brand-600 hover:text-brand-700 transition"
-                      >
-                        <FiBell className="w-3.5 h-3.5" /> Get daily alerts
-                      </button>
-                      <div className="flex items-center gap-2">
-                        <span>Show</span>
-                        <select
-                          value={pageSize}
-                          onChange={(e) => {
-                            const ps = Number(e.target.value) as JsearchPageSize;
-                            setPageSize(ps);
-                            setPage(1);
-                            if (searched) runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, ps);
-                          }}
-                          className="border border-slate-200 rounded-lg text-xs py-1 px-2 bg-white cursor-pointer hover:border-brand-400 transition focus:outline-none focus:ring-2 focus:ring-brand-100"
-                        >
-                          {JSEARCH_PAGE_SIZES.map((n) => (
-                            <option key={n} value={n}>{n} per page</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
+                  {(() => {
+                    const viewedCount = jobs.filter((j) => seenIds.has(j.job_id)).length;
+                    const visibleJobs = hideViewed ? jobs.filter((j) => !seenIds.has(j.job_id)) : jobs;
+                    return (
+                      <>
+                        <div className="flex items-center justify-between text-xs text-slate-500">
+                          <div className="flex items-center gap-3">
+                            <span>{jobs.length} result{jobs.length !== 1 ? "s" : ""} · page {page}</span>
+                            {viewedCount > 0 && (
+                              <button
+                                onClick={() => setHideViewed((v) => !v)}
+                                className="flex items-center gap-1 font-medium text-slate-500 hover:text-brand-600 transition"
+                              >
+                                {hideViewed
+                                  ? `Show ${viewedCount} viewed`
+                                  : `Hide ${viewedCount} viewed`}
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <button
+                              onClick={() => { setEditingAlert(undefined); setAlertModalOpen(true); }}
+                              className="flex items-center gap-1 font-semibold text-brand-600 hover:text-brand-700 transition"
+                            >
+                              <FiBell className="w-3.5 h-3.5" /> Get daily alerts
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <span>Show</span>
+                              <select
+                                value={pageSize}
+                                onChange={(e) => {
+                                  const ps = Number(e.target.value) as JsearchPageSize;
+                                  setPageSize(ps);
+                                  setPage(1);
+                                  if (searched) runSearch(queryTags.join(" "), locationTags.join(" OR "), 1, ps);
+                                }}
+                                className="border border-slate-200 rounded-lg text-xs py-1 px-2 bg-white cursor-pointer hover:border-brand-400 transition focus:outline-none focus:ring-2 focus:ring-brand-100"
+                              >
+                                {JSEARCH_PAGE_SIZES.map((n) => (
+                                  <option key={n} value={n}>{n} per page</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
 
-                  <div className="flex flex-col gap-3">
-                    {jobs.map((job) => (
-                      <JobCard
-                        key={job.job_id}
-                        job={job}
-                        saved={savedIds.has(job.job_id)}
-                        isFree={isFree}
-                        onSave={handleSave}
-                        onTailor={handleTailor}
-                        onUseSaved={(j) => setPickerJob(j)}
-                      />
-                    ))}
+                        <div className="flex flex-col gap-3">
+                          {visibleJobs.map((job) => (
+                            <JobCard
+                              key={job.job_id}
+                              job={job}
+                              saved={savedIds.has(job.job_id)}
+                              seen={seenIds.has(job.job_id)}
+                              isFree={isFree}
+                              onSave={handleSave}
+                              onTailor={handleTailor}
+                              onUseSaved={(j) => setPickerJob(j)}
+                              onApply={handleApply}
+                            />
+                          ))}
                   </div>
 
                   {/* Google-style pagination */}
@@ -886,6 +927,9 @@ export default function JobsPage() {
                       Next →
                     </button>
                   </div>
+                      </>
+                    );
+                  })()}
                 </>
               )}
             </>
