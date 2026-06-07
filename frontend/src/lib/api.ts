@@ -995,6 +995,41 @@ export async function generateCoverLetterStandalone(
   return res.data as CoverLetterResult;
 }
 
+// ── Interview Prep ─────────────────────────────────────────────────────────────
+
+export interface InterviewQuestion {
+  category: string;
+  question: string;
+  why_asked: string;
+  key_points: string[];
+}
+
+export interface InterviewPrepResult {
+  questions: InterviewQuestion[];
+  prep_tip: string;
+}
+
+export async function generateInterviewPrep(sessionId: string): Promise<InterviewPrepResult> {
+  const res = await api.post(`/api/sessions/${sessionId}/interview-prep`);
+  return res.data as InterviewPrepResult;
+}
+
+export async function getInterviewPrep(sessionId: string): Promise<InterviewPrepResult | null> {
+  const res = await api.get(`/api/sessions/${sessionId}/interview-prep`);
+  return res.data as InterviewPrepResult | null;
+}
+
+export async function generateInterviewPrepStandalone(
+  resumeText: string,
+  jobDescription: string,
+): Promise<InterviewPrepResult> {
+  const res = await api.post("/api/interview-prep/generate", {
+    resume_text: resumeText,
+    job_description: jobDescription,
+  });
+  return res.data as InterviewPrepResult;
+}
+
 // ── System config (global admin master switches) ────────────────────────────────
 
 export interface SystemConfig {

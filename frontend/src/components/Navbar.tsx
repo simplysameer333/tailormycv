@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
-import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield, FiSettings, FiCheckSquare, FiMail } from "react-icons/fi";
+import { FiUser, FiChevronDown, FiLogOut, FiBriefcase, FiEdit2, FiBell, FiShield, FiSettings, FiCheckSquare, FiMail, FiBookOpen } from "react-icons/fi";
 import Logo from "./Logo";
 import { useAuth } from "@/lib/useAuth";
 import { hasFeature } from "@/lib/config";
@@ -45,10 +45,11 @@ export default function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const onChecker      = pathname.startsWith("/cv-score");
-  const onBuilder      = pathname.startsWith("/builder");
-  const onJobs         = pathname.startsWith("/jobs");
-  const onCoverLetter  = pathname.startsWith("/cover-letter");
+  const onChecker       = pathname.startsWith("/cv-score");
+  const onBuilder       = pathname.startsWith("/builder");
+  const onJobs          = pathname.startsWith("/jobs");
+  const onCoverLetter   = pathname.startsWith("/cover-letter");
+  const onInterviewPrep = pathname.startsWith("/interview-prep");
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -111,6 +112,21 @@ export default function Navbar() {
             >
               <FiMail className="w-4 h-4" />
               Cover Letter
+            </Link>
+          )}
+
+          {/* ── Interview Prep ── */}
+          {status === "authenticated" && (
+            <Link
+              href="/interview-prep"
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                onInterviewPrep
+                  ? "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+              }`}
+            >
+              <FiBookOpen className="w-4 h-4" />
+              Interview Prep
             </Link>
           )}
 

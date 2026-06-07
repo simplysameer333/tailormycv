@@ -17,9 +17,10 @@ export default function Footer() {
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Tools</p>
             <ul className="space-y-2">
-              <li><Link href="/cv-score"       className="text-sm text-slate-600 hover:text-brand-600 transition">CV Score</Link></li>
+              <li><Link href="/cv-score"        className="text-sm text-slate-600 hover:text-brand-600 transition">CV Score</Link></li>
               <li><Link href="/builder/upload" className="text-sm text-slate-600 hover:text-brand-600 transition">CV Builder</Link></li>
               <li><Link href="/cover-letter"   className="text-sm text-slate-600 hover:text-brand-600 transition">Cover Letter</Link></li>
+              <li><Link href="/interview-prep" className="text-sm text-slate-600 hover:text-brand-600 transition">Interview Prep</Link></li>
               <li><Link href="/jobs"           className="text-sm text-slate-600 hover:text-brand-600 transition">Find Jobs</Link></li>
             </ul>
           </div>

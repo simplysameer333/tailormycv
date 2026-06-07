@@ -10,15 +10,18 @@ import {
   isPipelineResult,
   generateCoverLetter,
   getCoverLetter,
+  generateInterviewPrep,
+  getInterviewPrep,
   type GeneratedResume,
   type EvalSummary,
   type CoverLetterResult,
+  type InterviewPrepResult,
 } from "@/lib/api";
 import { getSessionId } from "@/lib/session";
 import { useStepGuard } from "@/lib/stepGuard";
 import { useAuth } from "@/lib/useAuth";
 import Link from "next/link";
-import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap, FiCopy, FiMail } from "react-icons/fi";
+import { FiRefreshCw, FiCheckCircle, FiShield, FiLock, FiX, FiPlus, FiMessageSquare, FiTrash2, FiZap, FiCopy, FiMail, FiBookOpen, FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { SUPPORT_EMAIL, hasFeature } from "@/lib/config";
 import { EvalSummaryPanel } from "@/components/EvalQualityPanel";
 
@@ -62,6 +65,8 @@ export default function PreviewPage() {
   const [loadingMsg, setLoadingMsg] = useState(0);
   const [coverLetter, setCoverLetter] = useState<CoverLetterResult | null>(null);
   const [coverLetterLoading, setCoverLetterLoading] = useState(false);
+  const [interviewPrep, setInterviewPrep] = useState<InterviewPrepResult | null>(null);
+  const [interviewPrepLoading, setInterviewPrepLoading] = useState(false);
 
   useEffect(() => {
     const storedResume = localStorage.getItem(LS_RESUME);
@@ -95,6 +100,15 @@ export default function PreviewPage() {
     getCoverLetter(sid)
       .then((cl) => { if (cl?.full_text) setCoverLetter(cl); })
       .catch(() => { /* no cover letter yet — silently ignore */ });
+  }, []);
+
+  // Auto-load interview prep if one was previously generated for this session
+  useEffect(() => {
+    const sid = getSessionId();
+    if (!sid) return;
+    getInterviewPrep(sid)
+      .then((prep) => { if (prep?.questions?.length) setInterviewPrep(prep); })
+      .catch(() => { /* no interview prep yet — silently ignore */ });
   }, []);
 
   async function persistTemplateToSession(sessionId: string) {
@@ -228,6 +242,22 @@ export default function PreviewPage() {
       toast.error("Could not generate cover letter — please try again.");
     } finally {
       setCoverLetterLoading(false);
+    }
+  }
+
+  async function handleGenerateInterviewPrep() {
+    const sessionId = getSessionId();
+    if (!sessionId) { toast.error("No session found."); return; }
+    setInterviewPrepLoading(true);
+    setInterviewPrep(null);
+    try {
+      const result = await generateInterviewPrep(sessionId);
+      setInterviewPrep(result);
+      toast.success("Interview questions ready!");
+    } catch {
+      toast.error("Could not generate interview prep — please try again.");
+    } finally {
+      setInterviewPrepLoading(false);
     }
   }
 
@@ -722,6 +752,14 @@ export default function PreviewPage() {
         onRegenerate={handleGenerateCoverLetter}
       />
 
+      {/* ── Interview Prep ── */}
+      <InterviewPrepCard
+        prep={interviewPrep}
+        loading={interviewPrepLoading}
+        onGenerate={handleGenerateInterviewPrep}
+        onRegenerate={handleGenerateInterviewPrep}
+      />
+
       <div className="flex justify-between pt-2">
         <button onClick={() => router.back()} className="btn-secondary">
           ← Back
@@ -1051,6 +1089,120 @@ function EditableField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
+    </div>
+  );
+}
+
+// ── Interview Prep card ────────────────────────────────────────────────────────
+
+const CATEGORY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  "Technical":    { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200"    },
+  "Behavioral":   { bg: "bg-purple-50",  text: "text-purple-700",  border: "border-purple-200"  },
+  "Situational":  { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200"   },
+  "Culture Fit":  { bg: "bg-teal-50",    text: "text-teal-700",    border: "border-teal-200"    },
+};
+
+function QuestionCard({ q }: { q: InterviewPrepResult["questions"][number] }) {
+  const [open, setOpen] = useState(false);
+  const style = CATEGORY_STYLES[q.category] ?? CATEGORY_STYLES["Technical"];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <button
+        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 transition"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className={`shrink-0 mt-0.5 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${style.bg} ${style.text} ${style.border}`}>
+          {q.category}
+        </span>
+        <span className="flex-1 text-sm font-medium text-slate-800 leading-snug">{q.question}</span>
+        {open
+          ? <FiChevronUp className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+          : <FiChevronDown className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+        }
+      </button>
+      {open && (
+        <div className="px-4 pb-4 space-y-3 border-t border-slate-100 pt-3">
+          <p className="text-xs text-slate-500 italic">{q.why_asked}</p>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Key points to cover</p>
+            <ul className="space-y-1">
+              {q.key_points.map((pt, i) => (
+                <li key={i} className="flex items-start gap-1.5 text-xs text-slate-700">
+                  <span className="text-brand-500 font-bold shrink-0 mt-0.5">·</span>{pt}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InterviewPrepCard({
+  prep,
+  loading,
+  onGenerate,
+  onRegenerate,
+}: {
+  prep: InterviewPrepResult | null;
+  loading: boolean;
+  onGenerate: () => void;
+  onRegenerate: () => void;
+}) {
+  return (
+    <div className="card space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <FiBookOpen className="w-4 h-4 text-brand-500 shrink-0" />
+          <div>
+            <h2 className="font-semibold text-slate-800 text-sm">Interview Prep</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Targeted questions the interviewer is likely to ask you</p>
+          </div>
+        </div>
+        {prep && !loading && (
+          <button
+            onClick={onRegenerate}
+            className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700"
+          >
+            <FiRefreshCw className="w-3 h-3" />
+            Regenerate
+          </button>
+        )}
+      </div>
+
+      {!prep && !loading && (
+        <button
+          onClick={onGenerate}
+          className="btn-primary flex items-center justify-center gap-2 w-full sm:w-auto"
+        >
+          <FiBookOpen className="w-4 h-4" />
+          Generate Interview Questions
+        </button>
+      )}
+
+      {loading && (
+        <div className="flex items-center gap-3 py-4 text-sm text-slate-500">
+          <span className="w-4 h-4 rounded-full border-2 border-brand-400 border-t-transparent animate-spin shrink-0" />
+          Preparing interview questions…
+        </div>
+      )}
+
+      {prep && !loading && (
+        <div className="space-y-2">
+          {prep.questions.map((q, i) => <QuestionCard key={i} q={q} />)}
+          {prep.prep_tip && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex gap-2.5 mt-3">
+              <FiZap className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[11px] font-bold text-amber-700 uppercase tracking-wide mb-0.5">Prep tip</p>
+                <p className="text-xs text-amber-800 leading-relaxed">{prep.prep_tip}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
