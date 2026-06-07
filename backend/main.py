@@ -22,6 +22,25 @@ logger = logging.getLogger("tailormycv")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 
+def _configure_langsmith() -> None:
+    """Set LangSmith env vars so LangGraph auto-traces all pipeline runs.
+
+    LangChain/LangGraph picks up LANGCHAIN_TRACING_V2 and LANGSMITH_API_KEY
+    automatically — no instrumentation code needed. This just ensures the vars
+    are present before any LangGraph call is made. No-op when key is absent.
+    """
+    import os
+    if not settings.langsmith_api_key:
+        return
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGSMITH_API_KEY"] = settings.langsmith_api_key
+    os.environ["LANGSMITH_PROJECT"] = settings.langsmith_project
+    logger.info("[langsmith] Tracing enabled — project=%s", settings.langsmith_project)
+
+
+_configure_langsmith()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_db()
@@ -60,85 +79,3 @@ async def lifespan(app: FastAPI):
     yield
     stop_scheduler()
     await disconnect_db()
-
-
-app = FastAPI(title="TailorMyCv API", version="1.1.0", lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.allowed_origins.split(","),
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# ── Global exception handlers ─────────────────────────────────────────────────
-
-@app.exception_handler(RequestValidationError)
-async def validation_error_handler(request: Request, exc: RequestValidationError):
-    """Return human-readable validation errors instead of raw Pydantic detail."""
-    errors = []
-    for err in exc.errors():
-        field = " → ".join(str(loc) for loc in err["loc"] if loc != "body")
-        errors.append(f"{field}: {err['msg']}" if field else err["msg"])
-    return JSONResponse(
-        status_code=422,
-        content={"detail": "; ".join(errors) or "Invalid request body"},
-    )
-
-
-@app.exception_handler(StarletteHTTPException)
-async def http_error_handler(request: Request, exc: StarletteHTTPException):
-    """Ensure all HTTP errors return consistent JSON."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": str(exc.detail)},
-    )
-
-
-@app.exception_handler(Exception)
-async def unhandled_error_handler(request: Request, exc: Exception):
-    """Catch-all for unexpected server errors — log, email alert, return generic 500."""
-    tb = traceback.format_exc()
-    logger.error(
-        "Unhandled exception on %s %s\n%s",
-        request.method,
-        request.url.path,
-        tb,
-    )
-    # Fire-and-forget alert email — never blocks the error response
-    import asyncio
-    from services.email_service import send_error_alert
-    asyncio.create_task(send_error_alert(request.method, request.url.path, exc, tb))
-
-    return JSONResponse(
-        status_code=500,
-        content={"detail": "An unexpected server error occurred. Please try again or contact support."},
-    )
-
-
-# ── Routers ────────────────────────────────────────────────────────────────────
-
-app.include_router(auth.router, prefix="/api")
-app.include_router(resume.router, prefix="/api")
-app.include_router(profile.router, prefix="/api")
-app.include_router(job_description.router, prefix="/api")
-app.include_router(generate.router, prefix="/api")
-app.include_router(export.router, prefix="/api")
-app.include_router(professions.router, prefix="/api")
-app.include_router(jobs.router, prefix="/api")
-app.include_router(account.router, prefix="/api")
-app.include_router(catalog.router, prefix="/api")
-app.include_router(resume_library.router, prefix="/api")
-app.include_router(job_alerts.router, prefix="/api")
-app.include_router(admin.router, prefix="/api")
-app.include_router(linkedin.router, prefix="/api")
-app.include_router(config_router.router, prefix="/api")
-app.include_router(cv_templates.router, prefix="/api")
-app.include_router(admin_cv_templates.router, prefix="/api")
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok", "app": "TailorMyCv"}

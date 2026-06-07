@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # ── API keys ──────────────────────────────────────────────────────────────
+    # ── API keys ────────────────────────────────────────────────────────────────────
     anthropic_api_key: str
     openai_api_key: str = ""
     google_api_key: str = ""
@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     openai_evaluator_model: str = "gpt-4o-mini"
     google_evaluator_model: str = "gemini-2.5-flash"
 
-    # ── Evaluator feature flags ───────────────────────────────────────────────
+    # ── Evaluator feature flags ─────────────────────────────────────────────
     # Set to true/false in .env to enable/disable each evaluator independently.
     # Disabled evaluators are skipped entirely — no API call is made.
     anthropic_evaluator_enabled: bool = True
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # Maximum generator-evaluator cycles per session before returning best result.
     max_eval_cycles: int = 3
 
-    # ── Per-session cost controls ─────────────────────────────────────────────
+    # ── Per-session cost controls ───────────────────────────────────────────
     # Hard cap on total AI API calls per session across all generate invocations.
     # Minimum per full run: 1 job-analyzer + (1 gen + N evaluators) × max_eval_cycles
     #   Free  (1 eval, 3 cycles): 1 + 2×3  =  7
@@ -42,13 +42,13 @@ class Settings(BaseSettings):
     # Set to 0 to disable the cap entirely.
     max_ai_calls_per_session: int = 30
 
-    # ── Skill extraction (JobAnalyzerAgent) ──────────────────────────────────
+    # ── Skill extraction (JobAnalyzerAgent) ──────────────────────────────
     # Number of key skills the job analyzer picks and passes to the generator.
     # Maps to subscription tiers — override per-user when billing is wired:
     #   Free  = 3  |  Plus = 5  |  Pro = 10
     skill_extraction_count: int = 3
 
-    # ── CV Score lazy evaluation + refinement loop ────────────────────────────
+    # ── CV Score lazy evaluation + refinement loop ──────────────────────────
     # If check_resume() returns overall_score >= this threshold, skip grammar and
     # return immediately (extraction still runs for template display). Set to 0 to
     # always run all three calls (legacy behaviour — useful for debugging).
@@ -58,13 +58,13 @@ class Settings(BaseSettings):
     # Minimum score gain per refinement cycle to justify another pass.
     cv_score_plateau_margin: int = 3
 
-    # ── Feature flags ─────────────────────────────────────────────────────────
+    # ── Feature flags ──────────────────────────────────────────────────────
     # PDF export runs LibreOffice headless — disable on environments without it.
     pdf_export_enabled: bool = False
     # Slug of the first/featured profession used as fallback when no keyword matches.
     featured_profession_slug: str = "software_engineer"
 
-    # ── File storage ─────────────────────────────────────────────────────────
+    # ── File storage ─────────────────────────────────────────────────────
     # Switch backends by changing STORAGE_BACKEND — no code changes needed.
     #   "local"  →  files saved under STORAGE_LOCAL_PATH (default; dev-friendly)
     #   "s3"     →  files uploaded to AWS S3 (set AWS_S3_BUCKET + credentials)
@@ -96,12 +96,19 @@ class Settings(BaseSettings):
     # Same query+location+page within this window costs zero quota.
     jsearch_cache_ttl_s: int = 7200  # 2 hours default
 
-    # ── Infrastructure ────────────────────────────────────────────────────────
+    # ── LangSmith tracing (optional) ───────────────────────────────────────────
+    # Set LANGSMITH_API_KEY to enable automatic LangGraph trace export.
+    # LangChain/LangGraph reads LANGCHAIN_TRACING_V2 + LANGSMITH_API_KEY from
+    # the OS environment — startup code sets them if this key is present.
+    langsmith_api_key: str = ""
+    langsmith_project: str = "tailormycv"
+
+    # ── Infrastructure ─────────────────────────────────────────────────────────
     mongodb_uri: str
     allowed_origins: str = "http://localhost:4000"
     frontend_url: str = "http://localhost:4000"
 
-    # ── Email (Brevo HTTP API for job alert digests) ─────────────────────────
+    # ── Email (Brevo HTTP API for job alert digests) ───────────────────────
     # Sign up free at brevo.com — verify tailormycv.alerts@gmail.com as sender,
     # then grab the API key from Settings → SMTP & API → API Keys.
     support_email: str = "tailormycv.alerts@gmail.com"

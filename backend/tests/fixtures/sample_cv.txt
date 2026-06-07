@@ -1,0 +1,35 @@
+Alex Johnson
+alex.johnson@gmail.com | 07700 900456 | Manchester, UK
+
+PROFESSIONAL SUMMARY
+Software engineer with 6 years of experience building web applications and backend
+services. Skilled in Python, JavaScript, and AWS. Delivered projects on time and
+improved team productivity.
+
+WORK EXPERIENCE
+
+Senior Software Engineer — FinTech Solutions Ltd, Manchester
+February 2021 – Present
+- Led a team to redesign the payment processing service
+- Built REST APIs with FastAPI and deployed on AWS Lambda
+- Reduced infrastructure costs by optimising cloud resource usage
+- Improved test coverage across the codebase
+- Mentored two junior developers and conducted regular code reviews
+- Collaborated with product and design teams to deliver quarterly releases
+
+Software Engineer — Digital Agency Ltd, Leeds
+June 2018 – January 2021
+- Developed full-stack features for client web applications using React and Django
+- Integrated third-party payment providers including Stripe and PayPal
+- Set up CI/CD pipelines using Jenkins and Docker
+- Fixed performance bottlenecks and improved application response times
+- Participated in client meetings and requirements gathering sessions
+
+EDUCATION
+Bachelor of Engineering (Software Engineering)
+University of Leeds, Graduated 2018
+
+TECHNICAL SKILLS
+Python, JavaScript, TypeScript, React, Django, FastAPI, Node.js, PostgreSQL, MySQL,
+Redis, AWS (EC2, S3, Lambda, RDS), Docker, Kubernetes, Git, Jenkins, REST APIs,
+Microservices, Agile/Scrum
