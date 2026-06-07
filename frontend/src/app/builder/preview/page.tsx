@@ -93,7 +93,7 @@ export default function PreviewPage() {
     const sid = getSessionId();
     if (!sid) return;
     getCoverLetter(sid)
-      .then((cl) => { if (cl?.body) setCoverLetter(cl); })
+      .then((cl) => { if (cl?.full_text) setCoverLetter(cl); })
       .catch(() => { /* no cover letter yet — silently ignore */ });
   }, []);
 
@@ -752,9 +752,9 @@ function CoverLetterCard({
 
   function handleCopy() {
     if (!coverLetter) return;
-    const text = coverLetter.subject
-      ? `Subject: ${coverLetter.subject}\n\n${coverLetter.body}`
-      : coverLetter.body;
+    const text = coverLetter.subject_line
+      ? `Subject: ${coverLetter.subject_line}\n\n${coverLetter.full_text}`
+      : coverLetter.full_text;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -805,10 +805,10 @@ function CoverLetterCard({
       {/* Generated cover letter */}
       {coverLetter && !loading && (
         <div className="space-y-3">
-          {coverLetter.subject && (
+          {coverLetter.subject_line && (
             <div>
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-0.5">Subject line</p>
-              <p className="text-sm font-semibold text-slate-800">{coverLetter.subject}</p>
+              <p className="text-sm font-semibold text-slate-800">{coverLetter.subject_line}</p>
             </div>
           )}
 
@@ -816,7 +816,7 @@ function CoverLetterCard({
             <textarea
               readOnly
               className="input resize-none text-sm font-mono h-72 text-slate-700 bg-slate-50 cursor-default"
-              value={coverLetter.body}
+              value={coverLetter.full_text}
             />
           </div>
 

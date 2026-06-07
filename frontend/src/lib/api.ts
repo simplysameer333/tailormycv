@@ -963,8 +963,15 @@ export async function checkFit(sessionId: string): Promise<FitScoreResult> {
 // ── Cover Letter ───────────────────────────────────────────────────────────────
 
 export interface CoverLetterResult {
-  subject: string;
-  body: string;
+  company_name: string;
+  subject_line: string;
+  recipient: string;
+  opening: string;
+  body_paragraphs: string[];
+  closing: string;
+  sign_off: string;
+  candidate_name: string;
+  full_text: string;
 }
 
 export async function generateCoverLetter(sessionId: string): Promise<CoverLetterResult> {
