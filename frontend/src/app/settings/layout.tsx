@@ -1,14 +1,11 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import AppShell from "@/components/AppShell";
 import AuthGuard from "@/components/AuthGuard";
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <AppShell className="bg-slate-50">
       <AuthGuard />
-      <Navbar />
       <div className="flex-1">{children}</div>
-      <Footer />
-    </div>
+    </AppShell>
   );
 }

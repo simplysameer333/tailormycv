@@ -72,105 +72,61 @@ export default function Navbar() {
         <div className="flex items-center gap-1 sm:gap-3">
 
           {/* ── CV Score (all users) ── */}
-          <>
+          <Link
+            href="/cv-score"
+            className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+              onChecker
+                ? "border-brand-400 bg-brand-50 text-brand-700"
+                : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+            }`}
+          >
+            <FiCheckSquare className="w-4 h-4" />
+            CV Score
+          </Link>
+
+          {/* ── CV Builder ── */}
+          {status === "authenticated" && (
             <Link
-              href="/cv-score"
-              title="CV Score"
-              className={`sm:hidden p-2 rounded-lg transition ${
-                onChecker ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <FiCheckSquare className="w-5 h-5" />
-            </Link>
-            <Link
-              href="/cv-score"
+              href="/builder/upload"
               className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                onChecker
+                onBuilder
                   ? "border-brand-400 bg-brand-50 text-brand-700"
                   : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
               }`}
             >
-              <FiCheckSquare className="w-4 h-4" />
-              CV Score
+              <FiEdit2 className="w-4 h-4" />
+              CV Builder
             </Link>
-          </>
-
-          {/* ── CV Builder ── */}
-          {status === "authenticated" && (
-            <>
-              <Link
-                href="/builder/upload"
-                title="CV Builder"
-                className={`sm:hidden p-2 rounded-lg transition ${
-                  onBuilder ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiEdit2 className="w-5 h-5" />
-              </Link>
-              <Link
-                href="/builder/upload"
-                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                  onBuilder
-                    ? "border-brand-400 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-                }`}
-              >
-                <FiEdit2 className="w-4 h-4" />
-                CV Builder
-              </Link>
-            </>
           )}
 
           {/* ── Cover Letter ── */}
           {status === "authenticated" && (
-            <>
-              <Link
-                href="/cover-letter"
-                title="Cover Letter"
-                className={`sm:hidden p-2 rounded-lg transition ${
-                  onCoverLetter ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiMail className="w-5 h-5" />
-              </Link>
-              <Link
-                href="/cover-letter"
-                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                  onCoverLetter
-                    ? "border-brand-400 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-                }`}
-              >
-                <FiMail className="w-4 h-4" />
-                Cover Letter
-              </Link>
-            </>
+            <Link
+              href="/cover-letter"
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                onCoverLetter
+                  ? "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+              }`}
+            >
+              <FiMail className="w-4 h-4" />
+              Cover Letter
+            </Link>
           )}
 
           {/* ── Find Jobs ── */}
           {status === "authenticated" && (
-            <>
-              <Link
-                href="/jobs"
-                title="Find Jobs"
-                className={`sm:hidden p-2 rounded-lg transition ${
-                  onJobs ? "text-brand-600 bg-brand-50" : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <FiBriefcase className="w-5 h-5" />
-              </Link>
-              <Link
-                href="/jobs"
-                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                  onJobs
-                    ? "border-brand-400 bg-brand-50 text-brand-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-                }`}
-              >
-                <FiBriefcase className="w-4 h-4" />
-                Find Jobs
-              </Link>
-            </>
+            <Link
+              href="/jobs"
+              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
+                onJobs
+                  ? "border-brand-400 bg-brand-50 text-brand-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+              }`}
+            >
+              <FiBriefcase className="w-4 h-4" />
+              Find Jobs
+            </Link>
           )}
 
           {status === "loading" && (

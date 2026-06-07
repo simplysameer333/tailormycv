@@ -1,6 +1,5 @@
 import { Suspense } from "react";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import AppShell from "@/components/AppShell";
 
 export const metadata = {
   title: "Free CV Score — TailorMyCv",
@@ -9,12 +8,10 @@ export const metadata = {
 
 export default function CvScoreLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
+    <AppShell>
       <main className="flex-1">
         <Suspense>{children}</Suspense>
       </main>
-      <Footer />
-    </div>
+    </AppShell>
   );
 }

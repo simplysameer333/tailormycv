@@ -1,14 +1,11 @@
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import AppShell from "@/components/AppShell";
 import AuthGuard from "@/components/AuthGuard";
 import { FiShield } from "react-icons/fi";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex flex-col">
+    <AppShell>
       <AuthGuard />
-      <Navbar />
-      {/* Admin context banner — sits directly below the navbar */}
       <div className="bg-brand-600 text-white">
         <div className="max-w-5xl mx-auto px-5 sm:px-6 py-1.5 flex items-center gap-2">
           <FiShield className="w-3.5 h-3.5 opacity-80" />
@@ -18,7 +15,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
       <div className="flex-1">{children}</div>
-      <Footer />
-    </div>
+    </AppShell>
   );
 }

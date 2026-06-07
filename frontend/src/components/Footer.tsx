@@ -3,7 +3,7 @@ import Logo from "./Logo";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-slate-200 bg-white mt-16">
+    <footer className="border-t border-slate-200 bg-white mt-16 hidden sm:block">
       <div className="max-w-5xl mx-auto px-5 sm:px-6 py-10">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-8">
 
@@ -17,9 +17,10 @@ export default function Footer() {
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Tools</p>
             <ul className="space-y-2">
-              <li><Link href="/cv-score" className="text-sm text-slate-600 hover:text-brand-600 transition">CV Score</Link></li>
+              <li><Link href="/cv-score"       className="text-sm text-slate-600 hover:text-brand-600 transition">CV Score</Link></li>
               <li><Link href="/builder/upload" className="text-sm text-slate-600 hover:text-brand-600 transition">CV Builder</Link></li>
-              <li><Link href="/jobs"            className="text-sm text-slate-600 hover:text-brand-600 transition">Find Jobs</Link></li>
+              <li><Link href="/cover-letter"   className="text-sm text-slate-600 hover:text-brand-600 transition">Cover Letter</Link></li>
+              <li><Link href="/jobs"           className="text-sm text-slate-600 hover:text-brand-600 transition">Find Jobs</Link></li>
             </ul>
           </div>
 
@@ -45,11 +46,10 @@ export default function Footer() {
 
         <div className="border-t border-slate-100 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-slate-400">© {new Date().getFullYear()} TailorMyCv. All rights reserved.</p>
-          <p className="text-xs text-slate-400">
-            Built with multi-model AI
-          </p>
+          <p className="text-xs text-slate-400">Built with multi-model AI</p>
         </div>
       </div>
     </footer>
   );
 }
+
