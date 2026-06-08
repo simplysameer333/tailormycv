@@ -7,7 +7,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <AppShell>
       <AuthGuard />
       <div className="bg-brand-600 text-white">
-        <div className="max-w-5xl mx-auto px-5 sm:px-6 py-1.5 flex items-center gap-2">
+        <div className="max-w-6xl mx-auto px-5 sm:px-6 py-1.5 flex items-center gap-2">
           <FiShield className="w-3.5 h-3.5 opacity-80" />
           <span className="text-xs font-semibold tracking-wide uppercase opacity-90">
             Superadmin — Admin Dashboard

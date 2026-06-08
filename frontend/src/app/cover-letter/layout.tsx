@@ -9,7 +9,7 @@ export const metadata = {
 export default function CoverLetterLayout({ children }: { children: React.ReactNode }) {
   return (
     <AppShell>
-      <main className="flex-1 max-w-5xl mx-auto w-full px-5 sm:px-6">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-5 sm:px-6">
         <Suspense>{children}</Suspense>
       </main>
     </AppShell>

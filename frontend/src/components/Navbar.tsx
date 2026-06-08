@@ -65,93 +65,49 @@ export default function Navbar() {
   const tier = user?.tier;
   const tierLabel = tier ? TIER_LABEL[tier] : null;
 
+  // Primary nav. Icon always shows; the text label only appears at lg+ so the
+  // bar fits on one line inside the max-w-6xl container and never wraps. Below
+  // the lg breakpoint the buttons are icon-only; below sm the BottomNav covers them.
+  const navLinks = [
+    { href: "/cv-score",       icon: FiCheckSquare, label: "CV Score",       active: onChecker,       authOnly: false },
+    { href: "/builder/upload", icon: FiEdit2,       label: "CV Builder",     active: onBuilder,       authOnly: true  },
+    { href: "/cover-letter",   icon: FiMail,        label: "Cover Letter",   active: onCoverLetter,   authOnly: true  },
+    { href: "/interview-prep", icon: FiBookOpen,    label: "Interview Prep", active: onInterviewPrep, authOnly: true  },
+    { href: "/jobs",           icon: FiBriefcase,   label: "Find Jobs",      active: onJobs,          authOnly: true  },
+  ];
+
   return (
     <nav className="w-full bg-white border-b border-slate-200">
-      <div className="max-w-5xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-5 sm:px-6 h-16 flex items-center justify-between">
         <Logo />
 
-        <div className="flex items-center gap-1 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-1.5 lg:gap-2">
 
-          {/* ── CV Score (all users) ── */}
-          <Link
-            href="/cv-score"
-            className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-              onChecker
-                ? "border-brand-400 bg-brand-50 text-brand-700"
-                : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-            }`}
-          >
-            <FiCheckSquare className="w-4 h-4" />
-            CV Score
-          </Link>
-
-          {/* ── CV Builder ── */}
-          {status === "authenticated" && (
-            <Link
-              href="/builder/upload"
-              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                onBuilder
-                  ? "border-brand-400 bg-brand-50 text-brand-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-              }`}
-            >
-              <FiEdit2 className="w-4 h-4" />
-              CV Builder
-            </Link>
-          )}
-
-          {/* ── Cover Letter ── */}
-          {status === "authenticated" && (
-            <Link
-              href="/cover-letter"
-              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                onCoverLetter
-                  ? "border-brand-400 bg-brand-50 text-brand-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-              }`}
-            >
-              <FiMail className="w-4 h-4" />
-              Cover Letter
-            </Link>
-          )}
-
-          {/* ── Interview Prep ── */}
-          {status === "authenticated" && (
-            <Link
-              href="/interview-prep"
-              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                onInterviewPrep
-                  ? "border-brand-400 bg-brand-50 text-brand-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-              }`}
-            >
-              <FiBookOpen className="w-4 h-4" />
-              Interview Prep
-            </Link>
-          )}
-
-          {/* ── Find Jobs ── */}
-          {status === "authenticated" && (
-            <Link
-              href="/jobs"
-              className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium shadow-sm transition ${
-                onJobs
-                  ? "border-brand-400 bg-brand-50 text-brand-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
-              }`}
-            >
-              <FiBriefcase className="w-4 h-4" />
-              Find Jobs
-            </Link>
+          {navLinks.map(({ href, icon: Icon, label, active, authOnly }) =>
+            !authOnly || status === "authenticated" ? (
+              <Link
+                key={href}
+                href={href}
+                title={label}
+                className={`hidden sm:inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium shadow-sm transition whitespace-nowrap ${
+                  active
+                    ? "border-brand-400 bg-brand-50 text-brand-700"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-brand-300 hover:text-brand-600 hover:bg-brand-50"
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="hidden lg:inline">{label}</span>
+              </Link>
+            ) : null
           )}
 
           {status === "loading" && (
             <div className="w-8 h-8 rounded-full bg-slate-200 animate-pulse" />
           )}
 
-          {/* ── User dropdown ── */}
+          {/* ── User dropdown (extra left gap to separate it from the nav buttons) ── */}
           {status === "authenticated" && (
-            <div className="relative" ref={menuRef}>
+            <div className="relative sm:ml-2 lg:ml-3" ref={menuRef}>
               <button
                 onClick={() => setOpen((v) => !v)}
                 className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition"
@@ -234,7 +190,7 @@ export default function Navbar() {
           )}
 
           {status === "unauthenticated" && (
-            <Link href="/auth/login" className="btn-secondary text-sm px-4 py-2">
+            <Link href="/auth/login" className="btn-secondary text-sm px-4 py-2 sm:ml-2 lg:ml-3">
               Sign in
             </Link>
           )}

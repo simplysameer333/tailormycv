@@ -11,7 +11,7 @@ export default function BuilderLayout({ children }: { children: React.ReactNode 
       <SessionGuard />
       <StepBar />
       <JobContextBanner />
-      <main className="flex-1 max-w-5xl mx-auto w-full px-5 sm:px-6 py-6 sm:py-10">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-5 sm:px-6 py-6 sm:py-10">
         {children}
       </main>
     </AppShell>
