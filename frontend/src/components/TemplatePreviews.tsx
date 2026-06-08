@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useState, useEffect, useReducer } from "react";
+import React, { useMemo, useState, useEffect, useReducer, useRef } from "react";
 import Link from "next/link";
 import { FiCheckCircle, FiArrowRight, FiLock } from "react-icons/fi";
 import clsx from "clsx";
@@ -956,6 +956,42 @@ export function LargeTemplatePreview({ info, data }: { info: TemplateInfo; data?
   );
 }
 
+// Responsive A4 thumbnail — content always fills the card width (scale = width/794)
+// so width and height stay A4-proportional at ANY container width (no fixed scale
+// that breaks when the page width changes). `heightFraction` controls how much of
+// the page is shown (1 = full page; <1 crops the bottom).
+function IframeThumb({ html, active, heightFraction = 0.82 }: {
+  html: string; active: boolean; heightFraction?: number;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.24);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const apply = () => { const w = el.clientWidth; if (w) setScale(w / A4_W); };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const h = Math.round(A4_W * A4_RATIO * scale * heightFraction);
+  return (
+    <div ref={ref} style={{ width: "100%", height: h, overflow: "hidden", position: "relative",
+      background: "#fff", border: active ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0", borderRadius: 6 }}>
+      <iframe
+        srcDoc={html}
+        sandbox="allow-same-origin"
+        scrolling="no"
+        style={{
+          position: "absolute", top: 0, left: 0,
+          width: A4_W, height: a4H(1), border: "none",
+          transform: `scale(${scale})`, transformOrigin: "top left", pointerEvents: "none",
+        }}
+      />
+    </div>
+  );
+}
+
 // CV Score — 4 template suggestions with large preview + clickable thumbnails
 export function TemplateSuggestions({ extractedProfile }: {
   extractedProfile?: import("@/lib/api").ExtractedProfile;
@@ -1029,10 +1065,6 @@ export function TemplateSuggestions({ extractedProfile }: {
   const pagesNeeded = measuredH ? measuredH / A4_PAGE_PX : null;
   const overflowsTemplate = pagesNeeded ? pagesNeeded > selected.pages + 0.08 : false;
   const pagesLabel = pagesNeeded ? (Math.round(pagesNeeded * 10) / 10) : null;
-
-  // Thumbnail dimensions
-  const THUMB_SCALE = 0.22;
-  const THUMB_H = Math.round(a4H(THUMB_SCALE) * 0.62);
 
   return (
     <div className="space-y-5">
@@ -1145,23 +1177,7 @@ export function TemplateSuggestions({ extractedProfile }: {
                     : "hover:bg-slate-50 border-t-2 border-t-transparent"
                 )}
               >
-                <div style={{ height: THUMB_H, width: "100%", overflow: "hidden", position: "relative", background: "#fff",
-                              border: isActive ? "1.5px solid #3b82f6" : "1.5px solid #e2e8f0", borderRadius: 6 }}>
-                  <iframe
-                    srcDoc={thumbHtml}
-                    sandbox="allow-same-origin"
-                    scrolling="no"
-                    style={{
-                      position: "absolute", top: 0, left: 0,
-                      width: 794,
-                      height: Math.round(794 * 1.414),
-                      border: "none",
-                      transform: `scale(${THUMB_SCALE})`,
-                      transformOrigin: "top left",
-                      pointerEvents: "none",
-                    }}
-                  />
-                </div>
+                <IframeThumb html={thumbHtml} active={isActive} />
                 <p className={clsx("text-[10px] font-semibold text-center leading-tight",
                   isActive ? "text-brand-700" : "text-slate-600")}>
                   {info.name}
