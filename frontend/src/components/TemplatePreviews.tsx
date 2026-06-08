@@ -23,11 +23,37 @@ export type PreviewData = _PreviewData;
 // resume. Tune these values independently; do not couple them to the generator.
 // (Exact guidelines to be finalised later.)
 // ══════════════════════════════════════════════════════════════════════════════
-const PREVIEW_RULES = {
-  skillsCap: 10,            // max skills shown in the preview
-  bulletsByRole: [5, 4, 3, 3] as number[],  // inverted pyramid; roles past the end use bulletsDefault
-  bulletsDefault: 2,
+// Page-count-aware: a 1-page template MUST show less than a 2-page one, or the
+// preview overflows onto a second page. These caps are what keep a "1-page"
+// template actually rendering as one page. Enforced on EVERY section (not just
+// skills/bullets) — number of roles, summary length, education and extra sections
+// are all capped, since those are the usual overflow culprits.
+const PREVIEW_RULES: Record<1 | 2, {
+  skillsCap: number; bulletsByRole: number[]; bulletsDefault: number;
+  maxRoles: number; maxEducation: number; maxExtraSections: number; summaryCap: number;
+}> = {
+  1: { skillsCap: 8,  bulletsByRole: [3, 2, 2],    bulletsDefault: 1, maxRoles: 4, maxEducation: 2, maxExtraSections: 1, summaryCap: 300 },
+  2: { skillsCap: 12, bulletsByRole: [5, 4, 3, 3], bulletsDefault: 2, maxRoles: 6, maxEducation: 3, maxExtraSections: 3, summaryCap: 600 },
 };
+
+// Curate an extracted CV down to what fits a template of `pages` pages.
+function curatePreview(d: PreviewData, pages: number): PreviewData {
+  const r = PREVIEW_RULES[pages === 1 ? 1 : 2];
+  const summary = d.summary && d.summary.length > r.summaryCap
+    ? d.summary.slice(0, r.summaryCap).replace(/\s+\S*$/, "") + "…"
+    : d.summary;
+  return {
+    ...d,
+    summary,
+    skills: (d.skills || []).slice(0, r.skillsCap),
+    experience: (d.experience || []).slice(0, r.maxRoles).map((e, i) => ({
+      ...e,
+      bullets: (e.bullets || []).slice(0, r.bulletsByRole[i] ?? r.bulletsDefault),
+    })),
+    education: (d.education || []).slice(0, r.maxEducation),
+    extra_sections: (d.extra_sections || []).slice(0, r.maxExtraSections),
+  };
+}
 
 // ── Preview data ──────────────────────────────────────────────────────────────
 // (PreviewData interface moved to `@/lib/cvTemplates` and re-exported above.)
@@ -1007,10 +1033,10 @@ export function TemplateSuggestions({ extractedProfile }: {
   // Build PreviewData directly from structured extracted fields — no demo fallback.
   const hasRealProfile = !!(extractedProfile?.name && extractedProfile.name.trim());
 
+  // Raw mapped profile — curation happens per-template in `allHtmls` below, since
+  // a 1-page template must be curated more aggressively than a 2-page one.
   const previewData: PreviewData | null = useMemo(() => {
     if (!hasRealProfile) return null;
-    // Curate the real CV per the PREVIEW_RULES (separate from generator rules)
-    // so the preview shows a polished version, not a raw dump.
     return {
       name:     extractedProfile!.name     || "",
       title:    extractedProfile!.title    || "",
@@ -1019,12 +1045,12 @@ export function TemplateSuggestions({ extractedProfile }: {
       location: extractedProfile!.location || "",
       linkedin: extractedProfile!.linkedin || "",
       summary:  extractedProfile!.summary  || "",
-      skills:   (extractedProfile!.skills || []).slice(0, PREVIEW_RULES.skillsCap),
-      experience: (extractedProfile!.experience || []).map((e, i) => ({
+      skills:   extractedProfile!.skills || [],
+      experience: (extractedProfile!.experience || []).map(e => ({
         title:   e.role,
         company: e.company,
         date:    e.dates,
-        bullets: (e.bullets || []).slice(0, PREVIEW_RULES.bulletsByRole[i] ?? PREVIEW_RULES.bulletsDefault),
+        bullets: e.bullets || [],
       })),
       education: (extractedProfile!.education || []).map(e => ({
         degree: e.degree,
@@ -1044,12 +1070,14 @@ export function TemplateSuggestions({ extractedProfile }: {
   const LARGE_W = a4W(LARGE_SCALE);
   const A4_PAGE_PX = Math.round(A4_W * A4_RATIO);   // one A4 page height at 794px width
 
+  // Curate per template — each template's content is trimmed to its own page count
+  // so a 1-page template renders as one page and a 2-page template can show more.
   const allHtmls = useMemo(
     () => previewData
-      ? Object.fromEntries(shown.map(t => [t.key, getTemplateHtml(t.key, previewData)]))
+      ? Object.fromEntries(shown.map(t => [t.key, getTemplateHtml(t.key, curatePreview(previewData, t.pages))]))
       : {} as Record<string, string>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [previewData]
+    [previewData, shown]
   );
 
   const largeHtml = allHtmls[selected.key] ?? "";

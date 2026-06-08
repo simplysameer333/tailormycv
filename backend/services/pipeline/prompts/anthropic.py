@@ -252,7 +252,10 @@ _PAGE_RULES_1PAGE = (
     "- Each bullet: 1 line, maximum 18 words. Cut filler words ruthlessly.\n"
     "- Education: all entries, one line each (degree · institution · year).\n"
     "- Other sections (Certifications, Awards, Languages): include but keep to 1 line per entry; most relevant only.\n\n"
-    "All sections appear; only the content density changes to fit one page."
+    "All sections appear; only the content density changes to fit one page.\n\n"
+    "ENFORCEMENT (mandatory self-check before returning): estimate the rendered length. If it would spill past "
+    "ONE A4 page, cut the lowest-value bullets and compress the oldest roles further until it fits. Never drop a "
+    "section, never shrink type, never reduce margins. A CV that overflows one page is a FAILED output — re-trim until it fits."
 )
 
 _PAGE_RULES_2PAGE = (
@@ -266,7 +269,10 @@ _PAGE_RULES_2PAGE = (
     "- Each bullet: maximum 22 words — concise and impactful.\n"
     "- Education: all entries, 1–2 lines each.\n"
     "- Other sections (Certifications, Awards, Languages, Projects): include all; keep each entry concise (1–2 lines).\n\n"
-    "All sections appear. A tight, well-curated 2-page CV always beats a padded 3-page one."
+    "All sections appear. A tight, well-curated 2-page CV always beats a padded 3-page one.\n\n"
+    "ENFORCEMENT (mandatory self-check before returning): estimate the rendered length. If it would spill onto a "
+    "3rd page, compress bullets and older roles until it fits TWO pages. Never drop a section, never shrink type. "
+    "Exceeding two pages is a FAILED output — re-trim until it fits."
 )
 
 
