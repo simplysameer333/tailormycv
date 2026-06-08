@@ -43,6 +43,10 @@ tailormycv/
 │   │   │                            PATCH /api/sessions/{id}/template — attach template
 │   │   │                            PUT /api/sessions/{id}/locked-facts — save pinned facts
 │   │   ├── export.py                POST /api/export · GET /api/download/{id}
+│   │   ├── cover_letter.py          POST /api/cover-letter/generate (standalone) ·
+│   │   │                            POST/GET /api/sessions/{id}/cover-letter (session, cached)
+│   │   ├── interview_prep.py        POST /api/interview-prep/generate (standalone) ·
+│   │   │                            POST/GET /api/sessions/{id}/interview-prep (session, cached)
 │   │   ├── catalog.py               GET /api/catalog/roles?q= · /api/catalog/skills?q= (autocomplete)
 │   │   └── professions.py           CRUD /api/professions — profession profile admin
 │   │
@@ -63,6 +67,8 @@ tailormycv/
 │       ├── cv_template_service.py   cv_templates CRUD + AI template generator (eval gate + telemetry)
 │       ├── cv_template_seed_data.py 20 built-in templates as standalone Mustache HTML + docx_config
 │       ├── resume_checker_service.py CV Score — quality + grammar/spelling + extractor + layout validator (parallel calls)
+│       ├── cover_letter_service.py  Tailored cover letter — one focused Sonnet call (style rules + no-hallucination)
+│       ├── interview_prep_service.py 15 likely interview questions (10/2/2/1 mix) — one focused Haiku call
 │       ├── prompt_store.py          Admin-editable prompt overrides (builder + CV-score) → MongoDB
 │       ├── system_config_service.py Global master switches (e.g. alerts on/off)
 │       ├── quota_service.py         Monthly JSearch call counter; warning thresholds
@@ -103,6 +109,8 @@ tailormycv/
     │   │   ├── template/page.tsx    Step 4 — template gallery; sample CV; PDF format locked for free users
     │   │   ├── preview/page.tsx     Step 5 — editable preview; locked facts; section regen; custom sections
     │   │   └── download/page.tsx    Step 6 — Generate Files; DOCX + PDF cards; PDF locked for free users
+    │   ├── cover-letter/page.tsx    Standalone cover letter generator (paste resume + JD → letter)
+    │   ├── interview-prep/page.tsx  Standalone interview-question generator (paste resume + JD → questions)
     │   └── settings/
     │       └── professions/page.tsx Profession CRUD admin
     ├── components/
@@ -319,6 +327,41 @@ A free, no-account CV analyser. `POST /api/resume/check` runs **focused LLM call
 All four prompts are **admin-editable** (no deploy) under **Admin → Prompts & Templates → CV Score
 Prompts**, resolved at call time with a safe-format fallback so a bad edit can't break scoring.
 
+### Cover Letter (`/cover-letter`)
+
+Generates a tailored, professional cover letter from a resume + job description. Following the
+project's **one-call-per-purpose** rule, this is a single focused **Sonnet** call (`generator_model`,
+`max_tokens=1200`) — completely separate from the resume pipeline.
+
+- **Prompt contract** — the same writing-style rules the resume generator enforces (no em-dashes,
+  no hedging verbs, no clichés, active voice) plus a hard **no-hallucination** rule: every claim
+  must be grounded in the candidate's resume/profile. Max 280 words; opening hook + ≤2 body
+  paragraphs (one JD requirement each) + a company-specific closing. Company name is extracted from
+  the JD.
+- **Output** — structured JSON (`company_name`, `subject_line`, `recipient`, `opening`,
+  `body_paragraphs[]`, `closing`, `sign_off`) plus an assembled `full_text` plain-text version the
+  UI shows in a copyable box.
+- **Two entry points** — a standalone `/cover-letter` page (paste resume + JD, no session) and a
+  session-based endpoint used by the builder; the session result is **persisted on the session**
+  (`cover_letter`) and re-served by `GET`. Cost (~$0.012) is metered through `usage_service`
+  (daily/monthly budget) for signed-in users.
+
+### Interview Prep (`/interview-prep`)
+
+Generates a **fixed set of 15 likely interview questions** for a specific resume + JD pair. A single
+focused **Haiku** call (`claude-haiku-4-5`, `max_tokens=3200`) — fast and cheap (~$0.002, ~5 s).
+
+- **Prompt contract** — every question must trace to a JD requirement or a visible resume
+  strength/gap; technical questions reference specific named technologies; no generic filler. Fixed
+  mix: **10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit** (15 total). A deterministic
+  `_enforce_distribution` step trims any category the model over-produces so the output always
+  matches the spec (it never fabricates missing questions; under-delivery is logged).
+- **Output** — JSON `questions[]`, each `{category, question, why_asked, key_points[]}`, plus one
+  `prep_tip`. The UI renders colour-coded accordion cards by category with the rationale and key
+  talking points.
+- **Two entry points** — standalone `/interview-prep` page and a session endpoint; the session
+  result is **cached on the session** (`interview_prep`) and returned as-is on repeat calls.
+
 ### Admin Dashboard
 
 Superadmin-only (`/admin`), grouped by feature: **User Management** (Users · Audit Log) ·
@@ -451,6 +494,12 @@ Superadmin-only (`/admin`), grouped by feature: **User Management** (Users · Au
 | POST | `/api/generate?session_id=` | Run full pipeline |
 | POST | `/api/export?session_id=` | Export DOCX + PDF |
 | GET | `/api/download/{file_id}` | Download generated file |
+| POST | `/api/cover-letter/generate` | Generate a cover letter from raw resume text + JD (standalone, no session) |
+| POST | `/api/sessions/{id}/cover-letter` | Generate a cover letter for a session; persists on the session |
+| GET | `/api/sessions/{id}/cover-letter` | Retrieve the session's saved cover letter |
+| POST | `/api/interview-prep/generate` | Generate interview questions from raw resume text + JD (standalone, no session) |
+| POST | `/api/sessions/{id}/interview-prep` | Generate interview questions for a session; cached on the session |
+| GET | `/api/sessions/{id}/interview-prep` | Retrieve the session's cached interview questions |
 | GET/POST/PUT/DELETE | `/api/professions` | Profession profile CRUD |
 
 ---

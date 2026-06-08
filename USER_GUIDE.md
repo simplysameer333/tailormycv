@@ -9,6 +9,8 @@
 1. [Plans & Pricing](#1-plans--pricing)
 2. [Getting Started](#2-getting-started)
 3. [The 6-Step Resume Builder](#3-the-6-step-resume-builder)
+3a. [Cover Letter Generator](#3a-cover-letter-generator)
+3b. [Interview Prep](#3b-interview-prep)
 4. [Find Jobs](#4-find-jobs)
 5. [Resume Library](#5-resume-library) *(Plus & Pro)*
 6. [Job Alerts](#6-job-alerts) *(Plus & Pro)*
@@ -24,6 +26,8 @@
 | Feature | Free | Plus | Pro |
 |---|:---:|:---:|:---:|
 | 6-step AI resume builder | ✅ | ✅ | ✅ |
+| Cover Letter generator | ✅ | ✅ | ✅ |
+| Interview Prep generator | ✅ | ✅ | ✅ |
 | DOCX export | ✅ | ✅ | ✅ |
 | PDF export | ❌ | ✅ | ✅ |
 | Resume templates | 5 free designs | 20+ | 20+ |
@@ -176,6 +180,50 @@ Click **Generate Files** to produce your resume.
 Files expire after **24 hours** — download them promptly.
 
 **Save to Resume Library** *(Plus/Pro)* — click to save the tailored resume for reuse in future sessions.
+
+---
+
+## 3a. Cover Letter Generator
+
+Go to **Cover Letter** in the navbar (or the bottom tab bar on mobile) to write a tailored cover letter in seconds.
+
+### How to use it
+
+1. **Paste your resume** into the first box (at least 100 characters).
+2. **Paste the job description** into the second box (at least 100 characters).
+3. Click **Generate Cover Letter**.
+
+The AI writes a focused, professional letter using **only the facts in your resume** — it never invents employers, metrics, or qualifications. It pulls the company name from the job description, opens with your single strongest match to the role, proves two value points against the job's requirements, and closes with company-specific interest. Letters are kept tight (under ~280 words).
+
+### After generating
+
+- **Copy** — copies the subject line and full letter to your clipboard, ready to paste into an email or application form.
+- **Regenerate** — produces a fresh version if you want a different angle.
+
+> **Tip:** Inside the 6-step builder, a Cover Letter card also appears on the Preview step — it reuses the resume and job description from that session, so you don't need to paste anything.
+
+---
+
+## 3b. Interview Prep
+
+Go to **Interview Prep** in the navbar to see the questions you're most likely to be asked for a specific role.
+
+### How to use it
+
+1. **Paste your resume** (≥ 100 characters).
+2. **Paste the job description** (≥ 100 characters).
+3. Click **Generate Questions**.
+
+You get a fixed **15 targeted questions** (10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit), each tied to something real in the job description or your resume — not generic filler. Questions are grouped into four colour-coded categories:
+
+- **Technical** — about specific tools and skills the role names
+- **Behavioral** — about experiences (or gaps) visible in your resume
+- **Situational** — "what would you do if…" scenarios for the role
+- **Culture Fit** — values and working-style alignment
+
+**Tap any question** to expand it and see *why it's likely to be asked* plus **key points to cover** in your answer. A **Prep tip** at the bottom gives you one concrete action to take before the interview.
+
+> **Tip:** Interview Prep also appears as a card on the builder Preview step, pre-loaded with that session's resume and job description.
 
 ---
 

@@ -1,8 +1,8 @@
 # User Requirements Document
 ## TailorMyCv — AI-Powered Resume Builder
 
-**Version:** 1.9
-**Date:** 2026-06-04
+**Version:** 1.10
+**Date:** 2026-06-08
 **App Name:** TailorMyCv
 **Support Email:** samorsameer@gmail.com
 **Deployment Target:** Railway.com
@@ -274,6 +274,30 @@ See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "ke
 ### 7.8 File Generation & Download
 - DOCX always; PDF (Plus/Pro only); files expire 24h from GridFS
 
+### 7.9a Cover Letter Generator (`/cover-letter`)
+
+Generates a tailored, professional cover letter from a resume and a job description.
+
+- **One dedicated LLM call** (Sonnet `generator_model`, `max_tokens=1200`) — separate from the resume pipeline, per the one-call-per-purpose principle.
+- **Prompt contract:** no-hallucination (every claim grounded in the candidate's resume/profile), the same writing-style rules as the resume generator (no em-dashes, no hedging verbs, no clichés, active voice), maximum 280 words, opening hook + up to 2 body paragraphs (each citing one JD requirement) + a company-specific closing. Company name is extracted from the JD (falls back to "your organisation").
+- **Tone** follows the session profile's `preferred_tone` (Professional / Conversational / Executive).
+- **Output:** structured JSON (`company_name`, `subject_line`, `recipient`, `opening`, `body_paragraphs[]`, `closing`, `sign_off`, `candidate_name`) plus an assembled `full_text` plain-text version. No markdown/HTML — the frontend renders it; the standalone page offers copy-to-clipboard and regenerate.
+- **Two entry points:**
+  - **Standalone** `POST /api/cover-letter/generate` — body `{resume_text, job_description}`, no session needed (dedicated `/cover-letter` page; resume and JD each require ≥ 100 chars before the button enables).
+  - **Session** `POST /api/sessions/{id}/cover-letter` — reads the parsed resume + job description + profile from the session, **persists** the result on the session (`cover_letter`), and `GET` re-serves it.
+- **Cost control:** for signed-in users, `usage_service.check_budget` is enforced before the call and `increment_usage` (~$0.012) is charged after. Anonymous standalone use is allowed.
+
+### 7.9b Interview Prep (`/interview-prep`)
+
+Generates the interview questions a candidate is most likely to face for a specific resume + JD pair.
+
+- **One dedicated LLM call** (Haiku `claude-haiku-4-5`, `max_tokens=3200`) — fast and cheap (~$0.002, ~5 s).
+- **Prompt contract:** a fixed **15 questions** in a fixed mix — **10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit** — each traceable to a JD requirement or a visible resume strength/gap; technical questions must name specific technologies from the JD; no generic filler. A deterministic `_enforce_distribution` step trims any over-produced category so the result always matches the spec (never fabricates; under-delivery logged).
+- **Output:** JSON `questions[]`, each `{category, question, why_asked, key_points[]}` (category is exactly one of Technical / Behavioral / Situational / Culture Fit), plus a single `prep_tip`. The UI renders colour-coded accordion cards per category.
+- **Two entry points:**
+  - **Standalone** `POST /api/interview-prep/generate` — body `{resume_text, job_description}`, no session (dedicated `/interview-prep` page; ≥ 100 chars each).
+  - **Session** `POST /api/sessions/{id}/interview-prep` — reads resume + JD from the session and **caches** the result on the session (`interview_prep`); repeat `POST`/`GET` returns the cache as-is.
+
 ### 7.9 Subscription Tiers
 
 | Feature | Free | Plus | Pro |
@@ -364,6 +388,8 @@ See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "ke
   "sample_cv_text": "string",
   "locked_facts": ["string"],
   "generated_resume": {},
+  "cover_letter": {},
+  "interview_prep": {},
   "output_files": { "docx_file_id": "GridFS ObjectId", "pdf_file_id": "GridFS ObjectId" }
 }
 ```
@@ -520,6 +546,20 @@ See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "ke
 | POST | `/api/export?session_id=` | Export DOCX + PDF |
 | GET | `/api/download/{file_id}` | Download file |
 
+### Cover Letter
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/cover-letter/generate` | Generate from raw resume text + JD (standalone, no session) |
+| POST | `/api/sessions/{id}/cover-letter` | Generate for a session; persists result on session |
+| GET | `/api/sessions/{id}/cover-letter` | Retrieve session's saved cover letter |
+
+### Interview Prep
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/interview-prep/generate` | Generate questions from raw resume text + JD (standalone, no session) |
+| POST | `/api/sessions/{id}/interview-prep` | Generate questions for a session; cached on session |
+| GET | `/api/sessions/{id}/interview-prep` | Retrieve session's cached questions |
+
 ### Catalog & Admin
 | Method | Endpoint | Description |
 |---|---|---|
@@ -554,6 +594,8 @@ See §4 — unchanged from v1.6 except skill count now uses `get_limit(tier, "ke
 | `/builder/template` | Step 4 — template gallery; PDF locked for free users |
 | `/builder/preview` | Step 5 — editable preview; locked facts; section regen; custom sections |
 | `/builder/download` | Step 6 — download DOCX / PDF; PDF locked for free users |
+| `/cover-letter` | Standalone cover letter generator — paste resume + JD → tailored letter (copy/regenerate) |
+| `/interview-prep` | Standalone interview-prep generator — paste resume + JD → likely questions (accordion + prep tip) |
 | `/settings/professions` | Admin — profession profile CRUD |
 
 ---
@@ -646,7 +688,6 @@ NEXT_PUBLIC_DEV_BYPASS_AUTH=false
 
 - Subscription billing and payment processor integration
 - Resume version history
-- Cover letter generation
 - Mobile app
 - Team / multi-user accounts
 - Role-based access control for `/settings/professions`
@@ -712,4 +753,4 @@ All tier-based limits enforced via `tier_config_service` — no hardcoded dicts 
 
 ---
 
-*End of User Requirements Document — TailorMyCv v1.9*
+*End of User Requirements Document — TailorMyCv v1.10*

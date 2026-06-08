@@ -20,8 +20,9 @@ async def generate_interview_prep_for_session(
     session_id: str,
     user: dict | None = Depends(get_optional_user),
 ):
-    """Generate 6–8 targeted interview questions for this session.
+    """Generate the 15 top interview questions for this session.
 
+    Fixed mix: 10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit.
     Requires a session with a parsed resume + job description.
     Result is cached on the session and returned on repeat calls.
     """

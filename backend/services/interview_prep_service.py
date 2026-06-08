@@ -1,10 +1,12 @@
 """Interview prep service — generates targeted interview questions from resume + JD.
 
-Single focused Haiku call. Returns 6–8 questions organised by category
-(Technical, Behavioral, Situational, Culture Fit), each with a one-line
-rationale and 2–3 key talking points.
+Single focused Haiku call. Returns a FIXED set of 15 questions in a fixed mix —
+10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit — each with a one-line
+rationale and 2–3 key talking points. The model is instructed to produce exactly
+this mix; `_enforce_distribution` then trims any category the model over-produces
+so the returned set always matches the spec (it never fabricates missing ones).
 
-Fast and cheap (~$0.001, ~3 s). Result cached on session.
+Fast and cheap (~$0.002, ~5 s). Result cached on session.
 """
 from __future__ import annotations
 import json
@@ -17,7 +19,7 @@ logger = logging.getLogger("tailormycv")
 _SYSTEM = """You are a senior hiring manager preparing interview questions for a specific candidate.
 
 ## TASK
-Given a candidate's resume and the job description, generate 6–8 targeted questions
+Given a candidate's resume and the job description, generate the 15 top questions
 the interviewer IS VERY LIKELY to ask at this specific role. For each question provide:
   1. category: exactly one of "Technical", "Behavioral", "Situational", "Culture Fit"
   2. question: the exact likely question, phrased as the interviewer would ask it
@@ -29,7 +31,7 @@ the interviewer IS VERY LIKELY to ask at this specific role. For each question p
 - Technical questions must reference specific technologies, tools, or skills named in the JD.
 - Behavioral questions must map to experiences visible (or notably absent) in the resume.
 - No generic filler questions ("Where do you see yourself in 5 years?") unless the JD explicitly signals career-path focus.
-- Output 6–8 questions total. Aim for: 2–3 Technical, 2 Behavioral, 1–2 Situational, 1 Culture Fit.
+- Output EXACTLY 15 questions total, in this EXACT mix: 10 Technical, 2 Behavioral, 2 Situational, 1 Culture Fit. Order them Technical first, then Behavioral, then Situational, then Culture Fit. These are the candidate's TOP 15 most-likely questions — prioritise the highest-signal ones.
 
 ## OUTPUT
 Return ONLY valid JSON — no markdown fences, no explanation:
@@ -45,6 +47,31 @@ Return ONLY valid JSON — no markdown fences, no explanation:
   "prep_tip": "One concrete action the candidate should take TODAY to feel more confident going into this interview."
 }"""
 
+# Fixed question mix the output must follow (category, count) — total 15.
+_TARGET_MIX = [("Technical", 10), ("Behavioral", 2), ("Situational", 2), ("Culture Fit", 1)]
+
+
+def _enforce_distribution(questions: list[dict]) -> list[dict]:
+    """Trim the model output to the fixed 15-question mix (10/2/2/1).
+
+    Validation gate: we never trust the raw count. Keeps at most the target
+    number per category and orders them Technical → Behavioral → Situational →
+    Culture Fit. We never fabricate questions — if the model under-delivers a
+    category we return what it gave and log a warning.
+    """
+    by_cat: dict[str, list[dict]] = {}
+    for q in questions:
+        cat = (q.get("category") or "").strip()
+        by_cat.setdefault(cat, []).append(q)
+
+    ordered: list[dict] = []
+    for cat, n in _TARGET_MIX:
+        picked = by_cat.get(cat, [])[:n]
+        if len(picked) < n:
+            logger.warning("[interview_prep] %s: model returned %d of %d expected", cat, len(picked), n)
+        ordered.extend(picked)
+    return ordered
+
 
 async def generate_interview_prep(resume_text: str, job_description: str) -> dict:
     """Generate targeted interview questions for the given resume + JD pair."""
@@ -57,8 +84,8 @@ async def generate_interview_prep(resume_text: str, job_description: str) -> dic
     llm = ChatAnthropic(
         model="claude-haiku-4-5-20251001",
         api_key=settings.anthropic_api_key,
-        max_tokens=1400,
-        timeout=30,
+        max_tokens=3200,  # 15 questions × (question + rationale + 3 key points) needs ~2x the 8-question budget
+        timeout=45,
         max_retries=2,
     )
 
@@ -76,6 +103,6 @@ async def generate_interview_prep(resume_text: str, job_description: str) -> dic
 
     data = json.loads(raw)
     return {
-        "questions": data.get("questions") or [],
+        "questions": _enforce_distribution(data.get("questions") or []),
         "prep_tip": data.get("prep_tip", ""),
     }
