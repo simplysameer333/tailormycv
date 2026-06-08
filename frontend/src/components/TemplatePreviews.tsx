@@ -1205,8 +1205,17 @@ export function TemplateSuggestions({ extractedProfile }: {
                     : "hover:bg-slate-50 border-t-2 border-t-transparent"
                 )}
               >
-                <IframeThumb html={thumbHtml} active={isActive} />
-                <p className={clsx("text-[10px] font-semibold text-center leading-tight",
+                {/* Full-page zoomed-out card (heightFraction 1 = whole page) when we
+                    have real content; shorter teaser height before a CV is uploaded. */}
+                <div className="relative w-full">
+                  <IframeThumb html={thumbHtml} active={isActive} heightFraction={hasRealProfile ? 1 : 0.62} />
+                  {isActive && hasRealProfile && (
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1 bg-brand-500 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full shadow">
+                      <FiCheckCircle className="w-3 h-3" /> Selected
+                    </div>
+                  )}
+                </div>
+                <p className={clsx("text-xs font-semibold text-center leading-tight",
                   isActive ? "text-brand-700" : "text-slate-600")}>
                   {info.name}
                 </p>
