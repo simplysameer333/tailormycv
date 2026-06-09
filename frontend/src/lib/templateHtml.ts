@@ -70,21 +70,20 @@ function wrap(css: string, body: string) {
 }
 
 // ── Extra-section routing ──────────────────────────────────────────────────────
-// Sections are placed by their CONTENT shape, not hardcoded names:
-//  - highlights (Accomplishments/Achievements) → featured right after the summary
+// Sections are placed by their CONTENT shape, not hardcoded names. ALL extra
+// sections render AFTER Experience (never a featured pre-Experience block):
 //  - compact (short label lists like Languages, short Certs) → sidebar in 2-col
-//  - longform (Projects, Publications, White Papers) → main column
+//  - longform (Accomplishments, Projects, Publications, White Papers) → main column
 type Section = { title: string; items: string[] };
-const HIGHLIGHT_RE = /accomplish|achievement|highlight|key win|career win/i;
 const isCompactSection = (s: Section) =>
   s.items.length <= 8 && s.items.every(i => i.length <= 40);
 
 function splitExtra(d: PreviewData) {
   const extra = (d.extra_sections || []) as Section[];
   return {
-    highlights: extra.filter(s => HIGHLIGHT_RE.test(s.title)),
-    compact:    extra.filter(s => !HIGHLIGHT_RE.test(s.title) && isCompactSection(s)),
-    longform:   extra.filter(s => !HIGHLIGHT_RE.test(s.title) && !isCompactSection(s)),
+    highlights: [] as Section[],
+    compact:    extra.filter(isCompactSection),
+    longform:   extra.filter(s => !isCompactSection(s)),
   };
 }
 

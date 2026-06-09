@@ -23,35 +23,45 @@ export type PreviewData = _PreviewData;
 // resume. Tune these values independently; do not couple them to the generator.
 // (Exact guidelines to be finalised later.)
 // ══════════════════════════════════════════════════════════════════════════════
-// Page-count-aware: a 1-page template MUST show less than a 2-page one, or the
-// preview overflows onto a second page. These caps are what keep a "1-page"
-// template actually rendering as one page. Enforced on EVERY section (not just
-// skills/bullets) — number of roles, summary length, education and extra sections
-// are all capped, since those are the usual overflow culprits.
+// Page-count-aware curation. PRINCIPLE: never DROP a section or a role — a missing
+// section looks worse and incomplete. Keep every section and every role; only
+// COMPRESS content within them (taper bullets on older roles, cap items per list,
+// trim a runaway summary at a sentence boundary). Skills are capped because that's
+// compression of one list, not a dropped section.
 const PREVIEW_RULES: Record<1 | 2, {
   skillsCap: number; bulletsByRole: number[]; bulletsDefault: number;
-  maxRoles: number; maxEducation: number; maxExtraSections: number; summaryCap: number;
+  extraItemsCap: number; summaryCap: number;
 }> = {
-  1: { skillsCap: 8,  bulletsByRole: [3, 2, 2],    bulletsDefault: 1, maxRoles: 4, maxEducation: 2, maxExtraSections: 1, summaryCap: 300 },
-  2: { skillsCap: 12, bulletsByRole: [5, 4, 3, 3], bulletsDefault: 2, maxRoles: 6, maxEducation: 3, maxExtraSections: 3, summaryCap: 600 },
+  1: { skillsCap: 10, bulletsByRole: [4, 3, 2],    bulletsDefault: 1, extraItemsCap: 4, summaryCap: 420 },
+  2: { skillsCap: 14, bulletsByRole: [5, 4, 3, 3], bulletsDefault: 2, extraItemsCap: 8, summaryCap: 720 },
 };
 
-// Curate an extracted CV down to what fits a template of `pages` pages.
+// Trim a long summary at a sentence boundary (no mid-word "…") so it always reads
+// as a complete thought.
+function trimSummary(summary: string, cap: number): string {
+  if (!summary || summary.length <= cap) return summary || "";
+  const cut = summary.slice(0, cap);
+  const stop = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  return stop > cap * 0.5 ? cut.slice(0, stop + 1) : cut.replace(/\s+\S*$/, "") + ".";
+}
+
+// Curate an extracted CV for a template of `pages` pages. Keeps EVERY section and
+// role; compresses content within them so the layout stays attractive and complete.
 function curatePreview(d: PreviewData, pages: number): PreviewData {
   const r = PREVIEW_RULES[pages === 1 ? 1 : 2];
-  const summary = d.summary && d.summary.length > r.summaryCap
-    ? d.summary.slice(0, r.summaryCap).replace(/\s+\S*$/, "") + "…"
-    : d.summary;
   return {
     ...d,
-    summary,
+    summary: trimSummary(d.summary || "", r.summaryCap),
     skills: (d.skills || []).slice(0, r.skillsCap),
-    experience: (d.experience || []).slice(0, r.maxRoles).map((e, i) => ({
+    experience: (d.experience || []).map((e, i) => ({
       ...e,
       bullets: (e.bullets || []).slice(0, r.bulletsByRole[i] ?? r.bulletsDefault),
     })),
-    education: (d.education || []).slice(0, r.maxEducation),
-    extra_sections: (d.extra_sections || []).slice(0, r.maxExtraSections),
+    education: d.education || [],
+    extra_sections: (d.extra_sections || []).map(s => ({
+      ...s,
+      items: (s.items || []).slice(0, r.extraItemsCap),
+    })),
   };
 }
 
@@ -1065,8 +1075,9 @@ export function TemplateSuggestions({ extractedProfile }: {
   const safeIdx = selectedIdx < shown.length ? selectedIdx : 0;
   const selected = shown[safeIdx];
 
-  // Pre-generate ALL template HTMLs when profile loads — instant switching
-  const LARGE_SCALE = 0.62;
+  // Pre-generate ALL template HTMLs when profile loads — instant switching.
+  // Larger scale = a bigger, more readable document preview (closer to A4 size).
+  const LARGE_SCALE = 0.78;
   const LARGE_W = a4W(LARGE_SCALE);
   const A4_PAGE_PX = Math.round(A4_W * A4_RATIO);   // one A4 page height at 794px width
 

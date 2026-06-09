@@ -179,16 +179,18 @@ export function render(template: string, ctx: Record<string, unknown>): string {
 // ══════════════════════════════════════════════════════════════════════════════
 
 type Section = { title: string; items: string[] };
-const HIGHLIGHT_RE = /accomplish|achievement|highlight|key win|career win/i;
 const isCompactSection = (s: Section) =>
   s.items.length <= 8 && s.items.every(i => i.length <= 40);
 
 function splitExtra(d: PreviewData) {
   const extra = (d.extra_sections || []) as Section[];
+  // Document-standard order: ALL extra sections (incl. Accomplishments / Key
+  // Achievements) render AFTER Experience, never before it. We no longer pull any
+  // section into a featured pre-Experience "highlights" block.
   return {
-    highlights: extra.filter(s => HIGHLIGHT_RE.test(s.title)),
-    compact: extra.filter(s => !HIGHLIGHT_RE.test(s.title) && isCompactSection(s)),
-    longform: extra.filter(s => !HIGHLIGHT_RE.test(s.title) && !isCompactSection(s)),
+    highlights: [] as Section[],
+    compact: extra.filter(isCompactSection),
+    longform: extra.filter(s => !isCompactSection(s)),
   };
 }
 
