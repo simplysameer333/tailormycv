@@ -1,4 +1,5 @@
 import logging
+import os
 import traceback
 
 from fastapi import FastAPI, Request
@@ -166,4 +167,10 @@ app.include_router(salary_router, prefix="/api")
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "app": "TailorMyCv"}
+    # RAILWAY_GIT_COMMIT_SHA is injected by Railway — exposing it makes
+    # "which build is live" externally verifiable (empty when run locally).
+    return {
+        "status": "ok",
+        "app": "TailorMyCv",
+        "commit": os.getenv("RAILWAY_GIT_COMMIT_SHA", "")[:12],
+    }

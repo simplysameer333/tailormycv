@@ -465,12 +465,23 @@ async def generate(
         "evaluators": final_state.get("eval_results") or [],
     })
 
+    # Final-cycle CV-Score category scores — the per-run answer to "which
+    # category kept the score below the bar". Shown in the admin Audit tab.
+    category_scores = next(
+        ({c["key"]: c["score"] for c in (r.get("categories") or [])}
+         for r in (final_state.get("eval_results") or []) if r.get("model") == "cv_score"),
+        {},
+    )
+    if category_scores:
+        logger.info("[generate] CATEGORY SCORES session=%s %s", session_id, category_scores)
+
     if user:
         log_audit(user, "resume.generate.complete", {
             "tier": user_tier,
             "cycles": final_state["cycle"],
             "max_cycles": max_cycles,
             "min_score": final_state["min_score"],
+            "category_scores": category_scores,
             "passed": final_state["all_passed"],
             "llm_calls": usage["llm_calls"],
             "tokens": usage["input_tokens"] + usage["output_tokens"],

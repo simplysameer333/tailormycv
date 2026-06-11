@@ -160,6 +160,13 @@ class CvScoreEvaluatorAgent(BaseEvaluatorAgent):
                 for c in weak
                 for imp in c["improvements"][:2]
             ]
-            return {"model": self.name, "score": score, "suggestions": suggestions[:8]}
+            # Per-category scores ride along into eval_history / session / audit —
+            # the diagnostic data that says WHICH category blocks the tier bar.
+            categories = [
+                {"key": c.get("key", ""), "name": c.get("name", ""), "score": int(c.get("score", 0) or 0)}
+                for c in (result.get("categories") or []) if isinstance(c, dict)
+            ]
+            return {"model": self.name, "score": score, "suggestions": suggestions[:8],
+                    "categories": categories}
         except Exception as exc:
             return {"model": self.name, "score": None, "suggestions": [f"CV-Score error: {exc}"]}
